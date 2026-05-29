@@ -8,13 +8,14 @@ A professional, open-source SSH client for **macOS** and **Windows** built with 
 
 ### Terminal & Connectivity
 - **Multi-tab SSH sessions** with named tabs and per-tab connection state
+- **Split terminal view** — horizontal/vertical pane splitting within a session
 - **Port forwarding** — local, remote, and dynamic SOCKS5 tunnels
 - **Local shell** — spawn native macOS/Windows shell alongside SSH sessions
 - **xterm-256color** terminal emulation with full PTY support
 
 ### File Management
 - **Dual-panel SFTP** — browse local and remote filesystems side-by-side
-- Upload, download, rename, delete files and directories
+- Upload, download, rename, delete files and directories with transfer progress
 - Breadcrumb navigation and file type icons
 
 ### Credentials & Security
@@ -22,6 +23,7 @@ A professional, open-source SSH client for **macOS** and **Windows** built with 
 - **OS-level secure storage**: credentials encrypted in macOS Keychain / Windows Credential Manager via `flutter_secure_storage`
 - **Known hosts verification**: interactive fingerprint trust dialog on first connect; persistent known-hosts database
 - **Zero-knowledge cloud sync**: host configs encrypted client-side (AES) before syncing to Supabase
+- **Vault** — encrypted local credential store for API keys, tokens, and secrets (biometric unlock)
 
 ### Productivity
 - **Command snippets** — save and inject reusable command templates
@@ -29,11 +31,11 @@ A professional, open-source SSH client for **macOS** and **Windows** built with 
 - **Hotkeys** — customizable global keyboard shortcuts
 - **Host groups** — organize connection profiles into logical folders
 - **Broadcast mode** — send the same input to multiple sessions at once
-- **Code editor** — edit remote files inline with a built-in plain text editor
+- **Code editor** — edit remote files inline with a Monaco-powered editor
 
 ### Design
 - Dark-only interface with a cohesive green-accent palette
-- 6 bundled Powerline-compatible monospace fonts (DejaVu, Inconsolata, Meslo, Source Code Pro, Ubuntu Mono, Roboto Mono)
+- 7 bundled monospace fonts: 6 Powerline-compatible (DejaVu, Inconsolata, Meslo LGS, Source Code Pro, Ubuntu Mono, Roboto Mono) + MesloLGS NF (Nerd Font)
 - Minimum window size enforced (800×600); fully resizable
 
 ### DevOps & Developer Tools
@@ -43,7 +45,6 @@ A professional, open-source SSH client for **macOS** and **Windows** built with 
 - **Mail Catcher** — spin up a local SMTP capture server via SSH; inspect emails in a built-in two-panel viewer
 - **MCP Server Gateway** — run an MCP server on a remote host and forward it locally for AI tool access
 - **S3 Browser** — browse, upload, and delete objects in any S3-compatible bucket (AWS, MinIO, Cloudflare R2, etc.)
-- **Vault** — encrypted local credential store for API keys, tokens, and secrets
 - **AI Chat Sidebar** — toggle a Claude-powered assistant sidebar for command help and debugging
 
 ---
@@ -65,12 +66,15 @@ A professional, open-source SSH client for **macOS** and **Windows** built with 
 | Local PTY | `flutter_pty` |
 | Secure Storage | `flutter_secure_storage` |
 | Cloud Sync Backend | `supabase_flutter` |
-| Encryption | `cryptography` (AES) |
-| Code Editor | Built-in plain text editor |
+| Encryption | `cryptography` (AES-GCM), `crypto` (AWS Sig V4) |
+| Code Editor | Monaco editor via `webview_flutter` |
 | Window Control | `window_manager`, `hotkey_manager` |
 | Local Persistence | `shared_preferences`, `file_picker` |
-
-The `core/` directory contains a Rust library skeleton (with `flutter_rust_bridge` scaffolding) kept for potential performance-critical work. It is **not used at runtime** in the current release.
+| HTTP Server | `shelf` (LAN Share) |
+| Network Info | `network_info_plus` |
+| Biometric Auth | `local_auth` (Vault) |
+| Markdown Rendering | `flutter_markdown` (AI chat) |
+| S3 XML Parsing | `xml` |
 
 ---
 
@@ -144,26 +148,27 @@ yourssh/
 ├── app/                          # Flutter application (active codebase)
 │   ├── lib/
 │   │   ├── main.dart             # Entry point — bootstraps all providers
-│   │   ├── models/               # Plain data classes (Host, SshSession, etc.)
+│   │   ├── models/               # Plain data classes
 │   │   ├── providers/            # ChangeNotifier state managers
 │   │   ├── services/             # Business logic & external integrations
-│   │   ├── screens/              # Top-level screen widgets
-│   │   ├── widgets/              # Reusable UI components
+│   │   ├── screens/              # Top-level screen (main_screen.dart)
+│   │   ├── widgets/              # UI components
+│   │   │   └── web_tools/        # Embedded browser, HTTP client, utility tools
 │   │   └── theme/                # Dark theme definition (app_theme.dart)
 │   ├── assets/
 │   │   ├── monaco_editor.html    # Bundled Monaco editor for remote file editing
-│   │   └── fonts/powerline/      # 6 Powerline-compatible monospace fonts
-│   ├── macos/                    # Xcode project, entitlements, Info.plist
-│   ├── windows/                  # Windows build configuration
+│   │   ├── app_icon.png
+│   │   └── fonts/
+│   │       ├── powerline/        # 6 Powerline-compatible monospace fonts
+│   │       └── nerd/             # MesloLGS NF (Nerd Font, 4 variants)
+│   ├── macos/                    # Flutter macOS runner (Xcode entitlements, Info.plist)
+│   ├── windows/                  # Flutter Windows build configuration
 │   └── pubspec.yaml
 │
-├── core/                         # Rust core (inactive, reserved for future use)
-│   ├── Cargo.toml
-│   └── src/
-│
-├── docs/                         # Design specs and implementation plans
+├── macos/                        # Xcode project files (xcodegen — project.yml)
+├── supabase/migrations/          # Database schema migrations
 ├── scripts/                      # Build and release automation
-├── Makefile                      # Rust core build targets
+├── Makefile                      # Xcode project generation targets
 └── CLAUDE.md                     # AI assistant context for this repo
 ```
 
@@ -175,11 +180,12 @@ yourssh/
 Flutter UI (widgets / screens)
   └── Providers (ChangeNotifier via provider package)
         └── Services (business logic)
-              └── dartssh2        — SSH, SFTP, port forwarding
-              └── flutter_pty     — local PTY shell
+              └── dartssh2              — SSH, SFTP, port forwarding
+              └── flutter_pty           — local PTY shell
               └── flutter_secure_storage — OS credential vault
               └── shared_preferences    — host list, app settings
               └── supabase_flutter      — optional encrypted sync
+              └── shelf                 — local HTTP server (LAN Share)
 ```
 
 ### Key Providers
@@ -188,12 +194,20 @@ Flutter UI (widgets / screens)
 |---|---|
 | `HostProvider` | CRUD for saved SSH connection profiles, persisted via `StorageService` |
 | `SessionProvider` | Lifecycle of active `SshSession` objects; auto-reconnect logic |
+| `LocalSessionProvider` | Lifecycle of local PTY shell sessions |
 | `KeyProvider` | SSH key entries (path + passphrase) |
 | `KnownHostsProvider` | Host fingerprint trust database |
 | `PortForwardProvider` | Tunnel configuration and active forward tracking |
+| `TunnelProvider` | Cloudflare and MCP gateway tunnel state |
 | `SnippetProvider` | Reusable command snippets |
+| `CommandHistoryProvider` | Per-session command history |
 | `SettingsProvider` | App-wide config (tmux, auto-reconnect, hotkeys, theme) |
 | `SyncProvider` | Cloud sync state; delegates to `SyncService` |
+| `SftpPanelProvider` | SFTP panel state (current path, selection, loading) |
+| `SftpTransferProvider` | Active transfer queue and progress tracking |
+| `LocalFilePanelProvider` | Local filesystem panel state for dual-panel SFTP |
+| `TerminalLayoutProvider` | Split-terminal layout (horizontal/vertical panes) |
+| `AiChatProvider` | AI chat sidebar state and message history |
 
 ### Key Services
 
@@ -202,7 +216,20 @@ Flutter UI (widgets / screens)
 | `SshService` | Owns `SSHClient` and `SSHSession` maps; connect, exec, shell, SFTP, disconnect |
 | `StorageService` | Hosts as JSON in `SharedPreferences`; passwords/passphrases in secure storage |
 | `SyncService` | Encrypts host list and pushes/pulls from Supabase |
+| `SyncEncryption` | AES-GCM encrypt/decrypt for sync data |
+| `SupabaseService` | Supabase client wrapper (auth, RPC calls) |
 | `LocalShellService` | Spawns native PTY sessions on macOS/Windows |
+| `PtyRunner` | Low-level PTY wrapper used by `LocalShellService` |
+| `SftpFileOpsService` | SFTP file operations (copy, move, rename, delete) |
+| `SftpTransferService` | Chunked SFTP upload/download with progress callbacks |
+| `CloudflareTunnelService` | Start/stop `cloudflared` quick tunnels on the remote host |
+| `LanShareService` | HTTP file server on LAN via `shelf` |
+| `MailCatcherService` | Local SMTP capture server via SSH port forward |
+| `McpGatewayService` | Forward MCP server from remote host to local port |
+| `S3Service` | S3-compatible bucket operations with AWS Signature V4 |
+| `NetworkStatsService` | Real-time network traffic stats for the overlay widget |
+| `WebToolsService` | Runs network diagnostic commands on the active SSH session |
+| `HotkeyService` | Register and dispatch global keyboard shortcuts |
 
 ---
 
@@ -211,7 +238,7 @@ Flutter UI (widgets / screens)
 YourSSH can sync your host list across devices using a Supabase project as the backend. All data is **encrypted client-side** before leaving your machine — the server stores only ciphertext.
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. Run the schema migration in `docs/supabase_schema.sql` (if present) or create the required table manually.
+2. Run the migrations in `supabase/migrations/` against your project.
 3. Add your Supabase URL and anon key in **Settings → Sync** inside the app.
 4. Set a strong encryption passphrase — this is the only key that can decrypt your data.
 
@@ -257,16 +284,12 @@ Include a short description of **what** changed and **why**. Screenshots for UI 
 
 ## Roadmap
 
-- [ ] Split terminal view (horizontal / vertical panes)
 - [ ] Custom terminal color themes (30+ presets)
 - [ ] SSH certificate authentication
 - [ ] Jump host / bastion proxy support
 - [ ] Linux desktop target
 - [ ] iOS / iPadOS target (experimental)
-- [ ] Rust core integration via `flutter_rust_bridge` for performance-critical paths
 - [ ] Plugin / extension system
-
-See [`docs/PLAN.md`](docs/PLAN.md) for the full sprint-by-sprint plan.
 
 ---
 

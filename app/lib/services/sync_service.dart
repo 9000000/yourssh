@@ -82,7 +82,6 @@ class SyncService {
     required Future<Map<String, String>> Function() loadPasswords,
   }) async {
     if (!_syncProvider.enabled) return;
-    if (_syncProvider.syncId.isEmpty) return;
     if (_syncing) return;
     final supabase = _getSupabase();
     if (supabase == null) {
@@ -95,8 +94,8 @@ class SyncService {
       _syncProvider.setStatus(SyncStatus.syncing);
       final passwords = await loadPasswords();
       final payload = buildPayload(hosts: hosts, passwords: passwords);
-      final encrypted = await SyncEncryption.encrypt(payload, _syncProvider.syncId);
-      await supabase.upsertPayload(_syncProvider.syncId, encrypted);
+      final encrypted = await SyncEncryption.encrypt(payload, _syncProvider.supabaseAnonKey);
+      await supabase.upsertPayload(encrypted);
       await prefs.setString(_lastPushKey, DateTime.now().toUtc().toIso8601String());
       await prefs.setBool(_pendingPushKey, false);
       _syncing = false;
@@ -112,7 +111,6 @@ class SyncService {
 
   Future<SyncPayload?> pull() async {
     if (!_syncProvider.enabled) return null;
-    if (_syncProvider.syncId.isEmpty) return null;
     if (_syncing) return null;
     final supabase = _getSupabase();
     if (supabase == null) {
@@ -125,7 +123,7 @@ class SyncService {
       _syncProvider.setStatus(SyncStatus.syncing);
       final lastPushStr = prefs.getString(_lastPushKey);
       final lastPushAt = lastPushStr != null ? DateTime.parse(lastPushStr) : null;
-      final remoteUpdatedAt = await supabase.fetchUpdatedAt(_syncProvider.syncId);
+      final remoteUpdatedAt = await supabase.fetchUpdatedAt();
       if (remoteUpdatedAt == null) {
         _syncing = false;
         _syncProvider.setStatus(SyncStatus.synced);
@@ -136,13 +134,13 @@ class SyncService {
         _syncProvider.setStatus(SyncStatus.synced);
         return null;
       }
-      final encrypted = await supabase.fetchPayload(_syncProvider.syncId);
+      final encrypted = await supabase.fetchPayload();
       if (encrypted == null) {
         _syncing = false;
         _syncProvider.setStatus(SyncStatus.synced);
         return null;
       }
-      final decrypted = await SyncEncryption.decrypt(encrypted, _syncProvider.syncId);
+      final decrypted = await SyncEncryption.decrypt(encrypted, _syncProvider.supabaseAnonKey);
       final result = parsePayload(decrypted);
       await prefs.setBool(_pendingPushKey, false);
       _syncing = false;
@@ -192,7 +190,7 @@ class SyncService {
     try {
       final supabase = _getSupabase();
       if (supabase != null) {
-        await supabase.deleteSyncRow(_syncProvider.syncId);
+        await supabase.deleteRow();
       }
     } catch (_) {}
     final prefs = await SharedPreferences.getInstance();

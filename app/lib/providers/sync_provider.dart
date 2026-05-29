@@ -1,27 +1,17 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/sync_encryption.dart';
 
 enum SyncStatus { idle, syncing, synced, error }
 
 class SyncProvider extends ChangeNotifier {
-  static const _syncIdKey = 'sync_id';
   static const _enabledKey = 'sync_enabled';
   static const _supabaseUrlKey = 'supabase_url';
   static const _supabaseAnonKeyKey = 'supabase_anon_key';
-  static const _storage = FlutterSecureStorage(
-    mOptions: MacOsOptions(accountName: 'yourssh'),
-    wOptions: WindowsOptions(),
-  );
-  static const _charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
   bool _enabled = false;
   SyncStatus _status = SyncStatus.idle;
   String? _error;
   DateTime? _lastSynced;
-  String _syncId = '';
   String _supabaseUrl = '';
   String _supabaseAnonKey = '';
   bool _supabaseConfigExplicitlySet = false;
@@ -31,20 +21,9 @@ class SyncProvider extends ChangeNotifier {
   SyncStatus get status => _status;
   String? get error => _error;
   DateTime? get lastSynced => _lastSynced;
-  String get syncId => _syncId;
   String get supabaseUrl => _supabaseUrl;
   String get supabaseAnonKey => _supabaseAnonKey;
   bool get isSupabaseConfigured => _supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty;
-
-  set syncId(String value) {
-    _syncId = value;
-    notifyListeners();
-  }
-
-  String get syncCodeDisplay {
-    if (_syncId.length < 12) return _syncId;
-    return '${_syncId.substring(0, 4)}-${_syncId.substring(4, 8)}-${_syncId.substring(8, 12)}';
-  }
 
   SyncProvider() {
     _init();
@@ -64,30 +43,8 @@ class SyncProvider extends ChangeNotifier {
       _supabaseUrl = prefs.getString(_supabaseUrlKey) ?? '';
       _supabaseAnonKey = prefs.getString(_supabaseAnonKeyKey) ?? '';
     }
-    String? stored;
-    try {
-      stored = await _storage.read(key: _syncIdKey);
-      if (_disposed) return;
-      if (stored == null || stored.isEmpty) {
-        stored = _generateSyncId();
-        await _storage.write(key: _syncIdKey, value: stored);
-      }
-    } catch (_) {
-      // Keychain unavailable (e.g. no signing team in debug) — fall back to prefs
-      stored = prefs.getString(_syncIdKey);
-      if (stored == null || stored.isEmpty) {
-        stored = _generateSyncId();
-        await prefs.setString(_syncIdKey, stored);
-      }
-    }
     if (_disposed) return;
-    _syncId = stored;
     notifyListeners();
-  }
-
-  String _generateSyncId() {
-    final rng = Random.secure();
-    return List.generate(12, (_) => _charset[rng.nextInt(_charset.length)]).join();
   }
 
   Future<void> setEnabled(bool value) async {
@@ -115,21 +72,6 @@ class SyncProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_supabaseUrlKey);
     await prefs.remove(_supabaseAnonKeyKey);
-  }
-
-  Future<void> replaceSyncId(String rawCode) async {
-    final clean = rawCode.replaceAll('-', '').toUpperCase();
-    if (clean.length != 12) {
-      throw ArgumentError('Sync code must be 12 characters');
-    }
-    // Validate charset: only A-Z (minus O,I) and 2-9
-    if (!RegExp(r'^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{12}$').hasMatch(clean)) {
-      throw ArgumentError('Invalid sync code characters');
-    }
-    SyncEncryption.evictKey(_syncId);  // evict old key before rotating
-    await _storage.write(key: _syncIdKey, value: clean);
-    _syncId = clean;
-    notifyListeners();
   }
 
   void setStatus(SyncStatus status) {

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yourssh/models/host.dart';
@@ -13,7 +12,7 @@ class _ThrowingSupabase extends SupabaseService {
   _ThrowingSupabase() : super('https://test.supabase.co', 'test-anon-key');
 
   @override
-  Future<void> deleteSyncRow(String syncId) async => throw Exception('network error');
+  Future<void> deleteRow() async => throw Exception('network error');
 }
 
 void main() {
@@ -69,13 +68,13 @@ void main() {
         username: 'root',
         createdAt: DateTime.utc(2026, 1, 1),
       );
-      const syncId = 'ABCDABCDABCD';
+      const anonKey = 'anon-key-abc';
       final payload = SyncService.buildPayload(
         hosts: [host],
         passwords: {'pw_abc': 'pass123'},
       );
-      final encrypted = await SyncEncryption.encrypt(payload, syncId);
-      final decrypted = await SyncEncryption.decrypt(encrypted, syncId);
+      final encrypted = await SyncEncryption.encrypt(payload, anonKey);
+      final decrypted = await SyncEncryption.decrypt(encrypted, anonKey);
       final result = SyncService.parsePayload(decrypted);
       expect(result.hosts, hasLength(1));
       expect(result.hosts.first.id, 'abc');
@@ -84,35 +83,12 @@ void main() {
   });
 
   group('SyncService.disableAndDelete', () {
-    const secureStorageChannel =
-        MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
-    final Map<String, String> secureData = {};
-
     setUp(() async {
-      secureData.clear();
       SharedPreferences.setMockInitialValues({
         'sync_pending_push': true,
         'sync_last_push_at': '2026-01-01T00:00:00.000Z',
         'sync_enabled': true,
       });
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(secureStorageChannel, (MethodCall call) async {
-        switch (call.method) {
-          case 'read':
-            return secureData[call.arguments['key'] as String];
-          case 'write':
-            secureData[call.arguments['key'] as String] =
-                call.arguments['value'] as String;
-            return null;
-          default:
-            return null;
-        }
-      });
-    });
-
-    tearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(secureStorageChannel, null);
     });
 
     Future<SyncProvider> buildProvider() async {

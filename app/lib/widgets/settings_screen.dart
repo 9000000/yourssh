@@ -278,9 +278,6 @@ class _SyncSection extends StatefulWidget {
 }
 
 class _SyncSectionState extends State<_SyncSection> {
-  final _codeController = TextEditingController();
-  bool _connecting = false;
-  String? _connectError;
   final _urlController = TextEditingController();
   final _anonKeyController = TextEditingController();
   bool _showAnonKey = false;
@@ -306,10 +303,8 @@ class _SyncSectionState extends State<_SyncSection> {
 
   @override
   void dispose() {
-    _codeController.dispose();
     _urlController.dispose();
     _anonKeyController.dispose();
-
     super.dispose();
   }
 
@@ -475,40 +470,6 @@ class _SyncSectionState extends State<_SyncSection> {
     return const SizedBox.shrink();
   }
 
-  Future<void> _connect() async {
-    final rawCode = _codeController.text.trim();
-    if (rawCode.replaceAll('-', '').length < 12) {
-      setState(() => _connectError = 'Code must be 12 characters');
-      return;
-    }
-    setState(() { _connecting = true; _connectError = null; });
-    final sync = context.read<SyncProvider>();
-    final syncService = context.read<SyncService>();
-    final hostProvider = context.read<HostProvider>();
-    try {
-      await sync.replaceSyncId(rawCode);
-    } on ArgumentError catch (e) {
-      setState(() { _connecting = false; _connectError = e.message.toString(); });
-      return;
-    }
-    if (!sync.enabled) {
-      await sync.setEnabled(true);
-      if (!mounted) return;
-    }
-    final payload = await syncService.pull();
-    if (!mounted) return;
-    setState(() { _connecting = false; });
-    if (sync.status == SyncStatus.error) {
-      setState(() => _connectError = 'Invalid sync code, please check and try again');
-    } else {
-      if (payload != null) {
-        await hostProvider.replaceAll(payload.hosts, payload.passwords);
-      }
-      _codeController.clear();
-      setState(() => _connectError = null);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final sync = widget.sync;
@@ -618,77 +579,12 @@ class _SyncSectionState extends State<_SyncSection> {
                         const SizedBox(height: 6),
                         _buildTestStatus(),
                       ],
-                      // ── Sync code & connect (only when configured) ──
+                      // ── Sync status (only when configured) ──
                       if (sync.isSupabaseConfigured) ...[
                         const SizedBox(height: 16),
                         const Divider(height: 1, color: AppColors.border),
                         const SizedBox(height: 16),
-                        const Text('Sync Code', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.bg,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Text(sync.syncCodeDisplay, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontFamily: 'monospace', letterSpacing: 2)),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton.icon(
-                              onPressed: () {
-                                Clipboard.setData(ClipboardData(text: sync.syncCodeDisplay));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Sync code copied'), duration: Duration(seconds: 2)),
-                                );
-                              },
-                              icon: const Icon(Icons.copy, size: 14),
-                              label: const Text('Copy', style: TextStyle(fontSize: 12)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Enter this code on other devices to sync.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                        const SizedBox(height: 12),
                         _SyncStatusRow(sync: sync),
-                        const SizedBox(height: 16),
-                        const Divider(height: 1, color: AppColors.border),
-                        const SizedBox(height: 16),
-                        const Text('Connect to another device', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _codeController,
-                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                                decoration: InputDecoration(
-                                  hintText: 'Enter sync code…',
-                                  hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-                                  filled: true,
-                                  fillColor: AppColors.bg,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: AppColors.border)),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: AppColors.border)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: _connecting ? null : _connect,
-                              child: _connecting
-                                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : const Text('Connect', style: TextStyle(fontSize: 12)),
-                            ),
-                          ],
-                        ),
-                        if (_connectError != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(_connectError!, style: const TextStyle(color: Colors.red, fontSize: 11)),
-                          ),
                       ],
                     ],
                   ),
