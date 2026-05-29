@@ -83,8 +83,8 @@ class DevopsToolsScreen extends StatefulWidget {
 class _DevopsToolsScreenState extends State<DevopsToolsScreen> {
   _Tool _selected = _Tool.ping;
   final _inputController = TextEditingController(text: '8.8.8.8');
-  ToolResult? _result;
-  bool _loading = false;
+  final List<_ResultTab> _tabs = [];
+  int _activeTabIndex = -1;
 
   @override
   void dispose() {
@@ -97,31 +97,60 @@ class _DevopsToolsScreenState extends State<DevopsToolsScreen> {
     if (session == null) return;
 
     final service = WebToolsService(context.read<SshService>());
+    final input = _inputController.text.trim();
+    final label = _tabLabel(_selected.label, input);
+
+    final tab = _ResultTab(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      label: label,
+      isLoading: true,
+    );
+
     setState(() {
-      _loading = true;
-      _result = null;
+      _tabs.add(tab);
+      _activeTabIndex = _tabs.length - 1;
     });
 
+    final tabIndex = _activeTabIndex;
     final host = session.host;
-    final input = _inputController.text.trim();
+
     final result = await switch (_selected) {
-      _Tool.ping => service.ping(host, input),
-      _Tool.curl => service.curl(host, input),
-      _Tool.dns => service.dnsLookup(host, input),
-      _Tool.traceroute => service.traceroute(host, input),
-      _Tool.portScan => service.portScan(host, input),
-      _Tool.whois => service.whois(host, input),
-      _Tool.netstat => service.netstat(host),
-      _Tool.diskUsage => service.diskUsage(host, input.isEmpty ? '/' : input),
+      _Tool.ping        => service.ping(host, input),
+      _Tool.curl        => service.curl(host, input),
+      _Tool.dns         => service.dnsLookup(host, input),
+      _Tool.traceroute  => service.traceroute(host, input),
+      _Tool.portScan    => service.portScan(host, input),
+      _Tool.whois       => service.whois(host, input),
+      _Tool.netstat     => service.netstat(host),
+      _Tool.diskUsage   => service.diskUsage(host, input.isEmpty ? '/' : input),
       _Tool.topProcesses => service.topProcesses(host),
-      _Tool.memory => service.memoryInfo(host),
+      _Tool.memory      => service.memoryInfo(host),
       _Tool.httpHeaders => service.httpHeaders(host, input),
-      _Tool.sslCert => service.sslCert(host, input),
+      _Tool.sslCert     => service.sslCert(host, input),
     };
 
+    if (!mounted) return;
     setState(() {
-      _result = result;
-      _loading = false;
+      if (tabIndex < _tabs.length) {
+        _tabs[tabIndex].result = result;
+        _tabs[tabIndex].isLoading = false;
+      }
+    });
+  }
+
+  void _closeTab(int index) {
+    setState(() {
+      _tabs.removeAt(index);
+      if (_activeTabIndex >= _tabs.length) {
+        _activeTabIndex = _tabs.length - 1;
+      }
+    });
+  }
+
+  void _clearAllTabs() {
+    setState(() {
+      _tabs.clear();
+      _activeTabIndex = -1;
     });
   }
 
