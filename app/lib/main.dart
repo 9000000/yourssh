@@ -23,7 +23,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.setMinimumSize(const Size(800, 600));
-  await SupabaseService.initialize();
   runApp(const YourSSHApp());
 }
 
@@ -63,7 +62,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _knownHostsProvider.load();
     _sessionProvider.hostKeyVerifier = _knownHostsProvider.verifyHostKey;
     _syncProvider = SyncProvider();
-    _syncService = SyncService(_syncProvider, SupabaseService());
+    _syncService = SyncService(_syncProvider, SupabaseService('', ''));
 
     _hostProvider.onMutation = () => _syncService.push(
           hosts: _hostProvider.allHosts,
