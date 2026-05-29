@@ -32,6 +32,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _pendingCustom = false;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final font = context.read<SettingsProvider>().terminalFont;
+    final isCustom = !_bundledFonts.contains(font);
+    if (isCustom && _customFontController.text.isEmpty) {
+      _customFontController.text = font;
+    }
+  }
+
+  @override
   void dispose() {
     _customFontController.dispose();
     super.dispose();
@@ -190,9 +200,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildFontDropdown(BuildContext context, SettingsProvider settings) {
     final isCustom = !_bundledFonts.contains(settings.terminalFont);
-    if (isCustom && !_pendingCustom && _customFontController.text.isEmpty) {
-      _customFontController.text = settings.terminalFont;
-    }
     final ddValue = (isCustom || _pendingCustom) ? _kCustom : settings.terminalFont;
     return DropdownButton<String>(
       value: ddValue,
