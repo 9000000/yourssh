@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/host.dart';
 import '../providers/sync_provider.dart';
@@ -17,10 +16,6 @@ class SyncPayload {
 class SyncService {
   static const _lastPushKey = 'sync_last_push_at';
   static const _pendingPushKey = 'sync_pending_push';
-  static const _storage = FlutterSecureStorage(
-    mOptions: MacOsOptions(accountName: 'yourssh'),
-    wOptions: WindowsOptions(),
-  );
 
   final SyncProvider _syncProvider;
   final SupabaseService _supabase;
@@ -56,7 +51,7 @@ class SyncService {
   }
 
   static bool shouldPullRemote(DateTime remoteUpdatedAt, DateTime? lastPushAt) {
-    if (lastPushAt == null) return false;
+    if (lastPushAt == null) return true; // new device: always pull remote
     return remoteUpdatedAt.isAfter(lastPushAt);
   }
 
@@ -67,18 +62,17 @@ class SyncService {
     required Future<Map<String, String>> Function() loadPasswords,
   }) async {
     if (!_syncProvider.enabled) return;
+    final prefs = await SharedPreferences.getInstance();
     try {
       _syncProvider.setStatus(SyncStatus.syncing);
       final passwords = await loadPasswords();
       final payload = buildPayload(hosts: hosts, passwords: passwords);
       final encrypted = await SyncEncryption.encrypt(payload, _syncProvider.syncId);
       await _supabase.upsertPayload(_syncProvider.syncId, encrypted);
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastPushKey, DateTime.now().toUtc().toIso8601String());
       await prefs.setBool(_pendingPushKey, false);
       _syncProvider.setStatus(SyncStatus.synced);
     } catch (e) {
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_pendingPushKey, true);
       _syncProvider.setError(e.toString());
     }
@@ -88,9 +82,9 @@ class SyncService {
 
   Future<SyncPayload?> pull() async {
     if (!_syncProvider.enabled) return null;
+    final prefs = await SharedPreferences.getInstance();
     try {
       _syncProvider.setStatus(SyncStatus.syncing);
-      final prefs = await SharedPreferences.getInstance();
       final lastPushStr = prefs.getString(_lastPushKey);
       final lastPushAt = lastPushStr != null ? DateTime.parse(lastPushStr) : null;
 
@@ -110,6 +104,7 @@ class SyncService {
       }
       final decrypted = await SyncEncryption.decrypt(encrypted, _syncProvider.syncId);
       final result = parsePayload(decrypted);
+      await prefs.setBool(_pendingPushKey, false);
       _syncProvider.setStatus(SyncStatus.synced);
       return result;
     } catch (e) {
@@ -121,7 +116,7 @@ class SyncService {
   // ── Retry timer ───────────────────────────────────────────
 
   void startRetryTimer({
-    required List<Host> hosts,
+    required Future<List<Host>> Function() getHosts,
     required Future<Map<String, String>> Function() loadPasswords,
   }) {
     _retryTimer?.cancel();
@@ -129,6 +124,7 @@ class SyncService {
       final prefs = await SharedPreferences.getInstance();
       final pending = prefs.getBool(_pendingPushKey) ?? false;
       if (pending) {
+        final hosts = await getHosts();
         await push(hosts: hosts, loadPasswords: loadPasswords);
       }
     });
@@ -144,6 +140,9 @@ class SyncService {
   Future<void> disableAndDelete() async {
     stopRetryTimer();
     await _supabase.deleteSyncRow(_syncProvider.syncId);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingPushKey);
+    await prefs.remove(_lastPushKey);
     await _syncProvider.setEnabled(false);
   }
 

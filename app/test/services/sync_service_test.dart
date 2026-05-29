@@ -40,8 +40,8 @@ void main() {
       expect(SyncService.shouldPullRemote(remote, lastPush), false);
     });
 
-    test('returns false when lastPush is null (first push wins)', () {
-      expect(SyncService.shouldPullRemote(DateTime.utc(2026), null), false);
+    test('returns true when lastPush is null (new device always pulls remote)', () {
+      expect(SyncService.shouldPullRemote(DateTime.utc(2026), null), true);
     });
   });
 
