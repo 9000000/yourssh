@@ -44,6 +44,12 @@ dependencies:
   # WebView for code editor
   webview_flutter: ^4.8.0
 
+  # Supabase backend integration
+  supabase_flutter: ^2.5.0
+
+  # Cryptography utilities
+  cryptography: ^2.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
