@@ -51,4 +51,34 @@ void main() {
       expect(copy.tags, ['prod', 'aws']);
     });
   });
+
+  group('Move to Group — group list', () {
+    test('derives distinct non-empty groups from host list', () {
+      final hosts = [
+        Host(label: 'A', host: 'a.com', port: 22, username: 'u', group: 'production'),
+        Host(label: 'B', host: 'b.com', port: 22, username: 'u', group: 'staging'),
+        Host(label: 'C', host: 'c.com', port: 22, username: 'u', group: 'production'),
+        Host(label: 'D', host: 'd.com', port: 22, username: 'u', group: ''),
+      ];
+      final groups = hosts
+          .map((h) => h.group)
+          .where((g) => g.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      expect(groups, ['production', 'staging']);
+    });
+
+    test('returns empty list when all hosts have no group', () {
+      final hosts = [
+        Host(label: 'A', host: 'a.com', port: 22, username: 'u'),
+      ];
+      final groups = hosts
+          .map((h) => h.group)
+          .where((g) => g.isNotEmpty)
+          .toSet()
+          .toList();
+      expect(groups, isEmpty);
+    });
+  });
 }

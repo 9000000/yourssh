@@ -450,7 +450,23 @@ class _HostCardState extends State<_HostCard> {
     if (!context.mounted) return;
     widget.onEditHost?.call(copy);
   }
-  void _moveToGroup(BuildContext context, HostProvider hostProvider) {}
+  void _moveToGroup(BuildContext context, HostProvider hostProvider) {
+    final groups = hostProvider.allHosts
+        .map((h) => h.group)
+        .where((g) => g.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    showDialog<void>(
+      context: context,
+      builder: (_) => _MoveToGroupDialog(
+        host: widget.host,
+        groups: groups,
+        onSelect: (g) => hostProvider.updateHost(widget.host.copyWith(group: g)),
+      ),
+    );
+  }
   void _export(BuildContext context) {}
 
   void _openSftp(BuildContext context) {
@@ -471,6 +487,51 @@ class _HostCardState extends State<_HostCard> {
     );
   }
 
+}
+
+// ── Move to Group Dialog ──────────────────────────────────
+
+class _MoveToGroupDialog extends StatelessWidget {
+  final Host host;
+  final List<String> groups;
+  final void Function(String) onSelect;
+
+  const _MoveToGroupDialog({
+    required this.host,
+    required this.groups,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final options = ['', ...groups]; // '' = No group
+    return AlertDialog(
+      backgroundColor: AppColors.card,
+      title: const Text('Move to Group', style: TextStyle(color: AppColors.textPrimary, fontSize: 15)),
+      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+      content: SizedBox(
+        width: 280,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: options.length,
+          itemBuilder: (_, i) {
+            final g = options[i];
+            final label = g.isEmpty ? 'No group' : g;
+            final isCurrent = g == host.group;
+            return ListTile(
+              dense: true,
+              title: Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+              trailing: isCurrent ? const Icon(Icons.check, size: 16, color: AppColors.textSecondary) : null,
+              onTap: () {
+                Navigator.of(context).pop();
+                onSelect(g);
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 // ── Empty State ───────────────────────────────────────────
