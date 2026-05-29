@@ -12,6 +12,7 @@ import '../widgets/keychain_screen.dart';
 import '../widgets/port_forwarding_screen.dart';
 import '../widgets/settings_screen.dart';
 import '../widgets/snippets_screen.dart';
+import '../widgets/network_stats_overlay.dart';
 import '../widgets/split_terminal_view.dart';
 
 enum NavSection { hosts, keychain, portForwarding, webTools, snippets, knownHosts, settings }
@@ -86,7 +87,16 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildContent(SshSession? active) {
     if (_nav == NavSection.hosts && active != null && active.status == SessionStatus.connected) {
-      return const SplitTerminalView();
+      return Stack(
+        children: const [
+          SplitTerminalView(),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: NetworkStatsOverlay(),
+          ),
+        ],
+      );
     }
     return switch (_nav) {
       NavSection.hosts => HostsDashboard(

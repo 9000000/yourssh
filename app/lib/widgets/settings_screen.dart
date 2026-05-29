@@ -76,6 +76,18 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ]),
                 const SizedBox(height: 24),
+                _Section(title: 'Monitoring', children: [
+                  SwitchListTile(
+                    title: const Text('Network Stats Monitor', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                    subtitle: const Text('Show Rx/Tx overlay on active session', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                    value: settings.networkStatsEnabled,
+                    onChanged: (v) {
+                      settings.networkStatsEnabled = v;
+                      settings.save();
+                    },
+                  ),
+                ]),
+                const SizedBox(height: 24),
                 _Section(title: 'About', children: [
                   const _Row(label: 'Version', trailing: Text('v0.1.0', style: TextStyle(color: AppColors.textTertiary, fontSize: 12))),
                   const _Row(label: 'Build', trailing: Text('Flutter + dartssh2', style: TextStyle(color: AppColors.textTertiary, fontSize: 12))),

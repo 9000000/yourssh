@@ -7,6 +7,7 @@ class SettingsProvider extends ChangeNotifier {
   int reconnectAttempts = 3;
   double fontSize = 13;
   String terminalTheme = 'Dracula';
+  bool networkStatsEnabled = false;
   Map<String, String> hotkeys = {
     'new_session': 'ctrl+t',
     'close_session': 'ctrl+w',
@@ -27,6 +28,7 @@ class SettingsProvider extends ChangeNotifier {
     reconnectAttempts = prefs.getInt('reconnectAttempts') ?? 3;
     fontSize = prefs.getDouble('fontSize') ?? 13;
     terminalTheme = prefs.getString('terminalTheme') ?? 'Dracula';
+    networkStatsEnabled = prefs.getBool('networkStatsEnabled') ?? false;
     final hotkeysJson = prefs.getString('hotkeys');
     if (hotkeysJson != null) {
       final decoded = jsonDecode(hotkeysJson) as Map<String, dynamic>;
@@ -41,18 +43,21 @@ class SettingsProvider extends ChangeNotifier {
     double? fontSize,
     String? terminalTheme,
     Map<String, String>? hotkeys,
+    bool? networkStatsEnabled,
   }) async {
     if (autoReconnect != null) this.autoReconnect = autoReconnect;
     if (reconnectAttempts != null) this.reconnectAttempts = reconnectAttempts;
     if (fontSize != null) this.fontSize = fontSize;
     if (terminalTheme != null) this.terminalTheme = terminalTheme;
     if (hotkeys != null) this.hotkeys = hotkeys;
+    if (networkStatsEnabled != null) this.networkStatsEnabled = networkStatsEnabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('autoReconnect', this.autoReconnect);
     await prefs.setInt('reconnectAttempts', this.reconnectAttempts);
     await prefs.setDouble('fontSize', this.fontSize);
     await prefs.setString('terminalTheme', this.terminalTheme);
     await prefs.setString('hotkeys', jsonEncode(this.hotkeys));
+    await prefs.setBool('networkStatsEnabled', this.networkStatsEnabled);
     notifyListeners();
   }
 }
