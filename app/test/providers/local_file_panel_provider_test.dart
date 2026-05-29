@@ -111,7 +111,7 @@ void main() {
       provider.pushPath('/c'); // truncates /b
       expect(provider.canGoForward, false);
       provider.goBack();
-      expect(provider.currentPath, '/home/user');
+      expect(provider.currentPath, '/a');
     });
   });
 

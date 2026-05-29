@@ -75,11 +75,15 @@ class SftpTransferService {
     required String localDir,
   }) async {
     final sftp = await _sshService.openSftp(remoteHost);
-    final remoteFile = await sftp.open(remoteEntry.path);
-    final bytes = await remoteFile.readBytes();
-    await remoteFile.close();
-    sftp.close();
-    final localPath = p.join(localDir, remoteEntry.name);
-    await File(localPath).writeAsBytes(bytes);
+    SftpFile? remoteFile;
+    try {
+      remoteFile = await sftp.open(remoteEntry.path);
+      final bytes = await remoteFile.readBytes();
+      final localPath = p.join(localDir, remoteEntry.name);
+      await File(localPath).writeAsBytes(bytes);
+    } finally {
+      await remoteFile?.close();
+      sftp.close();
+    }
   }
 }

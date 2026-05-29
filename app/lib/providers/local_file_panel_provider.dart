@@ -62,8 +62,8 @@ class LocalFilePanelProvider extends ChangeNotifier {
       // At the end of history: append normally so back still works.
       _history.add(path);
     } else {
-      // In the middle (after goBack): replace current entry and clear forward.
-      _history.removeRange(_historyIndex, _history.length);
+      // In the middle (after goBack): keep current, clear forward, append new.
+      _history.removeRange(_historyIndex + 1, _history.length);
       _history.add(path);
     }
     _historyIndex = _history.length - 1;

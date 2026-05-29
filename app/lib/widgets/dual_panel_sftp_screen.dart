@@ -69,11 +69,17 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
           remoteDir: remoteDir,
         );
       }
+      if (!mounted) return;
       _remoteProvider.setLoadState(SftpPanelLoadState.loading);
-      final entries = await service.listDirectory(host, remoteDir);
-      _remoteProvider
-        ..setEntries(entries)
-        ..setLoadState(SftpPanelLoadState.loaded);
+      try {
+        final entries = await service.listDirectory(host, remoteDir);
+        if (!mounted) return;
+        _remoteProvider
+          ..setEntries(entries)
+          ..setLoadState(SftpPanelLoadState.loaded);
+      } catch (e) {
+        if (mounted) _remoteProvider.setLoadState(SftpPanelLoadState.error, error: e.toString());
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -107,6 +113,7 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
           localDir: localDir,
         );
       }
+      if (!mounted) return;
       await _localProvider.reload();
     } catch (e) {
       if (mounted) {
