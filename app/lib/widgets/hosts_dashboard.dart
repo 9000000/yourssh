@@ -444,6 +444,7 @@ class _HostCardState extends State<_HostCard> {
       authType: widget.host.authType,
       keyId: widget.host.keyId,
       group: widget.host.group,
+      tags: List<String>.from(widget.host.tags),
     );
     await hostProvider.addHost(copy);
     if (!context.mounted) return;

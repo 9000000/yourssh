@@ -27,11 +27,28 @@ void main() {
         authType: original.authType,
         keyId: original.keyId,
         group: original.group,
+        tags: List<String>.from(original.tags),
       );
       expect(copy.id, isNot(original.id));
       expect(copy.label, 'Prod (copy)');
       expect(copy.host, original.host);
       expect(copy.group, original.group);
+      expect(copy.tags, original.tags);
+    });
+
+    test('copy preserves tags', () {
+      final original = Host(label: 'Prod', host: '1.2.3.4', port: 22, username: 'root', tags: ['prod', 'aws']);
+      final copy = Host(
+        label: '${original.label} (copy)',
+        host: original.host,
+        port: original.port,
+        username: original.username,
+        authType: original.authType,
+        keyId: original.keyId,
+        group: original.group,
+        tags: List<String>.from(original.tags),
+      );
+      expect(copy.tags, ['prod', 'aws']);
     });
   });
 }
