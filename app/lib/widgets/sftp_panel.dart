@@ -191,9 +191,9 @@ class _SftpPanelState extends State<SftpPanel> {
           _ToolbarBtn(icon: Icons.create_new_folder_outlined, tooltip: 'New folder',
               enabled: true, onTap: () => _showNewFolderDialog(prov)),
           _ToolbarBtn(icon: Icons.drive_file_rename_outline, tooltip: 'Rename',
-              enabled: canRename, onTap: canRename ? () => _showRenameDialog(prov, prov.selectedEntries.first) : () {}),
+              enabled: canRename, onTap: canRename ? () => _showRenameDialog(prov, prov.selectedEntries.first) : null),
           _ToolbarBtn(icon: Icons.delete_outline, tooltip: 'Delete',
-              enabled: canDelete, onTap: canDelete ? () => _showDeleteConfirm(prov, prov.selectedEntries.toList()) : () {}),
+              enabled: canDelete, onTap: canDelete ? () => _showDeleteConfirm(prov, prov.selectedEntries.toList()) : null),
           IconButton(
             icon: const Icon(Icons.refresh, size: 14, color: Color(0xFF888888)),
             onPressed: () => _loadDirectory(prov.currentPath),
@@ -355,7 +355,8 @@ class _SftpPanelState extends State<SftpPanel> {
     );
     if (name == null || name.isEmpty || !mounted) return;
     try {
-      await context.read<SftpFileOpsService>().mkdir(widget.host!, '${prov.currentPath}/$name');
+      final newPath = prov.currentPath == '/' ? '/$name' : '${prov.currentPath}/$name';
+      await context.read<SftpFileOpsService>().mkdir(widget.host!, newPath);
       _loadDirectory(prov.currentPath);
     } catch (e) {
       if (mounted) {
@@ -435,16 +436,16 @@ class _ToolbarBtn extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final bool enabled;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
-  const _ToolbarBtn({required this.icon, required this.tooltip, required this.enabled, required this.onTap});
+  const _ToolbarBtn({required this.icon, required this.tooltip, required this.enabled, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
-        onTap: enabled ? onTap : null,
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: Icon(icon, size: 15, color: enabled ? const Color(0xFF888888) : const Color(0xFF333333)),
