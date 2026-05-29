@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../models/host.dart';
 import '../models/ssh_key.dart';
@@ -13,6 +14,7 @@ class SessionProvider extends ChangeNotifier {
   bool Function()? autoReconnectEnabled;
   int Function()? reconnectAttempts;
   bool Function()? tmuxEnabled;
+  Future<bool> Function(String host, int port, String keyType, Uint8List fp)? hostKeyVerifier;
 
   SessionProvider(this._ssh);
 
@@ -41,10 +43,15 @@ class SessionProvider extends ChangeNotifier {
 
   Future<void> _doConnect(SshSession session, Host host, {required int attempt}) async {
     final maxAttempts = reconnectAttempts?.call() ?? 3;
-
     try {
       final keyEntry = host.keyId != null ? keyLookup?.call(host.keyId!) : null;
-      await _ssh.connect(host, keyEntry: keyEntry);
+      await _ssh.connect(
+        host,
+        keyEntry: keyEntry,
+        verifyHostKey: hostKeyVerifier != null
+            ? (keyType, fp) => hostKeyVerifier!(host.host, host.port, keyType, fp)
+            : null,
+      );
       session.status = SessionStatus.connected;
       session.errorMessage = null;
       notifyListeners();
