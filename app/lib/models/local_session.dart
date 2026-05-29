@@ -1,7 +1,7 @@
 // app/lib/models/local_session.dart
-import 'dart:io';
 import 'package:xterm/xterm.dart';
 import 'package:uuid/uuid.dart';
+import '../services/pty_runner.dart';
 
 enum LocalSessionStatus { running, exited, error }
 
@@ -10,19 +10,19 @@ class LocalSession {
   final Terminal terminal;
   LocalSessionStatus status;
   String? errorMessage;
-  Process? _process;
+  PtyRunner? _pty;
 
   LocalSession({
     required this.terminal,
     this.status = LocalSessionStatus.running,
   }) : id = const Uuid().v4();
 
-  void attachProcess(Process process) {
-    _process = process;
+  void attachPty(PtyRunner pty) {
+    _pty = pty;
   }
 
   void kill() {
-    _process?.kill();
+    _pty?.kill();
     status = LocalSessionStatus.exited;
   }
 }

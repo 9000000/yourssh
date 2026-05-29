@@ -1,11 +1,34 @@
 // app/lib/services/local_shell_service.dart
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter_pty/flutter_pty.dart';
 import 'package:xterm/xterm.dart';
 import '../models/local_session.dart';
+import 'pty_runner.dart';
+
+typedef PtyFactory = PtyRunner Function(
+  String shell,
+  int columns,
+  int rows,
+  Map<String, String> environment,
+);
 
 class LocalShellService {
   final Map<String, LocalSession> _sessions = {};
+  final PtyFactory _ptyFactory;
+
+  LocalShellService({PtyFactory? ptyFactory})
+      : _ptyFactory = ptyFactory ?? _defaultFactory;
+
+  static PtyRunner _defaultFactory(
+    String shell,
+    int columns,
+    int rows,
+    Map<String, String> environment,
+  ) =>
+      FlutterPtyRunner(
+        Pty.start(shell, columns: columns, rows: rows, environment: environment),
+      );
 
   Future<LocalSession> openShell() async {
     final terminal = Terminal(maxLines: 10000);
@@ -14,36 +37,29 @@ class LocalShellService {
     final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
 
     try {
-      final process = await Process.start(
+      final pty = _ptyFactory(
         shell,
-        [],
-        environment: {
-          ...Platform.environment,
-          'TERM': 'xterm-256color',
-        },
-        runInShell: false,
+        terminal.viewWidth,
+        terminal.viewHeight,
+        {...Platform.environment, 'TERM': 'xterm-256color'},
       );
 
-      session.attachProcess(process);
+      session.attachPty(pty);
       _sessions[session.id] = session;
 
-      // Process stdout -> terminal
-      process.stdout.listen((data) {
-        terminal.write(utf8.decode(data, allowMalformed: true));
-      });
+      pty.output
+          .transform(const Utf8Decoder(allowMalformed: true))
+          .listen(terminal.write);
 
-      // Process stderr -> terminal
-      process.stderr.listen((data) {
-        terminal.write(utf8.decode(data, allowMalformed: true));
-      });
-
-      // Terminal input -> process stdin
       terminal.onOutput = (data) {
-        process.stdin.add(utf8.encode(data));
+        pty.write(const Utf8Encoder().convert(data));
       };
 
-      // Handle process exit
-      process.exitCode.then((code) {
+      terminal.onResize = (w, h, pw, ph) {
+        pty.resize(h, w);
+      };
+
+      pty.exitCode.then((code) {
         session.status = LocalSessionStatus.exited;
         terminal.write('\r\n[Process exited with code $code]\r\n');
       });
