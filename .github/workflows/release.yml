@@ -52,6 +52,7 @@ jobs:
         run: flutter build windows --release
 
       - name: Zip Windows build
+        shell: pwsh
         run: Compress-Archive -Path "app\build\windows\x64\runner\Release\*" -DestinationPath "YourSSH-windows.zip"
 
       - uses: actions/upload-artifact@v4
@@ -68,7 +69,7 @@ jobs:
       - name: Extract version from pubspec.yaml
         id: version
         run: |
-          VERSION=$(grep '^version:' app/pubspec.yaml | sed 's/^version:[[:space:]]*//')
+          VERSION=$(grep '^version:' app/pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - uses: actions/download-artifact@v4
