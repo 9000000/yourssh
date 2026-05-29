@@ -9,6 +9,8 @@ enum SyncStatus { idle, syncing, synced, error }
 class SyncProvider extends ChangeNotifier {
   static const _syncIdKey = 'sync_id';
   static const _enabledKey = 'sync_enabled';
+  static const _supabaseUrlKey = 'supabase_url';
+  static const _supabaseAnonKeyKey = 'supabase_anon_key';
   static const _storage = FlutterSecureStorage(
     mOptions: MacOsOptions(accountName: 'yourssh'),
     wOptions: WindowsOptions(),
@@ -20,6 +22,9 @@ class SyncProvider extends ChangeNotifier {
   String? _error;
   DateTime? _lastSynced;
   String _syncId = '';
+  String _supabaseUrl = '';
+  String _supabaseAnonKey = '';
+  bool _supabaseConfigExplicitlySet = false;
   bool _disposed = false;
 
   bool get enabled => _enabled;
@@ -27,6 +32,9 @@ class SyncProvider extends ChangeNotifier {
   String? get error => _error;
   DateTime? get lastSynced => _lastSynced;
   String get syncId => _syncId;
+  String get supabaseUrl => _supabaseUrl;
+  String get supabaseAnonKey => _supabaseAnonKey;
+  bool get isSupabaseConfigured => _supabaseUrl.isNotEmpty && _supabaseAnonKey.isNotEmpty;
 
   set syncId(String value) {
     _syncId = value;
@@ -52,11 +60,25 @@ class SyncProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     if (_disposed) return;
     _enabled = prefs.getBool(_enabledKey) ?? false;
-    String? stored = await _storage.read(key: _syncIdKey);
-    if (_disposed) return;
-    if (stored == null || stored.isEmpty) {
-      stored = _generateSyncId();
-      await _storage.write(key: _syncIdKey, value: stored);
+    if (!_supabaseConfigExplicitlySet) {
+      _supabaseUrl = prefs.getString(_supabaseUrlKey) ?? '';
+      _supabaseAnonKey = prefs.getString(_supabaseAnonKeyKey) ?? '';
+    }
+    String? stored;
+    try {
+      stored = await _storage.read(key: _syncIdKey);
+      if (_disposed) return;
+      if (stored == null || stored.isEmpty) {
+        stored = _generateSyncId();
+        await _storage.write(key: _syncIdKey, value: stored);
+      }
+    } catch (_) {
+      // Keychain unavailable (e.g. no signing team in debug) — fall back to prefs
+      stored = prefs.getString(_syncIdKey);
+      if (stored == null || stored.isEmpty) {
+        stored = _generateSyncId();
+        await prefs.setString(_syncIdKey, stored);
+      }
     }
     if (_disposed) return;
     _syncId = stored;
@@ -73,6 +95,16 @@ class SyncProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_enabledKey, value);
+  }
+
+  Future<void> setSupabaseConfig(String url, String anonKey) async {
+    _supabaseUrl = url.trim();
+    _supabaseAnonKey = anonKey.trim();
+    _supabaseConfigExplicitlySet = true;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_supabaseUrlKey, _supabaseUrl);
+    await prefs.setString(_supabaseAnonKeyKey, _supabaseAnonKey);
   }
 
   Future<void> replaceSyncId(String rawCode) async {
