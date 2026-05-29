@@ -14,9 +14,10 @@ import '../widgets/settings_screen.dart';
 import '../widgets/snippets_screen.dart';
 import '../widgets/local_terminal_screen.dart';
 import '../widgets/network_stats_overlay.dart';
+import '../widgets/dual_panel_sftp_screen.dart';
 import '../widgets/split_terminal_view.dart';
 
-enum NavSection { hosts, keychain, portForwarding, webTools, snippets, localTerminal, knownHosts, settings }
+enum NavSection { hosts, keychain, portForwarding, sftp, webTools, snippets, localTerminal, knownHosts, settings }
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -106,6 +107,7 @@ class _MainScreenState extends State<MainScreen> {
         ),
       NavSection.keychain => const KeychainScreen(),
       NavSection.portForwarding => const PortForwardingScreen(),
+      NavSection.sftp => const DualPanelSftpScreen(),
       NavSection.snippets => const SnippetsScreen(),
       NavSection.localTerminal => const LocalTerminalScreen(),
       NavSection.settings => const SettingsScreen(),
@@ -146,6 +148,7 @@ class _Sidebar extends StatelessWidget {
           _navItem(Icons.dns_outlined, 'Hosts', NavSection.hosts),
           _navItem(Icons.vpn_key_outlined, 'Keychain', NavSection.keychain),
           _navItem(Icons.swap_horiz, 'Port Forwarding', NavSection.portForwarding),
+          _navItem(Icons.folder_open, 'SFTP', NavSection.sftp),
           _navItem(Icons.build_outlined, 'Web Tools', NavSection.webTools),
           _navItem(Icons.code, 'Snippets', NavSection.snippets),
           _navItem(Icons.laptop_mac, 'Local Terminal', NavSection.localTerminal),
