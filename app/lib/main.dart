@@ -14,7 +14,6 @@ import 'providers/sync_provider.dart';
 import 'providers/known_hosts_provider.dart';
 import 'services/ssh_service.dart';
 import 'services/storage_service.dart';
-import 'services/supabase_service.dart';
 import 'services/sync_service.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
@@ -62,7 +61,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _knownHostsProvider.load();
     _sessionProvider.hostKeyVerifier = _knownHostsProvider.verifyHostKey;
     _syncProvider = SyncProvider();
-    _syncService = SyncService(_syncProvider, SupabaseService('', ''));
+    _syncService = SyncService(_syncProvider);
 
     _hostProvider.onMutation = () => _syncService.push(
           hosts: _hostProvider.allHosts,
