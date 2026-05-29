@@ -12,7 +12,7 @@ void main() {
   group('SupabaseService.setupSchema', () {
     test('returns success when pg/query responds 200', () async {
       final svc = SupabaseService('https://abc.supabase.co', 'anon-key');
-      svc.testDoPost = (_, __, ___) async => http.Response('{"result":[]}', 200);
+      svc.testDoPost = (uri, headers, body) async => http.Response('{"result":[]}', 200);
       final (ok, error) = await svc.setupSchema('service-role-key');
       expect(ok, isTrue);
       expect(error, isNull);
@@ -20,7 +20,7 @@ void main() {
 
     test('returns success when pg/query responds 201', () async {
       final svc = SupabaseService('https://abc.supabase.co', 'anon-key');
-      svc.testDoPost = (_, __, ___) async => http.Response('{}', 201);
+      svc.testDoPost = (uri, headers, body) async => http.Response('{}', 201);
       final (ok, error) = await svc.setupSchema('service-role-key');
       expect(ok, isTrue);
       expect(error, isNull);
@@ -28,7 +28,7 @@ void main() {
 
     test('returns failure with status code on non-200 response', () async {
       final svc = SupabaseService('https://abc.supabase.co', 'anon-key');
-      svc.testDoPost = (_, __, ___) async =>
+      svc.testDoPost = (uri, headers, body) async =>
           http.Response('{"error":"unauthorized"}', 401);
       final (ok, error) = await svc.setupSchema('service-role-key');
       expect(ok, isFalse);
@@ -37,7 +37,7 @@ void main() {
 
     test('returns failure with message on network exception', () async {
       final svc = SupabaseService('https://abc.supabase.co', 'anon-key');
-      svc.testDoPost = (_, __, ___) async => throw Exception('network error');
+      svc.testDoPost = (uri, headers, body) async => throw Exception('network error');
       final (ok, error) = await svc.setupSchema('service-role-key');
       expect(ok, isFalse);
       expect(error, contains('network error'));
