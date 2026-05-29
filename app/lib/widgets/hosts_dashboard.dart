@@ -427,9 +427,9 @@ class _HostCardState extends State<_HostCard> {
     );
   }
 
-  void _copySshUrl(BuildContext context) {
+  Future<void> _copySshUrl(BuildContext context) async {
     final url = 'ssh://${widget.host.username}@${widget.host.host}:${widget.host.port}';
-    Clipboard.setData(ClipboardData(text: url));
+    await Clipboard.setData(ClipboardData(text: url));
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('SSH URL copied'), duration: Duration(seconds: 2)),
@@ -553,11 +553,13 @@ class _ExportDialog extends StatefulWidget {
 class _ExportDialogState extends State<_ExportDialog> {
   bool _showSshConfig = true;
 
-  String get _sshConfigText =>
-      'Host ${widget.host.label}\n'
-      '    HostName ${widget.host.host}\n'
-      '    User ${widget.host.username}\n'
-      '    Port ${widget.host.port}';
+  String get _sshConfigText {
+    final alias = widget.host.label.replaceAll(RegExp(r'\s+'), '-');
+    return 'Host $alias\n'
+        '    HostName ${widget.host.host}\n'
+        '    User ${widget.host.username}\n'
+        '    Port ${widget.host.port}';
+  }
 
   String get _jsonText {
     const encoder = JsonEncoder.withIndent('  ');
@@ -618,8 +620,9 @@ class _ExportDialogState extends State<_ExportDialog> {
           child: const Text('Close', style: TextStyle(color: AppColors.textSecondary)),
         ),
         TextButton(
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: _currentText));
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: _currentText));
+            if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Copied to clipboard'), duration: Duration(seconds: 2)),
             );
