@@ -364,6 +364,7 @@ class _HashToolState extends State<_HashTool> {
     final hash = await algo.hash(bytes);
     final hex =
         hash.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    if (!mounted) return;
     setState(() => _output = '$label:\n$hex');
   }
 
