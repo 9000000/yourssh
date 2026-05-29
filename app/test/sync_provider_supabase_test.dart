@@ -37,4 +37,18 @@ void main() {
     await p.setSupabaseConfig('https://x.supabase.co', '');
     expect(p.isSupabaseConfigured, isFalse);
   });
+
+  test('setSupabaseConfig wins race against concurrent _init() load', () async {
+    SharedPreferences.setMockInitialValues({
+      'supabase_url': 'stale',
+      'supabase_anon_key': 'stale',
+    });
+    final p = SyncProvider();
+    // Call setter immediately without awaiting _init().
+    await p.setSupabaseConfig('fresh', 'fresh');
+    // Give _init() a chance to complete.
+    await Future<void>.delayed(Duration.zero);
+    expect(p.supabaseUrl, 'fresh');
+    expect(p.supabaseAnonKey, 'fresh');
+  });
 }
