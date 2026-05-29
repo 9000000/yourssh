@@ -197,7 +197,7 @@ class _MainScreenState extends State<MainScreen> {
           onAddHost: () => _openHostPanel(),
           onEditHost: (h) => _openHostPanel(existing: h),
           onOpenLocalTerminal: () => setState(() => _nav = NavSection.localTerminal),
-          onNewGroup: (group) => _openHostPanel(initialGroup: group),
+          onNewGroup: () => _openHostPanel(),
         ),
       NavSection.keychain => const KeychainScreen(),
       NavSection.portForwarding => const PortForwardingScreen(),

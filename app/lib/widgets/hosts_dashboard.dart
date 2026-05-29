@@ -12,8 +12,9 @@ class HostsDashboard extends StatefulWidget {
   final VoidCallback? onAddHost;
   final void Function(Host)? onEditHost;
   final VoidCallback? onOpenLocalTerminal;
-  final void Function(String group)? onNewGroup;
-  const HostsDashboard({super.key, this.onAddHost, this.onEditHost, this.onOpenLocalTerminal, this.onNewGroup});
+  final VoidCallback? onNewGroup;
+  final VoidCallback? onImport;
+  const HostsDashboard({super.key, this.onAddHost, this.onEditHost, this.onOpenLocalTerminal, this.onNewGroup, this.onImport});
 
   @override
   State<HostsDashboard> createState() => _HostsDashboardState();
@@ -33,7 +34,13 @@ class _HostsDashboardState extends State<HostsDashboard> {
             h.host.toLowerCase().contains(_search.toLowerCase()) ||
             h.username.toLowerCase().contains(_search.toLowerCase())).toList();
 
+    final pinnedGroups = hostProvider.pinnedGroups;
     final groups = <String, List<Host>>{};
+    // Pinned groups appear first (may be empty)
+    for (final g in pinnedGroups) {
+      groups[g.toUpperCase()] = [];
+    }
+    // Fill with hosts (may add new groups not in pinnedGroups)
     for (final h in hosts) {
       final g = h.group.isEmpty ? 'DEFAULT' : h.group.toUpperCase();
       (groups[g] ??= []).add(h);
@@ -51,6 +58,7 @@ class _HostsDashboardState extends State<HostsDashboard> {
             onAddHost: widget.onAddHost,
             onLocalTerminal: widget.onOpenLocalTerminal,
             onNewGroup: widget.onNewGroup,
+            onImport: widget.onImport,
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -65,7 +73,11 @@ class _HostsDashboardState extends State<HostsDashboard> {
                       spacing: 12,
                       runSpacing: 12,
                       children: groups.entries
-                          .map((e) => _GroupCard(name: e.key, count: e.value.length))
+                          .map((e) => _GroupCard(
+                            name: e.key,
+                            count: e.value.length,
+                            onDelete: () => context.read<HostProvider>().removeGroup(e.key),
+                          ))
                           .toList(),
                     ),
                     const SizedBox(height: 32),
@@ -102,9 +114,10 @@ class _TopBar extends StatelessWidget {
   final int filteredCount;
   final VoidCallback? onAddHost;
   final VoidCallback? onLocalTerminal;
-  final void Function(String group)? onNewGroup;
+  final VoidCallback? onNewGroup;
+  final VoidCallback? onImport;
 
-  const _TopBar({required this.search, required this.onSearch, required this.totalHosts, required this.filteredCount, this.onAddHost, this.onLocalTerminal, this.onNewGroup});
+  const _TopBar({required this.search, required this.onSearch, required this.totalHosts, required this.filteredCount, this.onAddHost, this.onLocalTerminal, this.onNewGroup, this.onImport});
 
   @override
   Widget build(BuildContext context) {
@@ -149,10 +162,10 @@ class _TopBar extends StatelessWidget {
             onTap: onLocalTerminal ?? () {},
           ),
           const SizedBox(width: 8),
-          _OutlinedBtn(
-            icon: Icons.add,
-            label: 'NEW HOST',
-            onTap: onAddHost ?? () {},
+          _SplitNewBtn(
+            onNewHost: onAddHost ?? () {},
+            onNewGroup: onNewGroup,
+            onImport: onImport,
           ),
         ],
       ),
@@ -189,6 +202,107 @@ class _OutlinedBtn extends StatelessWidget {
   }
 }
 
+class _SplitNewBtn extends StatefulWidget {
+  final VoidCallback onNewHost;
+  final VoidCallback? onNewGroup;
+  final VoidCallback? onImport;
+  const _SplitNewBtn({
+    required this.onNewHost,
+    this.onNewGroup,
+    this.onImport,
+  });
+
+  @override
+  State<_SplitNewBtn> createState() => _SplitNewBtnState();
+}
+
+class _SplitNewBtnState extends State<_SplitNewBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: _hovered ? AppColors.textSecondary : AppColors.border,
+          ),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: widget.onNewHost,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 13, color: AppColors.textSecondary),
+                    const SizedBox(width: 6),
+                    const Text('NEW HOST',
+                        style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            letterSpacing: 0.3)),
+                  ],
+                ),
+              ),
+            ),
+            Container(width: 1, height: 20, color: AppColors.border),
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'group') widget.onNewGroup?.call();
+                if (v == 'import') widget.onImport?.call();
+              },
+              color: AppColors.card,
+              padding: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                child: Icon(Icons.keyboard_arrow_down,
+                    size: 14, color: AppColors.textSecondary),
+              ),
+              itemBuilder: (_) => [
+                PopupMenuItem<String>(
+                  value: 'group',
+                  height: 36,
+                  child: Row(
+                    children: const [
+                      Icon(Icons.create_new_folder_outlined,
+                          size: 14, color: AppColors.textSecondary),
+                      SizedBox(width: 10),
+                      Text('New Group',
+                          style: TextStyle(
+                              color: AppColors.textPrimary, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'import',
+                  height: 36,
+                  child: Row(
+                    children: const [
+                      Icon(Icons.upload_file_outlined,
+                          size: 14, color: AppColors.textSecondary),
+                      SizedBox(width: 10),
+                      Text('Import',
+                          style: TextStyle(
+                              color: AppColors.textPrimary, fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Section Header ────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
@@ -210,38 +324,101 @@ class _SectionHeader extends StatelessWidget {
 
 // ── Group Card ────────────────────────────────────────────
 
-class _GroupCard extends StatelessWidget {
+class _GroupCard extends StatefulWidget {
   final String name;
   final int count;
-  const _GroupCard({required this.name, required this.count});
+  final VoidCallback? onDelete;
+  const _GroupCard({required this.name, required this.count, this.onDelete});
+
+  @override
+  State<_GroupCard> createState() => _GroupCardState();
+}
+
+class _GroupCardState extends State<_GroupCard> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Container(
+        width: 200,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: AppColors.textTertiary.withValues(alpha: 0.3),
+              child: Icon(Icons.folder_outlined, color: AppColors.textSecondary, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.name,
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                  Text('${widget.count} host${widget.count == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12)),
+                ],
+              ),
+            ),
+            if (_hovered && widget.onDelete != null)
+              GestureDetector(
+                onTapDown: (d) => _showMenu(context, d.globalPosition),
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const Icon(Icons.more_horiz,
+                      size: 14, color: AppColors.textSecondary),
+                ),
+              ),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.textTertiary.withValues(alpha: 0.3),
-            child: Icon(Icons.folder_outlined, color: AppColors.textSecondary, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  void _showMenu(BuildContext context, Offset position) {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      color: AppColors.card,
+      position: RelativeRect.fromRect(
+        position & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 36,
+          onTap: widget.onDelete,
+          child: const Row(
             children: [
-              Text(name, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-              Text('$count host${count == 1 ? '' : 's'}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              Icon(Icons.delete_outline, size: 14, color: AppColors.red),
+              SizedBox(width: 10),
+              Text('Delete group',
+                  style: TextStyle(color: AppColors.red, fontSize: 13)),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
