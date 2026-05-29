@@ -67,16 +67,22 @@ class _SplitTerminalViewState extends State<SplitTerminalView> {
         return Row(children: [
           Expanded(child: _buildPane(0, sessions[0], sessions, layout)),
           const VerticalDivider(width: 1, color: Color(0xFF2A2A2A)),
-          if (sessions.length > 1)
-            Expanded(child: _buildPane(1, sessions[1], sessions, layout)),
+          Expanded(
+            child: sessions.length > 1
+                ? _buildPane(1, sessions[1], sessions, layout)
+                : _buildEmptyPane(),
+          ),
         ]);
 
       case SplitLayout.vertical:
         return Column(children: [
           Expanded(child: _buildPane(0, sessions[0], sessions, layout)),
           const Divider(height: 1, color: Color(0xFF2A2A2A)),
-          if (sessions.length > 1)
-            Expanded(child: _buildPane(1, sessions[1], sessions, layout)),
+          Expanded(
+            child: sessions.length > 1
+                ? _buildPane(1, sessions[1], sessions, layout)
+                : _buildEmptyPane(),
+          ),
         ]);
 
       case SplitLayout.quad:
@@ -85,22 +91,37 @@ class _SplitTerminalViewState extends State<SplitTerminalView> {
             child: Row(children: [
               Expanded(child: _buildPane(0, sessions[0], sessions, layout)),
               const VerticalDivider(width: 1, color: Color(0xFF2A2A2A)),
-              if (sessions.length > 1)
-                Expanded(child: _buildPane(1, sessions[1], sessions, layout)),
+              Expanded(
+                child: sessions.length > 1
+                    ? _buildPane(1, sessions[1], sessions, layout)
+                    : _buildEmptyPane(),
+              ),
             ]),
           ),
           const Divider(height: 1, color: Color(0xFF2A2A2A)),
           Expanded(
             child: Row(children: [
-              if (sessions.length > 2)
-                Expanded(child: _buildPane(2, sessions[2], sessions, layout)),
+              Expanded(
+                child: sessions.length > 2
+                    ? _buildPane(2, sessions[2], sessions, layout)
+                    : _buildEmptyPane(),
+              ),
               const VerticalDivider(width: 1, color: Color(0xFF2A2A2A)),
-              if (sessions.length > 3)
-                Expanded(child: _buildPane(3, sessions[3], sessions, layout)),
+              Expanded(
+                child: sessions.length > 3
+                    ? _buildPane(3, sessions[3], sessions, layout)
+                    : _buildEmptyPane(),
+              ),
             ]),
           ),
         ]);
     }
+  }
+
+  Widget _buildEmptyPane() {
+    return const Center(
+      child: Text('No session', style: TextStyle(color: Color(0xFF555555), fontSize: 13)),
+    );
   }
 
   Widget _buildPane(
