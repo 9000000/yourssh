@@ -10,7 +10,7 @@ import 'package:yourssh/services/sync_encryption.dart';
 import 'package:yourssh/services/sync_service.dart';
 
 class _ThrowingSupabase extends SupabaseService {
-  _ThrowingSupabase() : super('', '');
+  _ThrowingSupabase() : super('https://test.supabase.co', 'test-anon-key');
 
   @override
   Future<void> deleteSyncRow(String syncId) async => throw Exception('network error');
@@ -127,7 +127,9 @@ void main() {
       final syncProvider = await buildProvider();
       await syncProvider.setEnabled(true);
 
-      final service = SyncService(syncProvider, _ThrowingSupabase());
+      await syncProvider.setSupabaseConfig('https://test.supabase.co', 'test-anon-key');
+      final service = SyncService(syncProvider)
+        ..cachedSupabase = _ThrowingSupabase();
       await service.disableAndDelete();
 
       final prefs = await SharedPreferences.getInstance();

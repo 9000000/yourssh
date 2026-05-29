@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/host.dart';
 import '../providers/sync_provider.dart';
@@ -18,13 +19,29 @@ class SyncService {
   static const _pendingPushKey = 'sync_pending_push';
 
   final SyncProvider _syncProvider;
-  final SupabaseService _supabase;
+  SupabaseService? _cachedSupabase;
   Timer? _retryTimer;
   Future<List<Host>> Function()? _getHosts;
   Future<Map<String, String>> Function()? _loadPasswords;
   bool _syncing = false;
 
-  SyncService(this._syncProvider, this._supabase);
+  SyncService(this._syncProvider);
+
+  /// Overrides the cached [SupabaseService] instance. Intended for tests only.
+  @visibleForTesting
+  set cachedSupabase(SupabaseService value) => _cachedSupabase = value;
+
+  SupabaseService? _getSupabase() {
+    if (!_syncProvider.isSupabaseConfigured) return null;
+    final url = _syncProvider.supabaseUrl;
+    final key = _syncProvider.supabaseAnonKey;
+    if (_cachedSupabase == null ||
+        _cachedSupabase!.url != url ||
+        _cachedSupabase!.anonKey != key) {
+      _cachedSupabase = SupabaseService(url, key);
+    }
+    return _cachedSupabase;
+  }
 
   // ── Static helpers (testable without instance) ────────────
 
@@ -67,6 +84,11 @@ class SyncService {
     if (!_syncProvider.enabled) return;
     if (_syncProvider.syncId.isEmpty) return;
     if (_syncing) return;
+    final supabase = _getSupabase();
+    if (supabase == null) {
+      _syncProvider.setError('Supabase not configured. Enter your project URL and anon key in Settings → Sync.');
+      return;
+    }
     _syncing = true;
     final prefs = await SharedPreferences.getInstance();
     try {
@@ -74,7 +96,7 @@ class SyncService {
       final passwords = await loadPasswords();
       final payload = buildPayload(hosts: hosts, passwords: passwords);
       final encrypted = await SyncEncryption.encrypt(payload, _syncProvider.syncId);
-      await _supabase.upsertPayload(_syncProvider.syncId, encrypted);
+      await supabase.upsertPayload(_syncProvider.syncId, encrypted);
       await prefs.setString(_lastPushKey, DateTime.now().toUtc().toIso8601String());
       await prefs.setBool(_pendingPushKey, false);
       _syncing = false;
@@ -92,14 +114,18 @@ class SyncService {
     if (!_syncProvider.enabled) return null;
     if (_syncProvider.syncId.isEmpty) return null;
     if (_syncing) return null;
+    final supabase = _getSupabase();
+    if (supabase == null) {
+      _syncProvider.setError('Supabase not configured. Enter your project URL and anon key in Settings → Sync.');
+      return null;
+    }
     _syncing = true;
     final prefs = await SharedPreferences.getInstance();
     try {
       _syncProvider.setStatus(SyncStatus.syncing);
       final lastPushStr = prefs.getString(_lastPushKey);
       final lastPushAt = lastPushStr != null ? DateTime.parse(lastPushStr) : null;
-
-      final remoteUpdatedAt = await _supabase.fetchUpdatedAt(_syncProvider.syncId);
+      final remoteUpdatedAt = await supabase.fetchUpdatedAt(_syncProvider.syncId);
       if (remoteUpdatedAt == null) {
         _syncing = false;
         _syncProvider.setStatus(SyncStatus.synced);
@@ -110,7 +136,7 @@ class SyncService {
         _syncProvider.setStatus(SyncStatus.synced);
         return null;
       }
-      final encrypted = await _supabase.fetchPayload(_syncProvider.syncId);
+      final encrypted = await supabase.fetchPayload(_syncProvider.syncId);
       if (encrypted == null) {
         _syncing = false;
         _syncProvider.setStatus(SyncStatus.synced);
@@ -163,7 +189,12 @@ class SyncService {
 
   Future<void> disableAndDelete() async {
     stopRetryTimer();
-    await _supabase.deleteSyncRow(_syncProvider.syncId);
+    try {
+      final supabase = _getSupabase();
+      if (supabase != null) {
+        await supabase.deleteSyncRow(_syncProvider.syncId);
+      }
+    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_pendingPushKey);
     await prefs.remove(_lastPushKey);
