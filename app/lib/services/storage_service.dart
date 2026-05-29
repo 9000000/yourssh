@@ -87,4 +87,18 @@ class StorageService {
     await prefs.setString(
         _knownHostsKey, jsonEncode(hosts.map((h) => h.toJson()).toList()));
   }
+
+  // ── Pinned Groups ──────────────────────────────────────────
+
+  static const _pinnedGroupsKey = 'yourssh.pinned_groups';
+
+  Future<List<String>> loadPinnedGroups() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_pinnedGroupsKey) ?? [];
+  }
+
+  Future<void> savePinnedGroups(List<String> groups) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_pinnedGroupsKey, groups);
+  }
 }
