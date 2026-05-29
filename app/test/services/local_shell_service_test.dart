@@ -99,7 +99,7 @@ void main() {
 
     test('factory error sets session to error state with message', () async {
       final badService = LocalShellService(
-        ptyFactory: (_, __, ___, ____) => throw Exception('pty unavailable'),
+        ptyFactory: (_, _, _, _) => throw Exception('pty unavailable'),
       );
       final session = await badService.openShell();
       expect(session.status, LocalSessionStatus.error);

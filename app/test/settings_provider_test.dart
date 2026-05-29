@@ -7,10 +7,10 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('terminalFont defaults to monospace', () async {
+  test('terminalFont defaults to MesloLGS NF', () async {
     final provider = SettingsProvider();
     await Future<void>.delayed(Duration.zero);
-    expect(provider.terminalFont, 'monospace');
+    expect(provider.terminalFont, 'MesloLGS NF');
   });
 
   test('save persists terminalFont', () async {

@@ -10,10 +10,10 @@ import 'package:yourssh/services/sync_encryption.dart';
 import 'package:yourssh/services/sync_service.dart';
 
 class _ThrowingSupabase extends SupabaseService {
+  _ThrowingSupabase() : super('', '');
+
   @override
-  Future<void> deleteSyncRow(String syncId) async {
-    throw Exception('network error');
-  }
+  Future<void> deleteSyncRow(String syncId) async => throw Exception('network error');
 }
 
 void main() {
@@ -115,7 +115,7 @@ void main() {
           .setMockMethodCallHandler(secureStorageChannel, null);
     });
 
-    Future<SyncProvider> _buildProvider() async {
+    Future<SyncProvider> buildProvider() async {
       final p = SyncProvider();
       final c = Completer<void>();
       p.addListener(() { if (!c.isCompleted) c.complete(); });
@@ -124,7 +124,7 @@ void main() {
     }
 
     test('clears local prefs and disables sync even when remote delete throws', () async {
-      final syncProvider = await _buildProvider();
+      final syncProvider = await buildProvider();
       await syncProvider.setEnabled(true);
 
       final service = SyncService(syncProvider, _ThrowingSupabase());

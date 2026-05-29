@@ -9,7 +9,7 @@ class SettingsProvider extends ChangeNotifier {
   String terminalTheme = 'Dracula';
   bool networkStatsEnabled = false;
   bool tmuxEnabled = false;
-  String terminalFont = 'monospace';
+  String terminalFont = 'MesloLGS NF';
   Map<String, String> hotkeys = {
     'new_session': 'ctrl+t',
     'close_session': 'ctrl+w',
@@ -32,7 +32,7 @@ class SettingsProvider extends ChangeNotifier {
     terminalTheme = prefs.getString('terminalTheme') ?? 'Dracula';
     networkStatsEnabled = prefs.getBool('networkStatsEnabled') ?? false;
     tmuxEnabled = prefs.getBool('tmuxEnabled') ?? false;
-    terminalFont = prefs.getString('terminalFont') ?? 'monospace';
+    terminalFont = prefs.getString('terminalFont') ?? 'MesloLGS NF';
     final hotkeysJson = prefs.getString('hotkeys');
     if (hotkeysJson != null) {
       final decoded = jsonDecode(hotkeysJson) as Map<String, dynamic>;

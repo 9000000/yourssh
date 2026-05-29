@@ -3,11 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SupabaseService {
   final String _url;
   final String _anonKey;
-  late final SupabaseClient _client;
+  SupabaseClient? _clientInstance;
 
-  SupabaseService(this._url, this._anonKey) {
-    _client = SupabaseClient(_url, _anonKey);
-  }
+  SupabaseService(this._url, this._anonKey);
+
+  SupabaseClient get _client => _clientInstance ??= SupabaseClient(_url, _anonKey);
 
   String get url => _url;
   String get anonKey => _anonKey;

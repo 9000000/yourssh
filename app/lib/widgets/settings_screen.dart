@@ -19,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _themes = ['Dracula', 'One Dark', 'Tokyo Night', 'Nord', 'Solarized Dark'];
   static const _bundledFonts = [
     'monospace',
+    'MesloLGS NF',
     'DejaVu Sans Mono for Powerline',
     'Inconsolata for Powerline',
     'Meslo LG S for Powerline',
