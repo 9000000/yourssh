@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -346,6 +345,31 @@ class _S3BrowserScreenState extends State<S3BrowserScreen> {
     }
   }
 
+  Future<void> _download(S3BucketEntry entry) async {
+    setState(() => _loading = true);
+    try {
+      final bytes = await _service!.downloadObject(entry.key);
+      final path = '${_getDownloadsPath()}/${entry.name}';
+      await File(path).writeAsBytes(bytes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved to Downloads/${entry.name}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _getDownloadsPath() {
+    if (Platform.isWindows) {
+      return '${Platform.environment['USERPROFILE']}\\Downloads';
+    }
+    return '${Platform.environment['HOME']}/Downloads';
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasConfig = _configs.isNotEmpty && _activeIndex >= 0;
@@ -570,6 +594,7 @@ class _S3BrowserScreenState extends State<S3BrowserScreen> {
           onDelete: entry.isPrefix ? null : () => _delete(entry),
           onCopyUrl: entry.isPrefix ? null : () => _copyDownloadUrl(entry),
           onOpenUrl: entry.isPrefix ? null : () => _openInBrowser(entry),
+          onDownload: entry.isPrefix ? null : () => _download(entry),
         );
       },
     );
@@ -616,6 +641,7 @@ class _EntryTile extends StatefulWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onCopyUrl;
   final VoidCallback? onOpenUrl;
+  final VoidCallback? onDownload;
 
   const _EntryTile({
     required this.entry,
@@ -623,6 +649,7 @@ class _EntryTile extends StatefulWidget {
     this.onDelete,
     this.onCopyUrl,
     this.onOpenUrl,
+    this.onDownload,
   });
 
   @override
@@ -664,6 +691,8 @@ class _EntryTileState extends State<_EntryTile> {
                       _actionBtn(Icons.link_outlined, 'Copy URL', widget.onCopyUrl!),
                     if (widget.onOpenUrl != null)
                       _actionBtn(Icons.open_in_browser_outlined, 'Open', widget.onOpenUrl!),
+                    if (widget.onDownload != null)
+                      _actionBtn(Icons.download_outlined, 'Download', widget.onDownload!),
                     if (widget.onDelete != null)
                       _actionBtn(Icons.delete_outlined, 'Delete', widget.onDelete!, color: AppColors.red),
                   ],
