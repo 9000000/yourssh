@@ -9,6 +9,7 @@ class SettingsProvider extends ChangeNotifier {
   String terminalTheme = 'Dracula';
   bool networkStatsEnabled = false;
   bool tmuxEnabled = false;
+  String terminalFont = 'monospace';
   Map<String, String> hotkeys = {
     'new_session': 'ctrl+t',
     'close_session': 'ctrl+w',
@@ -31,6 +32,7 @@ class SettingsProvider extends ChangeNotifier {
     terminalTheme = prefs.getString('terminalTheme') ?? 'Dracula';
     networkStatsEnabled = prefs.getBool('networkStatsEnabled') ?? false;
     tmuxEnabled = prefs.getBool('tmuxEnabled') ?? false;
+    terminalFont = prefs.getString('terminalFont') ?? 'monospace';
     final hotkeysJson = prefs.getString('hotkeys');
     if (hotkeysJson != null) {
       final decoded = jsonDecode(hotkeysJson) as Map<String, dynamic>;
@@ -47,6 +49,7 @@ class SettingsProvider extends ChangeNotifier {
     Map<String, String>? hotkeys,
     bool? networkStatsEnabled,
     bool? tmuxEnabled,
+    String? terminalFont,
   }) async {
     if (autoReconnect != null) this.autoReconnect = autoReconnect;
     if (reconnectAttempts != null) this.reconnectAttempts = reconnectAttempts;
@@ -55,6 +58,7 @@ class SettingsProvider extends ChangeNotifier {
     if (hotkeys != null) this.hotkeys = hotkeys;
     if (networkStatsEnabled != null) this.networkStatsEnabled = networkStatsEnabled;
     if (tmuxEnabled != null) this.tmuxEnabled = tmuxEnabled;
+    if (terminalFont != null) this.terminalFont = terminalFont;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('autoReconnect', this.autoReconnect);
     await prefs.setInt('reconnectAttempts', this.reconnectAttempts);
@@ -63,6 +67,7 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString('hotkeys', jsonEncode(this.hotkeys));
     await prefs.setBool('networkStatsEnabled', this.networkStatsEnabled);
     await prefs.setBool('tmuxEnabled', this.tmuxEnabled);
+    await prefs.setString('terminalFont', this.terminalFont);
     notifyListeners();
   }
 }
