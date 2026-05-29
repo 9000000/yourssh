@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
@@ -16,7 +17,11 @@ class SshService {
 
   // ── Connect ────────────────────────────────────────────
 
-  Future<SSHClient> connect(Host host, {SshKeyEntry? keyEntry}) async {
+  Future<SSHClient> connect(
+    Host host, {
+    SshKeyEntry? keyEntry,
+    Future<bool> Function(String keyType, Uint8List fingerprint)? verifyHostKey,
+  }) async {
     final password = await _storage.loadPassword(host.id);
 
     List<SSHKeyPair> identities = [];
@@ -34,7 +39,10 @@ class SshService {
       username: host.username,
       onPasswordRequest: () => password ?? '',
       identities: identities.isNotEmpty ? identities : null,
-      onVerifyHostKey: (type, fingerprint) => true,
+      onVerifyHostKey: (type, fp) async {
+        if (verifyHostKey != null) return verifyHostKey(type.toString(), fp);
+        return true;
+      },
     );
 
     await client.authenticated;
@@ -62,13 +70,23 @@ class SshService {
       shell.write(Uint8List.fromList('tmux new-session -A -s yourssh\n'.codeUnits));
     }
 
-    // Pipe SSH output → xterm terminal
+    final done = Completer<void>();
+    const utf8 = Utf8Decoder(allowMalformed: true);
+
+    // Pipe SSH output → xterm terminal; complete when shell closes
     shell.stdout.cast<List<int>>().listen(
-      (data) => session.terminal.write(String.fromCharCodes(data)),
-      onDone: () => _onShellClosed(session),
+      (data) => session.terminal.write(utf8.convert(data)),
+      onDone: () {
+        _onShellClosed(session);
+        if (!done.isCompleted) done.complete();
+      },
+      onError: (Object e) {
+        if (!done.isCompleted) done.completeError(e);
+      },
+      cancelOnError: true,
     );
     shell.stderr.cast<List<int>>().listen(
-      (data) => session.terminal.write(String.fromCharCodes(data)),
+      (data) => session.terminal.write(utf8.convert(data)),
     );
 
     // Pipe xterm input → SSH shell
@@ -80,6 +98,9 @@ class SshService {
     session.terminal.onResize = (w, h, pw, ph) {
       shell.resizeTerminal(w, h);
     };
+
+    // Wait until the remote shell actually closes
+    await done.future;
   }
 
   void _onShellClosed(SshSession session) {
