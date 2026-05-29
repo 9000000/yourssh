@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/host.dart';
+import '../models/ssh_key.dart';
 import '../providers/host_provider.dart';
+import '../providers/key_provider.dart';
 import '../providers/session_provider.dart';
+import '../services/ssh_service.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import 'sftp_screen.dart';
 
@@ -472,6 +477,46 @@ class _HostCard extends StatefulWidget {
 
 class _HostCardState extends State<_HostCard> {
   bool _hovered = false;
+  bool _testing = false;
+  ({bool success, int latencyMs, String? error})? _testResult;
+  Timer? _resultTimer;
+
+  @override
+  void dispose() {
+    _resultTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _test() async {
+    if (_testing) return;
+    _resultTimer?.cancel();
+    setState(() { _testing = true; _testResult = null; });
+
+    final sshService = context.read<SshService>();
+    final storage = context.read<StorageService>();
+    final keys = context.read<KeyProvider>().keys;
+
+    final password = widget.host.authType == AuthType.password
+        ? await storage.loadPassword(widget.host.id)
+        : null;
+
+    SshKeyEntry? keyEntry;
+    if (widget.host.authType == AuthType.privateKey && widget.host.keyId != null) {
+      keyEntry = keys.where((k) => k.id == widget.host.keyId).firstOrNull;
+    }
+
+    final result = await sshService.testConnection(
+      widget.host,
+      password: password,
+      keyEntry: keyEntry,
+    );
+
+    if (!mounted) return;
+    setState(() { _testing = false; _testResult = result; });
+    _resultTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted) setState(() => _testResult = null);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -541,10 +586,34 @@ class _HostCardState extends State<_HostCard> {
               ),
 
               // Action buttons (show on hover)
-              if (_hovered) ...[
+              if (_hovered && !_testing && _testResult == null) ...[
+                _iconBtn(Icons.network_check, 'Test Connection', onTap: _test),
+                const SizedBox(width: 2),
                 _iconBtn(Icons.folder_outlined, 'SFTP', onTap: () => _openSftp(context)),
                 const SizedBox(width: 2),
                 _iconBtn(Icons.more_horiz, 'More', onTapDown: (d) => _showMenu(context, hostProvider, sessionProvider, d.globalPosition)),
+              ],
+              if (_testing)
+                const SizedBox(
+                  width: 14, height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textSecondary),
+                ),
+              if (_testResult != null) ...[
+                Icon(
+                  _testResult!.success ? Icons.check_circle_outline : Icons.error_outline,
+                  size: 14,
+                  color: _testResult!.success ? AppColors.accent : AppColors.red,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _testResult!.success
+                      ? '${_testResult!.latencyMs}ms'
+                      : (_testResult!.error ?? 'Failed'),
+                  style: TextStyle(
+                    color: _testResult!.success ? AppColors.accent : AppColors.red,
+                    fontSize: 11,
+                  ),
+                ),
               ],
             ],
           ),
