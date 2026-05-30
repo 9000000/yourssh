@@ -27,6 +27,7 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
   late final WebViewController _controller;
   bool _ready = false;
   bool _saving = false;
+  bool _isDirty = false;
   String? _content;
 
   static const _langMap = {
@@ -65,6 +66,8 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
     if (type == 'ready') {
       setState(() => _ready = true);
       if (_content != null) _pushContentToEditor();
+    } else if (type == 'change') {
+      if (!_isDirty) setState(() => _isDirty = true);
     } else if (type == 'save') {
       final content = data['content'] as String;
       _saveFile(content);
@@ -86,6 +89,7 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       await File(tmpPath).writeAsString(content);
       await service.uploadFile(widget.host, tmpPath, widget.entry.path);
       if (mounted) {
+        setState(() => _isDirty = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)),
         );
@@ -101,9 +105,36 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
     }
   }
 
+  Future<void> _showDiscardDialog() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Unsaved changes',
+            style: TextStyle(color: Color(0xFFD4D4D4), fontSize: 14)),
+        content: const Text('Discard changes and close?',
+            style: TextStyle(color: Color(0xFF888888), fontSize: 13)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xFF888888)))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Discard', style: TextStyle(color: Color(0xFFEF4444)))),
+        ],
+      ),
+    );
+    if (discard == true && mounted) Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _showDiscardDialog();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
       appBar: AppBar(
         backgroundColor: const Color(0xFF141414),
@@ -136,6 +167,7 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       body: !_ready
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF22C55E)))
           : WebViewWidget(controller: _controller),
+      ),
     );
   }
 }
