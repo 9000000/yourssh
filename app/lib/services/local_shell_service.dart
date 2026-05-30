@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_pty/flutter_pty.dart';
 import 'package:xterm/xterm.dart';
 import '../models/local_session.dart';
+import 'notification_service.dart';
 import 'pty_runner.dart';
 
 typedef PtyFactory = PtyRunner Function(
@@ -49,7 +50,14 @@ class LocalShellService {
 
       pty.output
           .transform(const Utf8Decoder(allowMalformed: true))
-          .listen(terminal.write);
+          .listen((data) {
+            terminal.write(data);
+            NotificationService.instance.onTerminalData(
+              data,
+              sessionId: session.id,
+              sessionLabel: 'Local Shell',
+            );
+          });
 
       terminal.onOutput = (data) {
         pty.write(const Utf8Encoder().convert(data));
@@ -62,6 +70,7 @@ class LocalShellService {
       pty.exitCode.then((code) {
         session.status = LocalSessionStatus.exited;
         terminal.write('\r\n[Process exited with code $code]\r\n');
+        NotificationService.instance.removeSession(session.id);
       });
     } catch (e) {
       session.status = LocalSessionStatus.error;

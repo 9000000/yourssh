@@ -7,6 +7,7 @@ import '../models/host.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
 import 'certificate_key_pair.dart';
+import 'notification_service.dart';
 import 'storage_service.dart';
 import 'system_agent_proxy.dart';
 
@@ -197,7 +198,15 @@ class SshService {
 
     // Pipe SSH output → xterm terminal; complete when shell closes
     shell.stdout.cast<List<int>>().listen(
-      (data) => session.terminal.write(utf8.convert(data)),
+      (data) {
+        final text = utf8.convert(data);
+        session.terminal.write(text);
+        NotificationService.instance.onTerminalData(
+          text,
+          sessionId: session.id,
+          sessionLabel: '${session.host.label} (${session.host.username}@${session.host.host})',
+        );
+      },
       onDone: () {
         _onShellClosed(session);
         if (!done.isCompleted) done.complete();
@@ -228,6 +237,7 @@ class SshService {
   void _onShellClosed(SshSession session) {
     _shells.remove(session.id);
     session.terminal.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+    NotificationService.instance.removeSession(session.id);
   }
 
   // ── Exec ───────────────────────────────────────────────
