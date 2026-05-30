@@ -119,6 +119,11 @@ Host staging
       expect(result.length, 1);
       expect(result[0].host, 'server.com');
     });
+
+    test('returns empty list when CSV is missing host column', () {
+      const csv = 'label,port\nfoo,22';
+      expect(detectAndParse(csv), isEmpty);
+    });
   });
 
   group('parseCsvHosts', () {
@@ -200,6 +205,14 @@ Host staging
       expect(result.hosts.length, 1);
       expect(result.hosts[0].authType, AuthType.password);
       expect(result.warnings, isEmpty);
+    });
+
+    test('malformed CSV row (unterminated quote) — row skipped with warning', () {
+      const csv = 'host,label\nserver.com,"Unterminated';
+      final result = parseCsvHosts(csv);
+      expect(result.hosts, isEmpty);
+      expect(result.warnings.length, 1);
+      expect(result.warnings[0], contains('malformed CSV'));
     });
   });
 }

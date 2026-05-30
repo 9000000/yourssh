@@ -95,7 +95,7 @@ List<String> _splitCsvLine(String line) {
 
 ({List<Host> hosts, List<String> warnings}) parseCsvHosts(String input) {
   final lines = input.split('\n').map((l) => l.trimRight()).toList();
-  while (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
+  while (lines.isNotEmpty && lines.last.isEmpty) { lines.removeLast(); }
   if (lines.isEmpty) return (hosts: [], warnings: []);
 
   final header = _splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase()).toList();
