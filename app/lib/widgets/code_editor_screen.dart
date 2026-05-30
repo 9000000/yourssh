@@ -56,6 +56,7 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
     final tmpPath = await service.downloadToTemp(widget.host, widget.entry);
     if (tmpPath == null || !mounted) return;
     final bytes = await File(tmpPath).readAsBytes();
+    if (!mounted) return;
     setState(() => _content = utf8.decode(bytes, allowMalformed: true));
     if (_ready) _pushContentToEditor();
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/host.dart';
+import '../providers/host_provider.dart';
 import '../providers/key_provider.dart';
 import '../services/ssh_service.dart';
 import '../theme/app_theme.dart';
@@ -42,6 +43,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
   bool _testing = false;
   ({bool success, int latencyMs, String? error})? _testResult;
   bool _autoRecord = false;
+  String? _selectedJumpHostId;
 
   bool get _isNew => widget.existing == null;
 
@@ -59,6 +61,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
     _authType = h?.authType ?? AuthType.password;
     _selectedKeyId = h?.keyId;
     _autoRecord = h?.autoRecord ?? false;
+    _selectedJumpHostId = h?.jumpHostId;
     for (final c in [_hostCtrl, _portCtrl, _usernameCtrl, _passwordCtrl]) {
       c.addListener(_clearTestResult);
     }
@@ -91,6 +94,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
       group: _groupCtrl.text.trim(),
       tags: tags,
       autoRecord: _autoRecord,
+      jumpHostId: _selectedJumpHostId,
     );
     try {
       await widget.onSave(host, _passwordCtrl.text);
@@ -114,6 +118,15 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
         ? keys.where((k) => k.id == _selectedKeyId).firstOrNull
         : null;
 
+    final allHosts = context.read<HostProvider>().allHosts;
+    Host? jumpHost;
+    if (_selectedJumpHostId != null) {
+      jumpHost = allHosts.where((h) => h.id == _selectedJumpHostId).firstOrNull;
+    }
+    final jumpKeyEntry = (jumpHost != null && jumpHost.keyId != null)
+        ? context.read<KeyProvider>().findById(jumpHost.keyId!)
+        : null;
+
     final host = Host(
       id: widget.existing?.id,
       label: _hostCtrl.text.trim(),
@@ -124,12 +137,15 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
       keyId: _authType == AuthType.privateKey ? _selectedKeyId : null,
       group: '',
       tags: const [],
+      jumpHostId: _selectedJumpHostId,
     );
 
     final result = await context.read<SshService>().testConnection(
       host,
       password: _passwordCtrl.text,
       keyEntry: keyEntry,
+      jumpHost: jumpHost,
+      jumpKeyEntry: jumpKeyEntry,
     );
 
     if (mounted) setState(() { _testing = false; _testResult = result; });
@@ -275,6 +291,60 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                       ),
                     ],
                   ]),
+
+                  const SizedBox(height: 16),
+                  _sectionLabel('JUMP HOST'),
+                  const SizedBox(height: 6),
+                  Builder(builder: (context) {
+                    final allHosts = context.watch<HostProvider>().allHosts;
+                    final existingId = widget.existing?.id;
+                    final otherHosts = allHosts
+                        .where((h) => h.id != existingId)
+                        .toList();
+                    if (otherHosts.isEmpty) return const SizedBox.shrink();
+                    // Drop a stale jump host selection if that host was deleted
+                    // — otherwise DropdownButton asserts on a value not in items.
+                    final validJump = _selectedJumpHostId != null &&
+                            otherHosts.any((h) => h.id == _selectedJumpHostId)
+                        ? _selectedJumpHostId
+                        : null;
+                    if (validJump != _selectedJumpHostId) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) setState(() => _selectedJumpHostId = validJump);
+                      });
+                    }
+                    return _Card(children: [
+                      _DropdownRow(
+                        icon: Icons.hive_outlined,
+                        child: DropdownButton<String?>(
+                          value: validJump,
+                          isExpanded: true,
+                          hint: const Text(
+                            'None (direct connection)',
+                            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                          ),
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                          dropdownColor: AppColors.card,
+                          underline: const SizedBox(),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('None (direct connection)',
+                                  style: TextStyle(color: AppColors.textTertiary, fontSize: 13)),
+                            ),
+                            ...otherHosts.map((h) => DropdownMenuItem<String?>(
+                              value: h.id,
+                              child: Text(
+                                '${h.label} (${h.username}@${h.host})',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            )),
+                          ],
+                          onChanged: (v) => setState(() => _selectedJumpHostId = v),
+                        ),
+                      ),
+                    ]);
+                  }),
 
                   const SizedBox(height: 16),
                   _sectionLabel('RECORDING'),

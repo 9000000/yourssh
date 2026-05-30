@@ -48,6 +48,7 @@ xattr -dr com.apple.quarantine /Applications/YourSSH.app
 - **Multi-tab SSH sessions** with named tabs and per-tab connection state
 - **Split terminal view** — horizontal/vertical pane splitting within a session
 - **Port forwarding** — local, remote, and dynamic SOCKS5 tunnels
+- **Jump host / bastion proxy** — connect to internal servers via a bastion host; select any saved host as the jump hop in the host detail panel
 - **Local shell** — spawn native macOS/Windows/Linux shell alongside SSH sessions
 - **xterm-256color** terminal emulation with full PTY support
 
@@ -410,13 +411,13 @@ Include a short description of **what** changed and **why**. Screenshots for UI 
 
 ### 🔜 Phase 2 — Core SSH improvements
 
-- [ ] **Jump host / bastion proxy** — `ProxyJump` support for multi-hop connections
+- [x] **Jump host / bastion proxy** — `ProxyJump` support for multi-hop connections
 - [ ] **TOTP / keyboard-interactive 2FA** — OTP prompt for servers that require it after password
 - [x] **Windows SSH agent (Pageant)** — named-pipe agent support alongside `SSH_AUTH_SOCK`
 
 ### 🔜 Phase 3 — Productivity
 
-- [ ] **Session recording** — save terminal sessions to file (asciinema format) with playback
+- [x] **Session recording** — save terminal sessions to file (asciinema format) with playback
 - [x] **Multi-host scripting** — run a script or command across multiple selected hosts in parallel
 - [x] **Smarter tab completion** — history-aware suggestions + remote filesystem path completion
 - [ ] **Vault** — encrypted local store for API keys, tokens, and secrets with biometric unlock

@@ -60,14 +60,12 @@ class _CloudflareTunnelBodyState extends State<_CloudflareTunnelBody> {
       return;
     }
 
-    final url =
+    final result =
         await service.startQuickTunnel(session.host, tunnel.localPort);
-    if (url != null) {
-      provider.updateStatus(tunnel.id, TunnelStatus.active, url: url);
+    if (result.ok) {
+      provider.updateStatus(tunnel.id, TunnelStatus.active, url: result.url);
     } else {
-      provider.updateStatus(tunnel.id, TunnelStatus.error,
-          error:
-              'Could not get tunnel URL. Check /tmp/cf_tunnel_${tunnel.localPort}.log on the server.');
+      provider.updateStatus(tunnel.id, TunnelStatus.error, error: result.error);
     }
   }
 

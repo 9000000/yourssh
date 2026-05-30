@@ -64,11 +64,13 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
 
   Future<void> _pickHostA() async {
     final h = await _showHostPicker(_hostA);
+    if (!mounted) return;
     if (h != null && h.id != _hostA?.id) setState(() { _hostA = h; widget.connectionNotifier.value = true; });
   }
 
   Future<void> _pickHostB() async {
     final h = await _showHostPicker(_hostB);
+    if (!mounted) return;
     if (h != null && h.id != _hostB?.id) setState(() => _hostB = h);
   }
 

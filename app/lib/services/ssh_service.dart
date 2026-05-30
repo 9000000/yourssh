@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
+import 'package:flutter/foundation.dart';
 import '../models/host.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
@@ -16,71 +16,122 @@ class SshService {
   final StorageService _storage;
   final Map<String, SSHClient> _clients = {};
   final Map<String, SSHSession> _shells = {};
+  final Map<String, String> _shellToHost = {}; // sessionId → hostId
   final Map<String, SystemAgentProxy> _agentProxies = {};
+  final Map<String, SSHClient> _jumpClients = {};
+  final Map<String, SystemAgentProxy> _jumpAgentProxies = {};
+  final Map<String, String> _hostToJump = {}; // target hostId → jump hostId
   RecordingService? _recording;
   set recordingService(RecordingService? service) => _recording = service;
 
+  /// Verifier used when [exec]/[openSftp] auto-connect without an explicit
+  /// verifier (e.g., DevOps tools invoking a one-off command). Set from main.dart
+  /// to KnownHostsProvider.verifyHostKey used by interactive connects;
+  /// without this, auto-connect throws to prevent silent TOFU bypass.
+  Future<bool> Function(String host, int port, String keyType, Uint8List fp)?
+      defaultHostKeyVerifier;
+
   SshService(this._storage);
+
+  // ── Identity resolution ───────────────────────────────
+  //
+  // Resolves the SSH key material for a given host, keyed by [host.authType].
+  // Centralised so connect / _ensureJumpClient / testConnection don't drift.
+  // The caller owns the returned agentProxy: connect/jump store it on a long-
+  // lived map; testConnection closes it in finally.
+
+  Future<_IdentityResolution> _resolveIdentities(
+    Host host,
+    SshKeyEntry? keyEntry, {
+    String? jumpHostLabel,
+  }) async {
+    switch (host.authType) {
+      case AuthType.password:
+        return const _IdentityResolution([]);
+      case AuthType.privateKey:
+        if (keyEntry == null) return const _IdentityResolution([]);
+        final keyFile = File(keyEntry.privateKeyPath);
+        if (!await keyFile.exists()) return const _IdentityResolution([]);
+        final pem = await keyFile.readAsString();
+        final passphrase = await _storage.loadPassphrase(keyEntry.id);
+        return _IdentityResolution(SSHKeyPair.fromPem(pem, passphrase ?? ''));
+      case AuthType.certificate:
+        if (keyEntry == null) {
+          throw Exception(jumpHostLabel == null
+              ? 'No key linked for certificate auth'
+              : 'No key linked for jump host "$jumpHostLabel" certificate auth');
+        }
+        final certPath = keyEntry.certificatePath;
+        if (certPath == null) {
+          throw Exception(jumpHostLabel == null
+              ? 'No certificate linked to key "${keyEntry.label}". Add one in Keychain.'
+              : 'Jump host certificate file missing or not linked');
+        }
+        if (!await File(certPath).exists()) {
+          throw Exception(jumpHostLabel == null
+              ? 'Certificate file not found: $certPath'
+              : 'Jump host certificate file not found: $certPath');
+        }
+        final passphrase = await _storage.loadPassphrase(keyEntry.id);
+        return _IdentityResolution([
+          await CertificateKeyPair.load(
+            keyPath: keyEntry.privateKeyPath,
+            certPath: certPath,
+            passphrase: passphrase,
+          ),
+        ]);
+      case AuthType.agent:
+        final proxy = await SystemAgentProxy.connect();
+        try {
+          final identities = await proxy.getIdentities();
+          if (identities.isEmpty) {
+            await proxy.close();
+            throw Exception(jumpHostLabel == null
+                ? 'SSH agent has no identities. Run "ssh-add <private-key>" to add one.'
+                : 'SSH agent has no identities for jump host. Run "ssh-add <private-key>" to add one.');
+          }
+          return _IdentityResolution(identities, proxy);
+        } catch (_) {
+          await proxy.close();
+          rethrow;
+        }
+    }
+  }
 
   // ── Connect ────────────────────────────────────────────
 
   Future<SSHClient> connect(
     Host host, {
     SshKeyEntry? keyEntry,
+    Host? jumpHost,
+    SshKeyEntry? jumpKeyEntry,
     Future<bool> Function(String keyType, Uint8List fingerprint)? verifyHostKey,
   }) async {
     final password = await _storage.loadPassword(host.id);
-
-    List<SSHKeyPair> identities = [];
-    if (host.authType == AuthType.privateKey && keyEntry != null) {
-      final keyFile = File(keyEntry.privateKeyPath);
-      if (await keyFile.exists()) {
-        final pem = await keyFile.readAsString();
-        final passphrase = await _storage.loadPassphrase(keyEntry.id);
-        identities = SSHKeyPair.fromPem(pem, passphrase ?? '');
-      }
-    } else if (host.authType == AuthType.certificate && keyEntry != null) {
-      final certPath = keyEntry.certificatePath;
-      if (certPath == null) {
-        throw Exception('No certificate linked to key "${keyEntry.label}". Add one in Keychain.');
-      }
-      if (!await File(certPath).exists()) {
-        throw Exception('Certificate file not found: $certPath');
-      }
-      final passphrase = await _storage.loadPassphrase(keyEntry.id);
-      identities = [
-        await CertificateKeyPair.load(
-          keyPath: keyEntry.privateKeyPath,
-          certPath: certPath,
-          passphrase: passphrase,
-        ),
-      ];
-    } else if (host.authType == AuthType.agent) {
-      final proxy = await SystemAgentProxy.connect();
-      _agentProxies[host.id] = proxy;
-      try {
-        identities = await proxy.getIdentities();
-      } catch (e) {
-        _agentProxies.remove(host.id);
-        await proxy.close();
-        rethrow;
-      }
-      if (identities.isEmpty) {
-        _agentProxies.remove(host.id);
-        await proxy.close();
-        throw Exception(
-          'SSH agent has no identities. Run "ssh-add <private-key>" to add one.',
-        );
-      }
+    final resolution = await _resolveIdentities(host, keyEntry);
+    if (resolution.agentProxy != null) {
+      _agentProxies[host.id] = resolution.agentProxy!;
     }
 
     final SSHClient client;
     try {
+      final SSHSocket socket;
+      if (jumpHost != null) {
+        final jc = await _ensureJumpClient(
+          jumpHost,
+          keyEntry: jumpKeyEntry,
+          verifyHostKey: verifyHostKey,
+        );
+        socket = await jc.forwardLocal(host.host, host.port);
+        _hostToJump[host.id] = jumpHost.id;
+      } else {
+        socket = await SSHSocket.connect(host.host, host.port);
+      }
       client = SSHClient(
-        await SSHSocket.connect(host.host, host.port),
+        socket,
         username: host.username,
         onPasswordRequest: () => password ?? '',
-        identities: identities.isNotEmpty ? identities : null,
+        identities: resolution.identities.isNotEmpty ? resolution.identities : null,
         onVerifyHostKey: (type, fp) async {
           if (verifyHostKey != null) return verifyHostKey(type.toString(), fp);
           return true;
@@ -88,14 +139,66 @@ class SshService {
       );
       await client.authenticated;
     } catch (e) {
-      if (host.authType == AuthType.agent) {
+      if (resolution.agentProxy != null) {
         unawaited(_agentProxies[host.id]?.close() ?? Future.value());
         _agentProxies.remove(host.id);
+      }
+      final jumpId = _hostToJump.remove(host.id);
+      if (jumpId != null && !_hostToJump.values.contains(jumpId)) {
+        _jumpClients[jumpId]?.close();
+        _jumpClients.remove(jumpId);
+        unawaited(_jumpAgentProxies[jumpId]?.close() ?? Future.value());
+        _jumpAgentProxies.remove(jumpId);
       }
       rethrow;
     }
     _clients[host.id] = client;
     return client;
+  }
+
+  // ── Jump host helper ───────────────────────────────────
+
+  Future<SSHClient> _ensureJumpClient(
+    Host jumpHost, {
+    SshKeyEntry? keyEntry,
+    Future<bool> Function(String keyType, Uint8List fingerprint)? verifyHostKey,
+  }) async {
+    if (_jumpClients.containsKey(jumpHost.id)) {
+      return _jumpClients[jumpHost.id]!;
+    }
+    final password = await _storage.loadPassword(jumpHost.id);
+    final resolution = await _resolveIdentities(
+      jumpHost,
+      keyEntry,
+      jumpHostLabel: jumpHost.label,
+    );
+    if (resolution.agentProxy != null) {
+      _jumpAgentProxies[jumpHost.id] = resolution.agentProxy!;
+    }
+
+    final jumpClient = SSHClient(
+      await SSHSocket.connect(jumpHost.host, jumpHost.port),
+      username: jumpHost.username,
+      onPasswordRequest: () => password ?? '',
+      identities: resolution.identities.isNotEmpty ? resolution.identities : null,
+      onVerifyHostKey: (type, fp) async {
+        if (verifyHostKey != null) return verifyHostKey(type.toString(), fp);
+        return true;
+      },
+    );
+    // Eagerly insert before awaiting auth so that a concurrent caller returns
+    // this in-progress client rather than opening a duplicate connection.
+    _jumpClients[jumpHost.id] = jumpClient;
+    try {
+      await jumpClient.authenticated;
+    } catch (e) {
+      _jumpClients.remove(jumpHost.id);
+      unawaited(_jumpAgentProxies[jumpHost.id]?.close() ?? Future.value());
+      _jumpAgentProxies.remove(jumpHost.id);
+      jumpClient.close();
+      rethrow;
+    }
+    return jumpClient;
   }
 
   // ── Test connection (TCP + auth, no shell) ────────────
@@ -104,56 +207,56 @@ class SshService {
     Host host, {
     String? password,
     SshKeyEntry? keyEntry,
+    Host? jumpHost,
+    SshKeyEntry? jumpKeyEntry,
   }) async {
     final stopwatch = Stopwatch()..start();
     SSHClient? client;
+    SSHClient? jumpClient;
     SystemAgentProxy? agentProxy;
+    SystemAgentProxy? jumpAgentProxyForTest;
     try {
-      final socket = await SSHSocket.connect(host.host, host.port)
-          .timeout(const Duration(seconds: 10));
-
-      List<SSHKeyPair> identities = [];
-      if (host.authType == AuthType.privateKey && keyEntry != null) {
-        final keyFile = File(keyEntry.privateKeyPath);
-        if (await keyFile.exists()) {
-          final pem = await keyFile.readAsString();
-          final passphrase = await _storage.loadPassphrase(keyEntry.id);
-          identities = SSHKeyPair.fromPem(pem, passphrase ?? '');
-        }
-      } else if (host.authType == AuthType.certificate && keyEntry != null) {
-        final certPath = keyEntry.certificatePath;
-        if (certPath == null || !await File(certPath).exists()) {
-          return (success: false, latencyMs: 0, error: 'Certificate file missing or not linked');
-        }
-        final passphrase = await _storage.loadPassphrase(keyEntry.id);
-        identities = [
-          await CertificateKeyPair.load(
-            keyPath: keyEntry.privateKeyPath,
-            certPath: certPath,
-            passphrase: passphrase,
-          ),
-        ];
-      } else if (host.authType == AuthType.agent) {
-        try {
-          agentProxy = await SystemAgentProxy.connect();
-          identities = await agentProxy.getIdentities();
-          // Keep proxy alive until after client.authenticated — agent keys
-          // need the socket open to sign the challenge.
-        } on SSHAgentUnavailableException catch (e) {
-          return (success: false, latencyMs: 0, error: e.message);
-        }
+      SSHSocket socket;
+      if (jumpHost != null) {
+        final jumpPassword = await _storage.loadPassword(jumpHost.id);
+        final jumpResolution = await _resolveIdentities(
+          jumpHost,
+          jumpKeyEntry,
+          jumpHostLabel: jumpHost.label,
+        );
+        // Track for cleanup; closed in `finally` below.
+        jumpAgentProxyForTest = jumpResolution.agentProxy;
+        jumpClient = SSHClient(
+          await SSHSocket.connect(jumpHost.host, jumpHost.port)
+              .timeout(const Duration(seconds: 10)),
+          username: jumpHost.username,
+          onPasswordRequest: () => jumpPassword ?? '',
+          identities:
+              jumpResolution.identities.isNotEmpty ? jumpResolution.identities : null,
+          onVerifyHostKey: (_, _) async => true,
+        );
+        await jumpClient.authenticated.timeout(const Duration(seconds: 10));
+        socket = await jumpClient.forwardLocal(host.host, host.port)
+            .timeout(const Duration(seconds: 10));
+      } else {
+        socket = await SSHSocket.connect(host.host, host.port)
+            .timeout(const Duration(seconds: 10));
       }
 
+      final resolution = await _resolveIdentities(host, keyEntry);
+      agentProxy = resolution.agentProxy;
       client = SSHClient(
         socket,
         username: host.username,
         onPasswordRequest: () => password ?? '',
-        identities: identities.isNotEmpty ? identities : null,
+        identities: resolution.identities.isNotEmpty ? resolution.identities : null,
         onVerifyHostKey: (_, _) async => true,
       );
       await client.authenticated.timeout(const Duration(seconds: 10));
       stopwatch.stop();
       return (success: true, latencyMs: stopwatch.elapsedMilliseconds, error: null);
+    } on SSHAgentUnavailableException catch (e) {
+      return (success: false, latencyMs: 0, error: e.message);
     } on TimeoutException {
       return (success: false, latencyMs: 0, error: 'Host unreachable');
     } on SocketException {
@@ -172,7 +275,9 @@ class SshService {
       );
     } finally {
       client?.close();
+      jumpClient?.close();
       await agentProxy?.close();
+      await jumpAgentProxyForTest?.close();
     }
   }
 
@@ -191,6 +296,7 @@ class SshService {
     );
 
     _shells[session.id] = shell;
+    _shellToHost[session.id] = session.host.id;
 
     if (useTmux) {
       shell.write(Uint8List.fromList('tmux new-session -A -s yourssh\n'.codeUnits));
@@ -213,7 +319,10 @@ class SshService {
             sessionId: session.id,
             sessionLabel: sessionLabel,
           );
-        } catch (_) {}
+        } catch (e) {
+          // Notifications must never break TTY output — log and move on.
+          debugPrint('[SshService] notification handler threw: $e');
+        }
       },
       onDone: () {
         _onShellClosed(session);
@@ -244,9 +353,30 @@ class SshService {
 
   void _onShellClosed(SshSession session) {
     _shells.remove(session.id);
+    _shellToHost.remove(session.id);
     session.terminal.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+    // Drop the closures that pin the closed shell — otherwise it lingers in
+    // memory until the widget tree releases the terminal.
+    session.terminal.onOutput = null;
+    session.terminal.onResize = null;
     NotificationService.instance.removeSession(session.id);
     _recording?.onShellClosed(session.id);
+  }
+
+  Future<SSHClient> _ensureClient(Host host) async {
+    final existing = _clients[host.id];
+    if (existing != null) return existing;
+    final verifier = defaultHostKeyVerifier;
+    if (verifier == null) {
+      throw StateError(
+        'Not connected to ${host.host}. Call connect() first, or wire '
+        'SshService.defaultHostKeyVerifier to allow auto-connect.',
+      );
+    }
+    return connect(
+      host,
+      verifyHostKey: (keyType, fp) => verifier(host.host, host.port, keyType, fp),
+    );
   }
 
   // ── Exec ───────────────────────────────────────────────
@@ -255,39 +385,53 @@ class SshService {
     Host host,
     String command,
   ) async {
-    final client = _clients[host.id] ?? await connect(host);
-    final result = await client.run(command);
+    final client = await _ensureClient(host);
+    final result = await client.runWithResult(command);
     return (
-      stdout: String.fromCharCodes(result),
-      stderr: '',
-      exitCode: 0,
+      stdout: String.fromCharCodes(result.stdout),
+      stderr: String.fromCharCodes(result.stderr),
+      exitCode: result.exitCode ?? -1,
     );
   }
 
   // ── SFTP ───────────────────────────────────────────────
 
   Future<SftpClient> openSftp(Host host) async {
-    final client = _clients[host.id] ?? await connect(host);
+    final client = await _ensureClient(host);
     return client.sftp();
   }
 
   // ── Disconnect ─────────────────────────────────────────
 
   void disconnect(String hostId) {
-    final removed = _shells.keys.where((k) => k.startsWith(hostId)).toList();
-    _shells.removeWhere((k, _) => k.startsWith(hostId));
-    for (final id in removed) {
+    final jumpHostId = _hostToJump.remove(hostId);
+
+    final sessionIds = _shellToHost.entries
+        .where((e) => e.value == hostId)
+        .map((e) => e.key)
+        .toList();
+    for (final id in sessionIds) {
+      _shells.remove(id);
+      _shellToHost.remove(id);
       NotificationService.instance.removeSession(id);
     }
     _clients[hostId]?.close();
     _clients.remove(hostId);
     unawaited(_agentProxies[hostId]?.close() ?? Future.value());
     _agentProxies.remove(hostId);
+
+    if (jumpHostId != null && !_hostToJump.values.contains(jumpHostId)) {
+      _jumpClients[jumpHostId]?.close();
+      _jumpClients.remove(jumpHostId);
+      unawaited(_jumpAgentProxies[jumpHostId]?.close() ?? Future.value());
+      _jumpAgentProxies.remove(jumpHostId);
+    }
   }
 
   void disconnectSession(String sessionId) {
     _shells[sessionId]?.close();
     _shells.remove(sessionId);
+    _shellToHost.remove(sessionId);
     NotificationService.instance.removeSession(sessionId);
   }
 
@@ -307,8 +451,19 @@ class SshService {
     try {
       final result = await exec(host, 'uname -s 2>/dev/null || ver');
       return parseOsFromUname(result.stdout);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[SshService] OS detect failed for ${host.host}: $e');
       return null;
     }
   }
+}
+
+/// Return value of [_SshService._resolveIdentities]. The optional [agentProxy]
+/// must stay open until SSH authentication completes — agent-backed identities
+/// need the socket to sign challenges.
+class _IdentityResolution {
+  final List<SSHKeyPair> identities;
+  final SystemAgentProxy? agentProxy;
+
+  const _IdentityResolution(this.identities, [this.agentProxy]);
 }

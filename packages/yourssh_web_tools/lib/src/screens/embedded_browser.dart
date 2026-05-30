@@ -17,15 +17,23 @@ class _EmbeddedBrowserState extends State<EmbeddedBrowser> {
   bool _loading = false;
 
   static const _defaultUrl = 'https://www.google.com';
+  static const _allowedSchemes = {'http', 'https'};
 
   @override
   void initState() {
     super.initState();
-    final initial = widget.initialUrl ?? _defaultUrl;
+    final initial = _coerceToSafeUrl(widget.initialUrl ?? _defaultUrl);
     _urlCtrl = TextEditingController(text: initial);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (req) {
+          final uri = Uri.tryParse(req.url);
+          if (uri != null && _allowedSchemes.contains(uri.scheme)) {
+            return NavigationDecision.navigate;
+          }
+          return NavigationDecision.prevent;
+        },
         onPageStarted: (url) {
           if (!mounted) return;
           setState(() => _loading = true);
@@ -40,6 +48,22 @@ class _EmbeddedBrowserState extends State<EmbeddedBrowser> {
       ..loadRequest(Uri.parse(initial));
   }
 
+  /// Coerces arbitrary input to an http(s) URL. Anything that parses to a
+  /// non-http(s) scheme (`javascript:`, `file:`, `data:`, `chrome://`) is
+  /// rewritten to a Google search so it can't reach the WebView raw.
+  static String _coerceToSafeUrl(String raw) {
+    final trimmed = raw.trim();
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null && _allowedSchemes.contains(uri.scheme) && uri.host.isNotEmpty) {
+      return trimmed;
+    }
+    if (!trimmed.contains('://') && trimmed.contains('.')) {
+      final candidate = Uri.tryParse('https://$trimmed');
+      if (candidate != null && candidate.host.isNotEmpty) return 'https://$trimmed';
+    }
+    return 'https://www.google.com/search?q=${Uri.encodeComponent(trimmed)}';
+  }
+
   @override
   void dispose() {
     _urlCtrl.dispose();
@@ -48,19 +72,9 @@ class _EmbeddedBrowserState extends State<EmbeddedBrowser> {
   }
 
   void _navigate(String raw) {
-    var target = raw.trim();
-    if (!target.startsWith('http://') && !target.startsWith('https://')) {
-      target = 'https://$target';
-    }
-    final uri = Uri.tryParse(target);
-    if (uri == null || uri.host.isEmpty) {
-      _controller.loadRequest(
-        Uri.parse('https://www.google.com/search?q=${Uri.encodeComponent(raw.trim())}'),
-      );
-      return;
-    }
+    final target = _coerceToSafeUrl(raw);
     _urlCtrl.text = target;
-    _controller.loadRequest(uri);
+    _controller.loadRequest(Uri.parse(target));
   }
 
   void _stop() => _controller.runJavaScript('window.stop();');

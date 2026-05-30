@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class NetworkInterfaceInfo {
   final String name;
@@ -24,6 +25,11 @@ class NetworkInterfaceInfo {
 
 class P2PSyncService {
   HttpServer? _server;
+
+  /// Invoked when the local HTTP server emits an error (e.g., socket closed
+  /// mid-transfer). Without this, the receiver gets a vague "could not fetch"
+  /// and the sender has no idea anything went wrong.
+  void Function(Object error)? onServerError;
 
   Future<List<NetworkInterfaceInfo>> getLocalInterfaces() async {
     final interfaces =
@@ -61,7 +67,10 @@ class P2PSyncService {
           await request.response.close();
         }
       },
-      onError: (_) {},
+      onError: (Object e, StackTrace st) {
+        debugPrint('[P2PSyncService] HTTP server error: $e');
+        onServerError?.call(e);
+      },
     );
   }
 

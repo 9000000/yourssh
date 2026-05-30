@@ -86,7 +86,13 @@ class SyncService {
     required Future<Map<String, String>> Function() loadPasswords,
   }) async {
     if (!_syncProvider.enabled) return;
-    if (_syncing) return;
+    if (_syncing) {
+      // Another push is in flight; flag a retry so we don't silently drop this
+      // mutation. The 30s retry timer will pick it up.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_pendingPushKey, true);
+      return;
+    }
     final supabase = _getSupabase();
     if (supabase == null) {
       _syncProvider.setError('Supabase not configured. Enter your project URL and anon key in Settings → Sync.');
@@ -98,16 +104,20 @@ class SyncService {
       _syncProvider.setStatus(SyncStatus.syncing);
       final passwords = await loadPasswords();
       final payload = buildPayload(hosts: hosts, passwords: passwords);
-      final encrypted = await SyncEncryption.encrypt(payload, _syncProvider.supabaseAnonKey);
+      final encrypted = await SyncEncryption.encrypt(
+        payload,
+        _syncProvider.supabaseAnonKey,
+        passphrase: _syncProvider.passphrase,
+      );
       await supabase.upsertPayload(encrypted);
       await prefs.setString(_lastPushKey, DateTime.now().toUtc().toIso8601String());
       await prefs.setBool(_pendingPushKey, false);
-      _syncing = false;
       _syncProvider.setStatus(SyncStatus.synced);
     } catch (e) {
-      _syncing = false;
       await prefs.setBool(_pendingPushKey, true);
       _syncProvider.setError(e.toString());
+    } finally {
+      _syncing = false;
     }
   }
 
@@ -129,31 +139,32 @@ class SyncService {
       final lastPushAt = lastPushStr != null ? DateTime.parse(lastPushStr) : null;
       final remoteUpdatedAt = await supabase.fetchUpdatedAt();
       if (remoteUpdatedAt == null) {
-        _syncing = false;
         _syncProvider.setStatus(SyncStatus.synced);
         return null;
       }
       if (!shouldPullRemote(remoteUpdatedAt, lastPushAt)) {
-        _syncing = false;
         _syncProvider.setStatus(SyncStatus.synced);
         return null;
       }
       final encrypted = await supabase.fetchPayload();
       if (encrypted == null) {
-        _syncing = false;
         _syncProvider.setStatus(SyncStatus.synced);
         return null;
       }
-      final decrypted = await SyncEncryption.decrypt(encrypted, _syncProvider.supabaseAnonKey);
+      final decrypted = await SyncEncryption.decrypt(
+        encrypted,
+        _syncProvider.supabaseAnonKey,
+        passphrase: _syncProvider.passphrase,
+      );
       final result = parsePayload(decrypted);
       await prefs.setBool(_pendingPushKey, false);
-      _syncing = false;
       _syncProvider.setStatus(SyncStatus.synced);
       return result;
     } catch (e) {
-      _syncing = false;
       _syncProvider.setError(e.toString());
       return null;
+    } finally {
+      _syncing = false;
     }
   }
 
@@ -189,18 +200,26 @@ class SyncService {
 
   // ── Disable ───────────────────────────────────────────────
 
-  Future<void> disableAndDelete() async {
+  /// Stops the retry timer, deletes the remote row (best-effort) and clears
+  /// local Supabase config. Returns null on success, or an error message if
+  /// the remote delete failed — caller should surface that so the user knows
+  /// the cloud row may still exist.
+  Future<String?> disableAndDelete() async {
     stopRetryTimer();
+    String? remoteError;
     try {
       final supabase = _getSupabase();
       if (supabase != null) {
         await supabase.deleteRow();
       }
-    } catch (_) {}
+    } catch (e) {
+      remoteError = e.toString();
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_pendingPushKey);
     await prefs.remove(_lastPushKey);
     await _syncProvider.clearSupabaseConfig();
+    return remoteError;
   }
 
   void dispose() {

@@ -79,6 +79,8 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _settingsProvider = SettingsProvider();
     _sessionProvider = SessionProvider(_ssh);
     _sessionProvider.keyLookup = (id) => _keyProvider.findById(id);
+    _sessionProvider.jumpHostLookup = (id) =>
+        _hostProvider.allHosts.where((h) => h.id == id).firstOrNull;
     _sessionProvider.autoReconnectEnabled = () => _settingsProvider.autoReconnect;
     _sessionProvider.reconnectAttempts = () => _settingsProvider.reconnectAttempts;
     _sessionProvider.tmuxEnabled = () => _settingsProvider.tmuxEnabled;
@@ -86,6 +88,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _knownHostsProvider = KnownHostsProvider(_storage);
     _knownHostsProvider.load();
     _sessionProvider.hostKeyVerifier = _knownHostsProvider.verifyHostKey;
+    _ssh.defaultHostKeyVerifier = _knownHostsProvider.verifyHostKey;
     _sessionProvider.onOsDetected = (hostId, os) =>
         _hostProvider.updateDetectedOs(hostId, os);
     _pluginProvider = PluginProvider(plugins: kRegisteredPlugins);
@@ -94,17 +97,17 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     // YourSSHPluginContext, which needs SessionProvider from the widget tree.
     // Actual lifecycle wiring is done in MainScreen after the widget tree is built.
     _pluginProvider.onToggled = (plugin, enabled) {};
-    _syncProvider = SyncProvider();
+    _syncProvider = SyncProvider(storage: _storage);
     _syncService = SyncService(_syncProvider);
 
     _hostProvider.onMutation = () => _syncService.push(
           hosts: _hostProvider.allHosts,
-          loadPasswords: _loadAllPasswords,
+          loadPasswords: _hostProvider.loadAllPasswords,
         );
 
     _syncService.startRetryTimer(
       getHosts: () async => _hostProvider.allHosts,
-      loadPasswords: _loadAllPasswords,
+      loadPasswords: _hostProvider.loadAllPasswords,
     );
 
     NotificationService.instance.enabled = _settingsProvider.commandNotificationsEnabled;
@@ -119,15 +122,6 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
 
   void _syncNotificationSetting() {
     NotificationService.instance.enabled = _settingsProvider.commandNotificationsEnabled;
-  }
-
-  Future<Map<String, String>> _loadAllPasswords() async {
-    final passwords = <String, String>{};
-    for (final host in _hostProvider.allHosts) {
-      final pw = await _storage.loadPassword(host.id);
-      if (pw != null) passwords['pw_${host.id}'] = pw;
-    }
-    return passwords;
   }
 
   @override
@@ -151,15 +145,18 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
   void dispose() {
     _settingsProvider.removeListener(_syncNotificationSetting);
     windowManager.removeListener(this);
+    // Tear down in reverse-dependency order: consumers first (sessions, plugins,
+    // recording, sync service — they read host/key/settings via callbacks), then
+    // the producers they depend on.
+    _pluginProvider.dispose();
+    _recordingProvider.dispose();
+    _sessionProvider.dispose();
     _syncService.dispose();
+    _syncProvider.dispose();
+    _knownHostsProvider.dispose();
     _hostProvider.dispose();
     _keyProvider.dispose();
     _settingsProvider.dispose();
-    _sessionProvider.dispose();
-    _syncProvider.dispose();
-    _knownHostsProvider.dispose();
-    _pluginProvider.dispose();
-    _recordingProvider.dispose();
     super.dispose();
   }
 

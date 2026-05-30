@@ -60,11 +60,15 @@ class _McpServerScreenState extends State<McpServerScreen> {
         localPort: port,
         mcpCommand: _commandCtrl.text,
       );
-      final ok = await _service.start(endpoint);
+      final result = await _service.start(endpoint);
+      if (!mounted) return;
       setState(() {
-        _running = ok;
-        _activePort = ok ? port : null;
+        _running = result.ok;
+        _activePort = result.ok ? port : null;
       });
+      if (!result.ok) {
+        AppSnack.error(context, 'MCP start failed: ${result.error}');
+      }
     }
   }
 

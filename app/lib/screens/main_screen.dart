@@ -46,6 +46,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   NavSection _nav = NavSection.hosts;
   String? _activePluginId;
+  bool _pluginResetScheduled = false;
   _SidePanel _sidePanel = _SidePanel.none;
   final Map<String, PluginContextImpl> _pluginContexts = {};
   Host? _editingHost;
@@ -62,6 +63,43 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _sftpConnectionNotifier.addListener(_onSftpConnectionChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _wirePluginLifecycle();
+      _wireRecordingErrors();
+    });
+  }
+
+  void _wireRecordingErrors() {
+    if (!mounted) return;
+    context.read<RecordingProvider>().onStartFailed = (session, error) {
+      if (!mounted) return;
+      AppSnack.error(context, 'Recording failed for ${session.host.label}: $error');
+    };
+  }
+
+  void _wirePluginLifecycle() {
+    if (!mounted) return;
+    final pluginProvider = context.read<PluginProvider>();
+    // Catch per-plugin so one buggy plugin can't take down the whole toggle.
+    pluginProvider.onToggled = (plugin, enabled) {
+      try {
+        if (enabled) {
+          plugin.onActivate(_pluginContext(plugin.id));
+        } else {
+          plugin.onDeactivate();
+        }
+      } catch (e, st) {
+        debugPrint('[plugin ${plugin.id}] lifecycle error: $e\n$st');
+      }
+    };
+    // Fire onActivate for plugins already enabled at startup (prefs already loaded).
+    for (final plugin in pluginProvider.enabledPlugins) {
+      try {
+        plugin.onActivate(_pluginContext(plugin.id));
+      } catch (e, st) {
+        debugPrint('[plugin ${plugin.id}] onActivate error: $e\n$st');
+      }
+    }
   }
 
   Future<void> _registerHotkeys(Map<String, String> hotkeys) async {
@@ -200,8 +238,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sessions = context.watch<SessionProvider>().sessions;
-    final activeSession = context.watch<SessionProvider>().activeSession;
+    final sessionProvider = context.watch<SessionProvider>();
+    final sessions = sessionProvider.sessions;
+    final activeSession = sessionProvider.activeSession;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -338,10 +377,16 @@ class _MainScreenState extends State<MainScreen> {
           pluginCtx: _pluginContext(plugin.id),
         );
       }
-      // Plugin was disabled while viewing it — reset
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _activePluginId = null);
-      });
+      // Plugin was disabled while viewing it — reset once after this frame.
+      // Without the guard, the post-frame callback re-runs every build, causing
+      // an infinite rebuild loop until the plugin re-enables.
+      if (!_pluginResetScheduled) {
+        _pluginResetScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _pluginResetScheduled = false;
+          if (mounted) setState(() => _activePluginId = null);
+        });
+      }
       return const SizedBox.shrink();
     }
 

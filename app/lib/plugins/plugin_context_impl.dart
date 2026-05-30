@@ -4,17 +4,33 @@ import '../models/ssh_session.dart';
 import '../providers/session_provider.dart';
 import '../services/ssh_service.dart';
 
+/// Plugin IDs must match this pattern so the preference namespace
+/// `plugin::<id>::<key>` can't be ambiguously parsed — e.g., an id of
+/// `foo::bar` would collide with plugin `foo` storing key `bar::…`.
+final RegExp kValidPluginId = RegExp(r'^[a-z0-9][a-z0-9._\-]{0,63}$');
+
 class PluginContextImpl implements YourSSHPluginContext {
   final SessionProvider _sessions;
-  // ignore: unused_field
   final SshService _ssh;
   final String _pluginId;
 
   PluginContextImpl({
-    required this._sessions,
-    required this._ssh,
-    required this._pluginId,
-  });
+    required SessionProvider sessions,
+    required SshService ssh,
+    required String pluginId,
+    // ignore: prefer_initializing_formals
+  })  : _sessions = sessions,
+        // ignore: prefer_initializing_formals
+        _ssh = ssh,
+        _pluginId = pluginId {
+    if (!kValidPluginId.hasMatch(pluginId)) {
+      throw ArgumentError.value(
+        pluginId,
+        'pluginId',
+        'must match ${kValidPluginId.pattern}',
+      );
+    }
+  }
 
   @override
   List<SSHSessionProxy> get activeSessions => _sessions.sessions
@@ -25,15 +41,19 @@ class PluginContextImpl implements YourSSHPluginContext {
           ))
       .toList();
 
-  /// NOTE: SshService.exec() requires a Host object, not a session ID.
-  /// A future implementation should maintain a sessionId→Host mapping in
-  /// SshService. For now this throws PluginSSHException('not implemented').
   @override
   Future<String> execCommand(String sessionId, String command) async {
-    throw const PluginSSHException(
-      'execCommand not implemented: SshService.exec() requires a Host object. '
-      'Add execBySessionId(sessionId, command) to SshService in a follow-up task.',
-    );
+    final host = _sessions.hostForSession(sessionId);
+    if (host == null) {
+      throw PluginSSHException('Unknown session: $sessionId');
+    }
+    final result = await _ssh.exec(host, command);
+    if (result.exitCode != 0) {
+      throw PluginSSHException(
+        'Command exited ${result.exitCode}: ${result.stderr.trim()}',
+      );
+    }
+    return result.stdout;
   }
 
   @override

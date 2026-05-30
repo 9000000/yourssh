@@ -268,7 +268,12 @@ class _RecordingRow extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await context.read<RecordingProvider>().deleteRecording(entry.filePath);
+      try {
+        await context.read<RecordingProvider>().deleteRecording(entry.filePath);
+      } catch (e) {
+        if (!context.mounted) return;
+        AppSnack.error(context, 'Could not delete recording: $e');
+      }
     }
   }
 }

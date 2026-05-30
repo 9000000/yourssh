@@ -8,8 +8,11 @@ import '../services/ssh_service.dart';
 class SessionProvider extends ChangeNotifier {
   final SshService _ssh;
   final List<SshSession> _sessions = [];
+  final Map<String, Timer> _reconnectTimers = {};
   String? _activeSessionId;
+  bool _disposed = false;
   SshKeyEntry? Function(String keyId)? keyLookup;
+  Host? Function(String jumpHostId)? jumpHostLookup;
   bool Function()? autoReconnectEnabled;
   int Function()? reconnectAttempts;
   bool Function()? tmuxEnabled;
@@ -19,7 +22,26 @@ class SessionProvider extends ChangeNotifier {
 
   SessionProvider(this._ssh);
 
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    for (final t in _reconnectTimers.values) {
+      t.cancel();
+    }
+    _reconnectTimers.clear();
+    super.dispose();
+  }
+
+  void _safeNotify() {
+    if (_disposed) return;
+    notifyListeners();
+  }
+
   List<SshSession> get sessions => _sessions;
+
+  Host? hostForSession(String sessionId) =>
+      _sessions.where((s) => s.id == sessionId).firstOrNull?.host;
 
   SshSession? get activeSession => _sessions.isEmpty
       ? null
@@ -30,14 +52,14 @@ class SessionProvider extends ChangeNotifier {
 
   void setActive(String sessionId) {
     _activeSessionId = sessionId;
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<void> connect(Host host) async {
     final session = SshSession(host: host);
     _sessions.add(session);
     _activeSessionId = session.id;
-    notifyListeners();
+    _safeNotify();
 
     await _doConnect(session, host, attempt: 1);
   }
@@ -46,9 +68,19 @@ class SessionProvider extends ChangeNotifier {
     final maxAttempts = reconnectAttempts?.call() ?? 3;
     try {
       final keyEntry = host.keyId != null ? keyLookup?.call(host.keyId!) : null;
+      Host? jumpHost;
+      SshKeyEntry? jumpKeyEntry;
+      if (host.jumpHostId != null) {
+        jumpHost = jumpHostLookup?.call(host.jumpHostId!);
+        if (jumpHost != null && jumpHost.keyId != null) {
+          jumpKeyEntry = keyLookup?.call(jumpHost.keyId!);
+        }
+      }
       await _ssh.connect(
         host,
         keyEntry: keyEntry,
+        jumpHost: jumpHost,
+        jumpKeyEntry: jumpKeyEntry,
         verifyHostKey: hostKeyVerifier != null
             ? (keyType, fp) => hostKeyVerifier!(host.host, host.port, keyType, fp)
             : null,
@@ -61,21 +93,21 @@ class SessionProvider extends ChangeNotifier {
         });
       }
       session.errorMessage = null;
-      notifyListeners();
+      _safeNotify();
 
       if (host.autoRecord) {
         unawaited(recordingStart?.call(session) ?? Future.value());
       }
 
       await _ssh.openShell(session, useTmux: tmuxEnabled?.call() ?? false);
-      notifyListeners();
+      _safeNotify();
 
       // Shell closed — try auto-reconnect
       if (_sessions.contains(session) && (autoReconnectEnabled?.call() ?? false)) {
         _scheduleReconnect(session, host, attempt: 1);
       } else if (_sessions.contains(session)) {
         session.status = SessionStatus.disconnected;
-        notifyListeners();
+        _safeNotify();
       }
     } catch (e) {
       if (!_sessions.contains(session)) return;
@@ -87,7 +119,7 @@ class SessionProvider extends ChangeNotifier {
         session.errorMessage = attempt > 1
             ? 'Failed after $attempt attempts: $e'
             : e.toString();
-        notifyListeners();
+        _safeNotify();
       }
     }
   }
@@ -96,22 +128,32 @@ class SessionProvider extends ChangeNotifier {
     session.status = SessionStatus.connecting;
     final msg = attempt > 1 ? 'Reconnecting (attempt $attempt)…' : 'Reconnecting…';
     session.terminal.write('\r\n\x1b[33m[$msg]\x1b[0m\r\n');
-    notifyListeners();
+    _safeNotify();
 
-    Timer(Duration(seconds: attempt * 2), () {
-      if (_sessions.contains(session)) {
-        _doConnect(session, host, attempt: attempt);
-      }
+    _reconnectTimers[session.id]?.cancel();
+    _reconnectTimers[session.id] = Timer(Duration(seconds: attempt * 2), () {
+      _reconnectTimers.remove(session.id);
+      if (_disposed || !_sessions.contains(session)) return;
+      _doConnect(session, host, attempt: attempt);
     });
   }
 
   void closeSession(String sessionId) {
+    _reconnectTimers.remove(sessionId)?.cancel();
+    final hostId = _sessions.where((s) => s.id == sessionId).firstOrNull?.host.id;
+
     _ssh.disconnectSession(sessionId);
     _sessions.removeWhere((s) => s.id == sessionId);
     if (_activeSessionId == sessionId) {
       _activeSessionId = _sessions.isNotEmpty ? _sessions.last.id : null;
     }
-    notifyListeners();
+
+    // If no more sessions for this host remain, tear down the SSH client and jump client.
+    if (hostId != null && !_sessions.any((s) => s.host.id == hostId)) {
+      _ssh.disconnect(hostId);
+    }
+
+    _safeNotify();
   }
 
   void closeActive() {
@@ -124,7 +166,7 @@ class SessionProvider extends ChangeNotifier {
     final idx = _sessions.indexWhere((s) => s.id == _activeSessionId);
     final nextIdx = (idx + 1) % _sessions.length;
     _activeSessionId = _sessions[nextIdx].id;
-    notifyListeners();
+    _safeNotify();
   }
 
   void activatePrev() {
@@ -132,6 +174,6 @@ class SessionProvider extends ChangeNotifier {
     final idx = _sessions.indexWhere((s) => s.id == _activeSessionId);
     final prevIdx = (idx - 1 + _sessions.length) % _sessions.length;
     _activeSessionId = _sessions[prevIdx].id;
-    notifyListeners();
+    _safeNotify();
   }
 }

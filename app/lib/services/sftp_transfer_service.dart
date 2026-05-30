@@ -13,51 +13,74 @@ class SftpTransferService {
 
   SftpTransferService(this._sshService);
 
+  static const _chunkSize = 64 * 1024;
+
   Future<List<SftpEntry>> listDirectory(Host host, String path) async {
     final sftp = await _sshService.openSftp(host);
-    final items = await sftp.listdir(path);
-    sftp.close();
-
-    return items
-        .where((item) => item.filename != '.' && item.filename != '..')
-        .map((item) => SftpEntry(
-              name: item.filename,
-              path: p.posix.join(path, item.filename),
-              isDirectory: item.attr.isDirectory,
-              size: item.attr.size ?? 0,
-              modifiedAt: item.attr.modifyTime != null
-                  ? DateTime.fromMillisecondsSinceEpoch(
-                      item.attr.modifyTime! * 1000)
-                  : DateTime.now(),
-            ))
-        .toList();
+    try {
+      final items = await sftp.listdir(path);
+      return items
+          .where((item) => item.filename != '.' && item.filename != '..')
+          .map((item) => SftpEntry(
+                name: item.filename,
+                path: p.posix.join(path, item.filename),
+                isDirectory: item.attr.isDirectory,
+                size: item.attr.size ?? 0,
+                modifiedAt: item.attr.modifyTime != null
+                    ? DateTime.fromMillisecondsSinceEpoch(
+                        item.attr.modifyTime! * 1000)
+                    : DateTime.now(),
+              ))
+          .toList();
+    } finally {
+      sftp.close();
+    }
   }
 
   Future<String?> downloadToTemp(Host host, SftpEntry entry) async {
     final sftp = await _sshService.openSftp(host);
     final tmpDir = await getTemporaryDirectory();
     final localPath = p.join(tmpDir.path, entry.name);
-    final file = await sftp.open(entry.path);
-    final bytes = await file.readBytes();
-    await File(localPath).writeAsBytes(bytes);
-    await file.close();
-    sftp.close();
+    SftpFile? file;
+    final sink = File(localPath).openWrite();
+    try {
+      file = await sftp.open(entry.path);
+      int offset = 0;
+      while (true) {
+        final chunk = await file.readBytes(length: _chunkSize, offset: offset);
+        if (chunk.isEmpty) break;
+        sink.add(chunk);
+        offset += chunk.length;
+      }
+    } finally {
+      await sink.close();
+      await file?.close();
+      sftp.close();
+    }
     return localPath;
   }
 
   Future<void> uploadFile(
       Host host, String localPath, String remotePath) async {
     final sftp = await _sshService.openSftp(host);
-    final bytes = await File(localPath).readAsBytes();
-    final remoteFile = await sftp.open(
-      remotePath,
-      mode: SftpFileOpenMode.create |
-          SftpFileOpenMode.write |
-          SftpFileOpenMode.truncate,
-    );
-    await remoteFile.writeBytes(bytes);
-    await remoteFile.close();
-    sftp.close();
+    SftpFile? remoteFile;
+    try {
+      remoteFile = await sftp.open(
+        remotePath,
+        mode: SftpFileOpenMode.create |
+            SftpFileOpenMode.write |
+            SftpFileOpenMode.truncate,
+      );
+      int offset = 0;
+      await for (final chunk in File(localPath).openRead()) {
+        final bytes = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+        await remoteFile.writeBytes(bytes, offset: offset);
+        offset += bytes.length;
+      }
+    } finally {
+      await remoteFile?.close();
+      sftp.close();
+    }
   }
 
   Future<void> copyLocalToRemote({
@@ -77,12 +100,18 @@ class SftpTransferService {
   }) async {
     final sftp = await _sshService.openSftp(remoteHost);
     SftpFile? remoteFile;
+    final sink = File(p.join(localDir, remoteEntry.name)).openWrite();
     try {
       remoteFile = await sftp.open(remoteEntry.path);
-      final bytes = await remoteFile.readBytes();
-      final localPath = p.join(localDir, remoteEntry.name);
-      await File(localPath).writeAsBytes(bytes);
+      int offset = 0;
+      while (true) {
+        final chunk = await remoteFile.readBytes(length: _chunkSize, offset: offset);
+        if (chunk.isEmpty) break;
+        sink.add(chunk);
+        offset += chunk.length;
+      }
     } finally {
+      await sink.close();
       await remoteFile?.close();
       sftp.close();
     }
@@ -119,7 +148,16 @@ class SftpTransferService {
     required void Function(String) onFileSkipped,
     required bool Function() isCancelled,
   }) async {
-    try { await sftp.mkdir(remoteDir); } catch (_) {}
+    // mkdir often fails because the dir already exists — that's fine. Anything
+    // else (e.g., SSH_FX_PERMISSION_DENIED) we want to surface so the user
+    // doesn't get a confusing later error from the file write.
+    try {
+      await sftp.mkdir(remoteDir);
+    } on SftpStatusError catch (e) {
+      // 4 = generic failure, 11 = "file already exists" (FX_FILE_ALREADY_EXISTS)
+      // are both expected for "directory exists". Anything else is fatal.
+      if (e.code != SftpStatusCode.failure && e.code != 11) rethrow;
+    }
     final entities = await Directory(localDir).list().toList();
     for (final entity in entities) {
       if (isCancelled()) return;
@@ -131,7 +169,23 @@ class SftpTransferService {
           onProgress: onProgress, onFileSkipped: onFileSkipped, isCancelled: isCancelled,
         );
       } else {
-        try { await sftp.stat(remotePath); onFileSkipped(entity.path); continue; } catch (_) {}
+        // stat: only treat "no such file" as "needs upload". Permission / I/O
+        // errors are surfaced so we don't silently overwrite or silently skip.
+        bool fileExists;
+        try {
+          await sftp.stat(remotePath);
+          fileExists = true;
+        } on SftpStatusError catch (e) {
+          if (e.code == SftpStatusCode.noSuchFile) {
+            fileExists = false;
+          } else {
+            rethrow;
+          }
+        }
+        if (fileExists) {
+          onFileSkipped(entity.path);
+          continue;
+        }
         await _uploadFileWithProgress(sftp, entity.path, remotePath, onProgress);
       }
     }
@@ -143,21 +197,23 @@ class SftpTransferService {
     String remotePath,
     void Function(String, int, int) onProgress,
   ) async {
-    final bytes = await File(localPath).readAsBytes();
-    final total = bytes.length;
+    final localFile = File(localPath);
+    final total = await localFile.length();
     final remoteFile = await sftp.open(
       remotePath,
       mode: SftpFileOpenMode.create | SftpFileOpenMode.write | SftpFileOpenMode.truncate,
     );
-    const chunkSize = 64 * 1024;
-    int offset = 0;
-    while (offset < total) {
-      final end = (offset + chunkSize).clamp(0, total);
-      await remoteFile.writeBytes(bytes.sublist(offset, end), offset: offset);
-      offset = end;
-      onProgress(localPath, offset, total);
+    try {
+      int offset = 0;
+      await for (final chunk in localFile.openRead()) {
+        final bytes = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+        await remoteFile.writeBytes(bytes, offset: offset);
+        offset += bytes.length;
+        onProgress(localPath, offset, total);
+      }
+    } finally {
+      await remoteFile.close();
     }
-    await remoteFile.close();
   }
 
   Future<void> downloadDirectory({
@@ -219,17 +275,19 @@ class SftpTransferService {
     void Function(String, int, int) onProgress,
   ) async {
     final remoteFile = await sftp.open(remotePath);
-    const chunkSize = 64 * 1024;
-    int offset = 0;
-    final buffer = BytesBuilder();
-    while (true) {
-      final chunk = await remoteFile.readBytes(length: chunkSize, offset: offset);
-      if (chunk.isEmpty) break;
-      buffer.add(chunk);
-      offset += chunk.length;
-      onProgress(remotePath, offset, totalBytes > 0 ? totalBytes : offset);
+    final sink = File(localPath).openWrite();
+    try {
+      int offset = 0;
+      while (true) {
+        final chunk = await remoteFile.readBytes(length: _chunkSize, offset: offset);
+        if (chunk.isEmpty) break;
+        sink.add(chunk);
+        offset += chunk.length;
+        onProgress(remotePath, offset, totalBytes > 0 ? totalBytes : offset);
+      }
+    } finally {
+      await sink.close();
+      await remoteFile.close();
     }
-    await remoteFile.close();
-    await File(localPath).writeAsBytes(buffer.toBytes());
   }
 }

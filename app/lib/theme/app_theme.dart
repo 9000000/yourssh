@@ -33,6 +33,40 @@ class AppColors {
   }
 }
 
+/// Consistent SnackBar styling. Callers should use these helpers rather than
+/// building `SnackBar(content: Text('…'), backgroundColor: const Color(...))`
+/// — the colors and durations should be tuned here once, not in every screen.
+class AppSnack {
+  AppSnack._();
+
+  static void error(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message, style: const TextStyle(color: Colors.white)),
+      backgroundColor: AppColors.red,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 5),
+    ));
+  }
+
+  static void info(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message, style: const TextStyle(color: AppColors.textPrimary)),
+      backgroundColor: AppColors.card,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
+  static void success(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message, style: const TextStyle(color: Colors.white)),
+      backgroundColor: AppColors.accent,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 3),
+    ));
+  }
+}
+
 ThemeData buildAppTheme() {
   return ThemeData(
     useMaterial3: true,
