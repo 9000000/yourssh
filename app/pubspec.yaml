@@ -56,6 +56,8 @@ dependencies:
   # Plugin system
   yourssh_plugin_api:
     path: ../packages/yourssh_plugin_api
+  yourssh_devops:
+    path: ../packages/yourssh_devops
 
   # Cryptography utilities
   cryptography: ^2.7.0
