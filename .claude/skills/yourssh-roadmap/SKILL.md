@@ -5,59 +5,59 @@ description: Use when the user wants to refresh, update, or regenerate the yours
 
 # YourSSH Roadmap Refresh
 
-Cập nhật `docs/roadmap.md` cho repo yourssh dựa trên trạng thái thực tế của codebase + git history. Tránh viết roadmap tay từ đầu mỗi lần — chỉ diff cái đã có và đề xuất feature mới.
+Update `docs/roadmap.md` for the yourssh repo based on the actual state of the codebase + git history. Avoid rewriting the roadmap from scratch each time — only diff what already exists and propose new features.
 
 ## When to use
 
-- User nói "update roadmap", "refresh roadmap", "cập nhật roadmap", "version bump xong rồi"
-- Sau khi merge feature lớn vào develop/master
-- Khi prep cho sprint planning
-- Khi version trong `app/pubspec.yaml` thay đổi
+- User says "update roadmap", "refresh roadmap", "cập nhật roadmap", "version bump xong rồi"
+- After merging a large feature into develop/master
+- When prepping for sprint planning
+- When the version in `app/pubspec.yaml` changes
 
-**Không dùng khi:** user muốn brainstorm feature mới hoàn toàn từ đầu (dùng `superpowers:brainstorming`) hoặc viết spec cho 1 feature cụ thể (dùng `superpowers:writing-plans`).
+**Do not use when:** the user wants to brainstorm completely new features from scratch (use `superpowers:brainstorming`) or write a spec for a specific feature (use `superpowers:writing-plans`).
 
 ## Workflow
 
-1. **Đọc state hiện tại** (chạy song song):
-   - `Read docs/roadmap.md` — roadmap cũ
-   - `Bash git log --oneline -30` — commit gần đây
-   - `Bash grep -E "^version:" app/pubspec.yaml` — version hiện tại
-   - `Bash ls app/lib/providers app/lib/services app/lib/widgets packages/` — surface code đã có
-   - `Bash git tag --sort=-creatordate | head -10` — release đã ship
+1. **Read current state** (run in parallel):
+   - `Read docs/roadmap.md` — existing roadmap
+   - `Bash git log --oneline -30` — recent commits
+   - `Bash grep -E "^version:" app/pubspec.yaml` — current version
+   - `Bash ls app/lib/providers app/lib/services app/lib/widgets packages/` — surface area of existing code
+   - `Bash git tag --sort=-creatordate | head -10` — shipped releases
 
-2. **Phân loại đã ship vs còn lại** bằng cách so commit messages + tên file mới với danh sách roadmap cũ. Move bullet đã ship lên section "Đã có" ở đầu doc.
+2. **Classify shipped vs remaining** by comparing commit messages + new file names against the old roadmap list. Move shipped bullets up to the "Shipped" section at the top of the doc.
 
 3. **Update metadata**:
-   - Dòng version: `Version hiện tại: X.Y.Z`
-   - Dòng date: `cập nhật: YYYY-MM-DD` (dùng date thật, không hard-code)
+   - Version line: `Current version: X.Y.Z`
+   - Date line: `updated: YYYY-MM-DD` (use the real date, do not hard-code)
 
-4. **Hỏi user 1 câu** (qua `AskUserQuestion`):
-   - Có feature mới cần thêm vào P0/P1/P2 không?
-   - Có muốn re-prioritize cái gì không?
-   - Nếu user nói "không, chỉ update cái đã ship" → bỏ qua bước 5.
+4. **Ask the user one question** (via `AskUserQuestion`):
+   - Are there new features to add to P0/P1/P2?
+   - Is there anything to re-prioritize?
+   - If the user says "no, just update what's shipped" → skip step 5.
 
-5. **Áp dụng change của user** (nếu có) vào đúng bảng/section.
+5. **Apply user changes** (if any) into the correct table/section.
 
-6. **Show diff trước khi commit**: `Bash git diff docs/roadmap.md`. Đợi user OK rồi mới gợi ý commit.
+6. **Show diff before committing**: `Bash git diff docs/roadmap.md`. Wait for user approval before suggesting a commit.
 
-## Cấu trúc roadmap (phải giữ nguyên)
+## Roadmap structure (must be preserved)
 
 ```
 # YourSSH — Roadmap
-> Định hướng + version + date
-[Section "Đã có"]
-## P0 — Phải có để giữ user "power"  (table 10 hàng)
-## P1 — Khác biệt hóa & độ sâu DevOps  (sub-sections theo theme)
+> Direction + version + date
+[Section "Shipped"]
+## P0 — Must-have to retain power users  (table with 10 rows)
+## P1 — Differentiation & DevOps depth  (sub-sections by theme)
 ## P2 — Team / Enterprise
-## Top 3 đề xuất cho sprint kế tiếp
-## Cách dùng tài liệu này
+## Top 3 suggestions for the next sprint
+## How to use this document
 ```
 
-Không đổi cấu trúc trừ khi user yêu cầu. P0 luôn là bảng (Feature / Mục đích / Ghi chú thực thi). P1 luôn chia theme.
+Do not change the structure unless the user requests it. P0 is always a table (Feature / Purpose / Implementation notes). P1 is always split by theme.
 
-## Detection heuristics — "feature này đã ship chưa"
+## Detection heuristics — "has this feature shipped?"
 
-| Feature roadmap nói | Check |
+| Feature in roadmap | Check |
 |---|---|
 | Command Palette | `grep -r "CommandPalette\|command_palette" app/lib/` |
 | Tag/group | `grep -E "tags\s*:" app/lib/models/host.dart` |
@@ -66,19 +66,19 @@ Không đổi cấu trúc trừ khi user yêu cầu. P0 luôn là bảng (Featur
 | Search-in-scrollback | `grep -r "searchBuffer\|scrollback.*search" app/lib/` |
 | Kubernetes panel | `ls packages/ \| grep -i kube` |
 
-Khi grep ra match thực sự (không phải comment/TODO), coi như đã ship → move sang "Đã có".
+When grep returns a real match (not a comment/TODO), consider it shipped → move to "Shipped".
 
 ## Common mistakes
 
-- ❌ Re-generate toàn bộ roadmap từ đầu → mất ý kiến user đã thêm trước đó. **Always read first, edit in place.**
-- ❌ Hard-code ngày trong skill. **Always Bash `date +%Y-%m-%d`.**
-- ❌ Commit luôn không show diff. **Always show diff and wait for approval.**
-- ❌ Bỏ qua `packages/` khi detect feature đã ship — plugin folder cũng tính.
-- ❌ Đổi cấu trúc section/table format → khó diff giữa các version.
+- ❌ Re-generating the entire roadmap from scratch → loses user-added notes from previous sessions. **Always read first, edit in place.**
+- ❌ Hard-coding the date in the skill. **Always Bash `date +%Y-%m-%d`.**
+- ❌ Committing without showing the diff. **Always show diff and wait for approval.**
+- ❌ Skipping `packages/` when detecting shipped features — the plugin folder counts too.
+- ❌ Changing section/table format structure → makes diffs between versions harder to read.
 
 ## Output
 
-Edit file `docs/roadmap.md` in place (không tạo file mới). Cuối cùng output 2–3 dòng tóm tắt:
-- Có bao nhiêu item move sang "Đã có"
-- Có bao nhiêu item mới thêm
-- Đề xuất commit message (nhưng không tự commit).
+Edit file `docs/roadmap.md` in place (do not create a new file). At the end, output a 2–3 line summary:
+- How many items were moved to "Shipped"
+- How many new items were added
+- Suggested commit message (but do not commit automatically).
