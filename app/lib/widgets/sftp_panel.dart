@@ -188,6 +188,8 @@ class _SftpPanelState extends State<SftpPanel> {
                 style: const TextStyle(color: Color(0xFF888888), fontFamily: 'monospace', fontSize: 12),
                 overflow: TextOverflow.ellipsis),
           ),
+          _ToolbarBtn(icon: Icons.note_add_outlined, tooltip: 'New file',
+              enabled: true, onTap: () => _showNewFileDialog(prov)),
           _ToolbarBtn(icon: Icons.create_new_folder_outlined, tooltip: 'New folder',
               enabled: true, onTap: () => _showNewFolderDialog(prov)),
           _ToolbarBtn(icon: Icons.drive_file_rename_outline, tooltip: 'Rename',
@@ -261,6 +263,7 @@ class _SftpPanelState extends State<SftpPanel> {
     return SftpEntryContextMenu(
       entry: entry,
       onOpen: () => _onEntryTap(entry),
+      onEdit: entry.isDirectory ? null : () => _onEntryTap(entry),
       onRename: () => _showRenameDialog(prov, entry),
       onDelete: () => _showDeleteConfirm(prov, [entry]),
       child: Draggable<SftpEntry>(
@@ -362,6 +365,54 @@ class _SftpPanelState extends State<SftpPanel> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Create folder failed: $e'), backgroundColor: const Color(0xFF2A1A1A)));
+      }
+    }
+  }
+
+  Future<void> _showNewFileDialog(SftpPanelProvider prov) async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('New File', style: TextStyle(color: Color(0xFFD4D4D4), fontSize: 14)),
+        content: TextField(
+          controller: ctrl, autofocus: true,
+          style: const TextStyle(color: Color(0xFFD4D4D4), fontSize: 13),
+          decoration: const InputDecoration(
+            hintText: 'File name', hintStyle: TextStyle(color: Color(0xFF555555)),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF2A2A2A))),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF22C55E))),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Color(0xFF888888)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Create', style: TextStyle(color: Color(0xFF22C55E)))),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || !mounted) return;
+    try {
+      final remotePath = prov.currentPath == '/' ? '/$name' : '${prov.currentPath}/$name';
+      await context.read<SftpFileOpsService>().createFile(widget.host!, remotePath);
+      final entry = SftpEntry(
+        name: name,
+        path: remotePath,
+        isDirectory: false,
+        size: 0,
+        modifiedAt: DateTime.now(),
+      );
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => CodeEditorScreen(host: widget.host!, entry: entry)),
+      );
+      if (mounted) _loadDirectory(prov.currentPath);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Create file failed: $e'), backgroundColor: const Color(0xFF2A1A1A)));
       }
     }
   }
