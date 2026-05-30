@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../models/host.dart';
 import '../models/ssh_key.dart';
@@ -487,6 +488,21 @@ class _HostCardState extends State<_HostCard> {
     super.dispose();
   }
 
+  Widget _osIcon(Host host) {
+    if (host.detectedOs != null) {
+      return Padding(
+        padding: const EdgeInsets.all(8),
+        child: SvgPicture.asset(
+          'assets/os/${host.detectedOs}.svg',
+          width: 20,
+          height: 20,
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        ),
+      );
+    }
+    return const Icon(Icons.dns, color: Colors.white, size: 18);
+  }
+
   Future<void> _test() async {
     if (_testing) return;
     _resultTimer?.cancel();
@@ -546,7 +562,7 @@ class _HostCardState extends State<_HostCard> {
                   color: color,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.dns, color: Colors.white, size: 18),
+                child: _osIcon(widget.host),
               ),
               const SizedBox(width: 10),
 
