@@ -61,6 +61,7 @@ xattr -dr com.apple.quarantine /Applications/YourSSH.app
 - **OS-level secure storage**: credentials encrypted in macOS Keychain / Windows Credential Manager via `flutter_secure_storage`
 - **Known hosts verification**: interactive fingerprint trust dialog on first connect; persistent known-hosts database
 - **Zero-knowledge cloud sync**: host configs encrypted client-side (AES-256-GCM) before syncing to Supabase
+- **P2P QR sync**: transfer all hosts and passwords to another device via QR code over LAN or Tailscale — no cloud required
 - **Vault** — encrypted local credential store for API keys, tokens, and secrets (biometric unlock)
 
 ### Productivity
@@ -292,6 +293,8 @@ Flutter UI (widgets / screens)
 | `HotkeyService` | Register and dispatch global keyboard shortcuts |
 | `SystemAgentProxy` | Bridge between `SSH_AUTH_SOCK` and dartssh2 for SSH agent auth |
 | `CertificateKeyPair` | OpenSSH CA-signed certificate auth (`id_rsa-cert.pub`) |
+| `P2PSyncService` | One-shot LAN HTTP server + client for QR-based P2P host transfer |
+| `P2PSyncEncryption` | AES-256-GCM encrypt/decrypt with raw random key (no PBKDF2) for P2P sync |
 
 ### Plugin System
 
@@ -306,16 +309,28 @@ The plugin API is defined in `packages/yourssh_plugin_api`. Plugins implement th
 
 ---
 
-## Cloud Sync Setup (Optional)
+## Sync Setup (Optional)
 
-YourSSH can sync your host list across devices using a Supabase project as the backend. All data is **encrypted client-side** before leaving your machine — the server stores only ciphertext.
+YourSSH supports two ways to sync hosts between devices:
+
+### Cloud Sync (Supabase)
+
+Continuous sync via a Supabase backend. All data is **encrypted client-side** before leaving your machine.
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. Run the migrations in `supabase/migrations/` against your project.
 3. Add your Supabase URL and anon key in **Settings → Sync** inside the app.
-4. Set a strong encryption passphrase — this is the only key that can decrypt your data.
 
-> Sync is fully optional. The app works entirely offline without it.
+### P2P QR Sync (no cloud required)
+
+One-time transfer from one device to another over LAN or Tailscale:
+
+1. On Device A: open **Settings → Sync → Show QR Code** (or click the QR icon in the host list).
+2. Select your network interface (WiFi, Tailscale, Ethernet).
+3. On Device B: open **Settings → Sync → Scan QR Code** and point the camera at the code.
+4. All hosts and passwords are transferred, encrypted end-to-end with AES-256-GCM.
+
+> Both sync methods are fully optional. The app works entirely offline without either.
 
 ---
 
@@ -366,7 +381,7 @@ Include a short description of **what** changed and **why**. Screenshots for UI 
 - [x] Multi-provider AI assistant (Claude, OpenAI, Gemini)
 - [ ] Jump host / bastion proxy support
 - [ ] iOS / iPadOS target (experimental)
-- [ ] P2P host sync via QR code
+- [x] P2P host sync via QR code (LAN / Tailscale, AES-256-GCM encrypted)
 
 ---
 
