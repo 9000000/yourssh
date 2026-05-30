@@ -53,6 +53,10 @@ dependencies:
   # HTTP client for Supabase migration API calls
   http: ^1.2.0
 
+  # Plugin system
+  yourssh_plugin_api:
+    path: ../packages/yourssh_plugin_api
+
   # Cryptography utilities
   cryptography: ^2.7.0
 
