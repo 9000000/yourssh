@@ -93,9 +93,6 @@ dependencies:
   # URL launcher (Cloudflare tunnel)
   url_launcher: ^6.3.0
 
-  # QR code display (P2P sync)
-  qr_flutter: ^4.1.0
-
 dependency_overrides:
   dartssh2:
     path: ../packages/dartssh2
