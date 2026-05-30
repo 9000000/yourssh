@@ -54,26 +54,42 @@ class SshService {
     } else if (host.authType == AuthType.agent) {
       final proxy = await SystemAgentProxy.connect();
       _agentProxies[host.id] = proxy;
-      identities = await proxy.getIdentities();
+      try {
+        identities = await proxy.getIdentities();
+      } catch (e) {
+        _agentProxies.remove(host.id);
+        await proxy.close();
+        rethrow;
+      }
       if (identities.isEmpty) {
+        _agentProxies.remove(host.id);
+        await proxy.close();
         throw Exception(
           'SSH agent has no identities. Run "ssh-add <private-key>" to add one.',
         );
       }
     }
 
-    final client = SSHClient(
-      await SSHSocket.connect(host.host, host.port),
-      username: host.username,
-      onPasswordRequest: () => password ?? '',
-      identities: identities.isNotEmpty ? identities : null,
-      onVerifyHostKey: (type, fp) async {
-        if (verifyHostKey != null) return verifyHostKey(type.toString(), fp);
-        return true;
-      },
-    );
-
-    await client.authenticated;
+    final SSHClient client;
+    try {
+      client = SSHClient(
+        await SSHSocket.connect(host.host, host.port),
+        username: host.username,
+        onPasswordRequest: () => password ?? '',
+        identities: identities.isNotEmpty ? identities : null,
+        onVerifyHostKey: (type, fp) async {
+          if (verifyHostKey != null) return verifyHostKey(type.toString(), fp);
+          return true;
+        },
+      );
+      await client.authenticated;
+    } catch (e) {
+      if (host.authType == AuthType.agent) {
+        unawaited(_agentProxies[host.id]?.close() ?? Future.value());
+        _agentProxies.remove(host.id);
+      }
+      rethrow;
+    }
     _clients[host.id] = client;
     return client;
   }
@@ -87,6 +103,7 @@ class SshService {
   }) async {
     final stopwatch = Stopwatch()..start();
     SSHClient? client;
+    SystemAgentProxy? agentProxy;
     try {
       final socket = await SSHSocket.connect(host.host, host.port)
           .timeout(const Duration(seconds: 10));
@@ -114,9 +131,10 @@ class SshService {
         ];
       } else if (host.authType == AuthType.agent) {
         try {
-          final proxy = await SystemAgentProxy.connect();
-          identities = await proxy.getIdentities();
-          await proxy.close();
+          agentProxy = await SystemAgentProxy.connect();
+          identities = await agentProxy.getIdentities();
+          // Keep proxy alive until after client.authenticated — agent keys
+          // need the socket open to sign the challenge.
         } on SSHAgentUnavailableException catch (e) {
           return (success: false, latencyMs: 0, error: e.message);
         }
@@ -150,6 +168,7 @@ class SshService {
       );
     } finally {
       client?.close();
+      await agentProxy?.close();
     }
   }
 
