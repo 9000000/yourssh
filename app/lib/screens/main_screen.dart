@@ -6,6 +6,7 @@ import '../models/ssh_session.dart';
 import '../providers/host_provider.dart';
 import '../providers/known_hosts_provider.dart';
 import '../providers/session_provider.dart';
+import '../providers/recording_provider.dart';
 import '../main.dart' show kAppVersion;
 import '../theme/app_theme.dart';
 import '../widgets/host_detail_panel.dart';
@@ -743,6 +744,20 @@ class _SessionTabState extends State<_SessionTab> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Red recording indicator
+              Consumer<RecordingProvider>(
+                builder: (context, rec, _) => rec.isRecording(widget.session.id)
+                    ? Container(
+                        width: 7,
+                        height: 7,
+                        margin: const EdgeInsets.only(right: 5),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
               // X close button (left, per image)
               GestureDetector(
                 onTap: () => widget.provider.closeSession(widget.session.id),
