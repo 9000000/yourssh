@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class RecordingService {
   final Map<String, _ActiveRecording> _active = {};
@@ -33,8 +34,10 @@ class RecordingService {
         stopwatch: Stopwatch()..start(),
         filePath: filePath,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[RecordingService] startRecording $sessionId failed: $e');
       await sink?.close();
+      rethrow;
     }
   }
 

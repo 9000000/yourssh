@@ -1,6 +1,7 @@
 // app/lib/services/local_shell_service.dart
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_pty/flutter_pty.dart';
 import 'package:xterm/xterm.dart';
 import '../models/local_session.dart';
@@ -58,7 +59,9 @@ class LocalShellService {
                 sessionId: session.id,
                 sessionLabel: 'Local Shell',
               );
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[LocalShellService] notification handler threw: $e');
+            }
           });
 
       terminal.onOutput = (data) {

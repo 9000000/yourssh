@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/host.dart';
@@ -36,7 +37,8 @@ class StorageService {
       await _storage.write(key: key, value: value);
       final prefs = await SharedPreferences.getInstance();
       if (prefs.containsKey(key)) await prefs.remove(key);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[StorageService] secure write failed for $key, falling back to prefs: $e');
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(key, value);
     }
@@ -46,7 +48,9 @@ class StorageService {
     try {
       final val = await _storage.read(key: key);
       if (val != null) return val;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[StorageService] secure read failed for $key: $e');
+    }
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(key);
   }
@@ -54,7 +58,9 @@ class StorageService {
   Future<void> _deleteSecret(String key) async {
     try {
       await _storage.delete(key: key);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[StorageService] secure delete failed for $key: $e');
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(key);
   }
