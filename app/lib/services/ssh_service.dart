@@ -6,6 +6,7 @@ import 'package:dartssh2/dartssh2.dart';
 import '../models/host.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
+import 'certificate_key_pair.dart';
 import 'storage_service.dart';
 
 class SshService {
@@ -32,6 +33,22 @@ class SshService {
         final passphrase = await _storage.loadPassphrase(keyEntry.id);
         identities = SSHKeyPair.fromPem(pem, passphrase ?? '');
       }
+    } else if (host.authType == AuthType.certificate && keyEntry != null) {
+      final certPath = keyEntry.certificatePath;
+      if (certPath == null) {
+        throw Exception('No certificate linked to key "${keyEntry.label}". Add one in Keychain.');
+      }
+      if (!await File(certPath).exists()) {
+        throw Exception('Certificate file not found: $certPath');
+      }
+      final passphrase = await _storage.loadPassphrase(keyEntry.id);
+      identities = [
+        await CertificateKeyPair.load(
+          keyPath: keyEntry.privateKeyPath,
+          certPath: certPath,
+          passphrase: passphrase,
+        ),
+      ];
     }
 
     final client = SSHClient(
@@ -71,6 +88,19 @@ class SshService {
           final passphrase = await _storage.loadPassphrase(keyEntry.id);
           identities = SSHKeyPair.fromPem(pem, passphrase ?? '');
         }
+      } else if (host.authType == AuthType.certificate && keyEntry != null) {
+        final certPath = keyEntry.certificatePath;
+        if (certPath == null || !await File(certPath).exists()) {
+          return (success: false, latencyMs: 0, error: 'Certificate file missing or not linked');
+        }
+        final passphrase = await _storage.loadPassphrase(keyEntry.id);
+        identities = [
+          await CertificateKeyPair.load(
+            keyPath: keyEntry.privateKeyPath,
+            certPath: certPath,
+            passphrase: passphrase,
+          ),
+        ];
       }
 
       client = SSHClient(
