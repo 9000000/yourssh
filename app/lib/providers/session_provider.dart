@@ -8,7 +8,9 @@ import '../services/ssh_service.dart';
 class SessionProvider extends ChangeNotifier {
   final SshService _ssh;
   final List<SshSession> _sessions = [];
+  final Map<String, Timer> _reconnectTimers = {};
   String? _activeSessionId;
+  bool _disposed = false;
   SshKeyEntry? Function(String keyId)? keyLookup;
   Host? Function(String jumpHostId)? jumpHostLookup;
   bool Function()? autoReconnectEnabled;
@@ -19,6 +21,21 @@ class SessionProvider extends ChangeNotifier {
   Future<void> Function(SshSession session)? recordingStart;
 
   SessionProvider(this._ssh);
+
+  @override
+  void dispose() {
+    _disposed = true;
+    for (final t in _reconnectTimers.values) {
+      t.cancel();
+    }
+    _reconnectTimers.clear();
+    super.dispose();
+  }
+
+  void _safeNotify() {
+    if (_disposed) return;
+    notifyListeners();
+  }
 
   List<SshSession> get sessions => _sessions;
 
@@ -107,16 +124,18 @@ class SessionProvider extends ChangeNotifier {
     session.status = SessionStatus.connecting;
     final msg = attempt > 1 ? 'Reconnecting (attempt $attempt)…' : 'Reconnecting…';
     session.terminal.write('\r\n\x1b[33m[$msg]\x1b[0m\r\n');
-    notifyListeners();
+    _safeNotify();
 
-    Timer(Duration(seconds: attempt * 2), () {
-      if (_sessions.contains(session)) {
-        _doConnect(session, host, attempt: attempt);
-      }
+    _reconnectTimers[session.id]?.cancel();
+    _reconnectTimers[session.id] = Timer(Duration(seconds: attempt * 2), () {
+      _reconnectTimers.remove(session.id);
+      if (_disposed || !_sessions.contains(session)) return;
+      _doConnect(session, host, attempt: attempt);
     });
   }
 
   void closeSession(String sessionId) {
+    _reconnectTimers.remove(sessionId)?.cancel();
     final hostId = _sessions.where((s) => s.id == sessionId).firstOrNull?.host.id;
 
     _ssh.disconnectSession(sessionId);

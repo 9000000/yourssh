@@ -100,17 +100,21 @@ class LocalFilePanelProvider extends ChangeNotifier {
 
   Future<void> reload() => _fetchDirectory(_currentPath);
 
+  int _fetchToken = 0;
+
   Future<void> _fetchDirectory(String path) async {
+    final token = ++_fetchToken;
     loadState = LocalFilePanelLoadState.loading;
     errorMessage = null;
     notifyListeners();
     try {
       final dir = Directory(path);
       final entities = await dir.list().toList();
+      if (token != _fetchToken) return; // a newer fetch superseded us
       final entries = <LocalEntry>[];
       for (final entity in entities) {
         final name = p.basename(entity.path);
-        if (name.startsWith('.')) continue;
+        if (!_showHidden && name.startsWith('.')) continue;
         final stat = await entity.stat();
         entries.add(LocalEntry(
           name: name,
@@ -121,10 +125,12 @@ class LocalFilePanelProvider extends ChangeNotifier {
           permissions: (entity is Directory ? 'd' : '-') + stat.modeString(),
         ));
       }
+      if (token != _fetchToken) return;
       entries.sort((a, b) => a.sortKey.compareTo(b.sortKey));
       _entries = entries;
       loadState = LocalFilePanelLoadState.loaded;
     } catch (e) {
+      if (token != _fetchToken) return;
       loadState = LocalFilePanelLoadState.error;
       errorMessage = e.toString();
     }
@@ -172,6 +178,7 @@ class LocalFilePanelProvider extends ChangeNotifier {
   void toggleShowHidden() {
     _showHidden = !_showHidden;
     notifyListeners();
+    _fetchDirectory(_currentPath);
   }
 
   void setFilterQuery(String query) {

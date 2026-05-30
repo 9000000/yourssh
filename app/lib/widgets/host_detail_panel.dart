@@ -302,11 +302,22 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         .where((h) => h.id != existingId)
                         .toList();
                     if (otherHosts.isEmpty) return const SizedBox.shrink();
+                    // Drop a stale jump host selection if that host was deleted
+                    // — otherwise DropdownButton asserts on a value not in items.
+                    final validJump = _selectedJumpHostId != null &&
+                            otherHosts.any((h) => h.id == _selectedJumpHostId)
+                        ? _selectedJumpHostId
+                        : null;
+                    if (validJump != _selectedJumpHostId) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) setState(() => _selectedJumpHostId = validJump);
+                      });
+                    }
                     return _Card(children: [
                       _DropdownRow(
                         icon: Icons.hive_outlined,
                         child: DropdownButton<String?>(
-                          value: _selectedJumpHostId,
+                          value: validJump,
                           isExpanded: true,
                           hint: const Text(
                             'None (direct connection)',
