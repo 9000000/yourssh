@@ -11,6 +11,34 @@ class SSHAgentUnavailableException implements Exception {
   String toString() => 'SSHAgentUnavailableException: $message';
 }
 
+// ---------------------------------------------------------------------------
+// Transport abstraction
+// ---------------------------------------------------------------------------
+
+abstract class _AgentTransport {
+  void write(List<int> data);
+  Stream<List<int>> get incoming;
+  Future<void> close();
+}
+
+class _SocketTransport implements _AgentTransport {
+  final Socket _socket;
+  _SocketTransport(this._socket);
+
+  @override
+  void write(List<int> data) => _socket.add(data);
+
+  @override
+  Stream<List<int>> get incoming => _socket;
+
+  @override
+  Future<void> close() => _socket.close();
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 class SystemAgentProxy {
   final _AgentSession _session;
 
@@ -30,7 +58,7 @@ class SystemAgentProxy {
         InternetAddress(socketPath, type: InternetAddressType.unix),
         0,
       );
-      return SystemAgentProxy._(_AgentSession(socket));
+      return SystemAgentProxy._(_AgentSession(_SocketTransport(socket)));
     } catch (e) {
       throw SSHAgentUnavailableException(
           'Cannot connect to SSH agent at $socketPath: $e');
@@ -61,6 +89,10 @@ class SystemAgentProxy {
 
   Future<void> close() => _session.close();
 }
+
+// ---------------------------------------------------------------------------
+// Wire protocol helpers
+// ---------------------------------------------------------------------------
 
 class _AgentWriter {
   final _buf = BytesBuilder();
@@ -110,20 +142,20 @@ class _AgentReader {
   }
 }
 
-/// Buffers incoming socket data and supports sequential async reads via [readMessage].
+/// Buffers incoming transport data and supports sequential async message reads.
 ///
 /// Not thread-safe: callers must not issue concurrent [readMessage] calls.
 /// The SSH agent protocol is inherently serial (request/response), so this is
 /// satisfied as long as [_AgentKeyPair.signAsync] calls are not overlapped.
 class _AgentSession {
-  final Socket _socket;
+  final _AgentTransport _transport;
   final _buffer = <int>[];
   Completer<void>? _dataWaiter;
   late final StreamSubscription<List<int>> _sub;
   Object? _closeError;
 
-  _AgentSession(this._socket) {
-    _sub = _socket.listen(
+  _AgentSession(this._transport) {
+    _sub = _transport.incoming.listen(
       (chunk) {
         _buffer.addAll(chunk);
         _dataWaiter?.complete();
@@ -135,14 +167,15 @@ class _AgentSession {
         _dataWaiter = null;
       },
       onDone: () {
-        _closeError ??= const SSHAgentUnavailableException('Agent socket closed unexpectedly');
+        _closeError ??= const SSHAgentUnavailableException(
+            'Agent socket closed unexpectedly');
         _dataWaiter?.completeError(_closeError!);
         _dataWaiter = null;
       },
     );
   }
 
-  void write(List<int> data) => _socket.add(data);
+  void write(List<int> data) => _transport.write(data);
 
   Future<Uint8List> _readExact(int count) async {
     while (_buffer.length < count) {
@@ -163,7 +196,7 @@ class _AgentSession {
 
   Future<void> close() async {
     await _sub.cancel();
-    await _socket.close();
+    await _transport.close();
   }
 }
 
