@@ -28,7 +28,9 @@ class NotificationService {
   void Function(String sessionLabel)? onToast;
 
   static final _promptRegex = RegExp(r'[\$#%❯>]\s*$');
-  static final _ansiRegex = RegExp(r'\x1B\[[0-9;]*[mGKHFABCDJf]');
+  static final _ansiRegex = RegExp(
+    r'(\x1B\][^\x07]*\x07|\x1B\][^\x1B]*\x1B\\|\x1B[@-Z\\-_]|\x1B\[[0-9;?]*[a-zA-Z~])',
+  );
 
   final Map<String, Timer> _debounceTimers = {};
   final Map<String, DateTime> _lastNotified = {};
@@ -89,5 +91,13 @@ class NotificationService {
     _debounceTimers[sessionId]?.cancel();
     _debounceTimers.remove(sessionId);
     _lastNotified.remove(sessionId);
+  }
+
+  void dispose() {
+    for (final timer in _debounceTimers.values) {
+      timer.cancel();
+    }
+    _debounceTimers.clear();
+    _lastNotified.clear();
   }
 }

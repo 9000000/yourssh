@@ -18,6 +18,10 @@ void main() {
       svc.onToast = (label) => toasts.add(label);
     });
 
+    tearDown(() {
+      svc.dispose();
+    });
+
     test('detects bash prompt (\$ )', () async {
       svc.onWindowBlur();
       svc.onTerminalData('output\nuser@host:~\$ ', sessionId: 's1', sessionLabel: 'prod');
