@@ -77,6 +77,10 @@ dependencies:
   # URL launcher (Cloudflare tunnel)
   url_launcher: ^6.3.0
 
+dependency_overrides:
+  dartssh2:
+    path: ../packages/dartssh2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

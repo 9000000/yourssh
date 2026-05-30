@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dartssh2/dartssh2.dart';
-import 'package:dartssh2/src/ssh_hostkey.dart';
 import 'package:yourssh/services/certificate_key_pair.dart';
 
 class _FakeKeyPair implements SSHKeyPair {
@@ -23,6 +22,7 @@ class _FakeKeyPair implements SSHKeyPair {
     return _FakeSignature(data);
   }
 
+  @override
   Future<SSHSignature> signAsync(Uint8List data) async => sign(data);
 
   @override

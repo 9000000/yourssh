@@ -2,9 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
-// ignore: implementation_imports — SSHHostKey is not publicly exported by dartssh2.
-// This will be resolved when the local fork (Task 8) exports it from lib/dartssh2.dart.
-import 'package:dartssh2/src/ssh_hostkey.dart';
 
 class CertificateKeyPair implements SSHKeyPair {
   final SSHKeyPair _inner;
@@ -54,7 +51,7 @@ class CertificateKeyPair implements SSHKeyPair {
   @override
   SSHSignature sign(Uint8List data) => _inner.sign(data);
 
-  // ignore: override_on_non_overriding_member
+  @override
   Future<SSHSignature> signAsync(Uint8List data) async => _inner.sign(data);
 
   @override
