@@ -26,6 +26,21 @@ class SftpFileOpsService {
     }
   }
 
+  Future<void> createFile(Host host, String path) async {
+    final sftp = await _sshService.openSftp(host);
+    try {
+      final file = await sftp.open(
+        path,
+        mode: SftpFileOpenMode.create |
+            SftpFileOpenMode.write |
+            SftpFileOpenMode.truncate,
+      );
+      await file.close();
+    } finally {
+      sftp.close();
+    }
+  }
+
   Future<void> delete(Host host, String path, {required bool isDirectory}) async {
     final sftp = await _sshService.openSftp(host);
     try {
