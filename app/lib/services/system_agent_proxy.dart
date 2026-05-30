@@ -1,8 +1,79 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
+import 'package:ffi/ffi.dart';
+
+// ---------------------------------------------------------------------------
+// Win32 FFI — only executed on Windows at runtime
+// ---------------------------------------------------------------------------
+
+typedef _CreateFileWNative = IntPtr Function(
+  Pointer<Utf16> lpFileName,
+  Uint32 dwDesiredAccess,
+  Uint32 dwShareMode,
+  Pointer<Void> lpSecurityAttributes,
+  Uint32 dwCreationDisposition,
+  Uint32 dwFlagsAndAttributes,
+  IntPtr hTemplateFile,
+);
+typedef _CreateFileWDart = int Function(
+  Pointer<Utf16> lpFileName,
+  int dwDesiredAccess,
+  int dwShareMode,
+  Pointer<Void> lpSecurityAttributes,
+  int dwCreationDisposition,
+  int dwFlagsAndAttributes,
+  int hTemplateFile,
+);
+
+typedef _ReadFileNative = Int32 Function(
+  IntPtr hFile,
+  Pointer<Uint8> lpBuffer,
+  Uint32 nNumberOfBytesToRead,
+  Pointer<Uint32> lpNumberOfBytesRead,
+  Pointer<Void> lpOverlapped,
+);
+typedef _ReadFileDart = int Function(
+  int hFile,
+  Pointer<Uint8> lpBuffer,
+  int nNumberOfBytesToRead,
+  Pointer<Uint32> lpNumberOfBytesRead,
+  Pointer<Void> lpOverlapped,
+);
+
+typedef _WriteFileNative = Int32 Function(
+  IntPtr hFile,
+  Pointer<Uint8> lpBuffer,
+  Uint32 nNumberOfBytesToWrite,
+  Pointer<Uint32> lpNumberOfBytesWritten,
+  Pointer<Void> lpOverlapped,
+);
+typedef _WriteFileDart = int Function(
+  int hFile,
+  Pointer<Uint8> lpBuffer,
+  int nNumberOfBytesToWrite,
+  Pointer<Uint32> lpNumberOfBytesWritten,
+  Pointer<Void> lpOverlapped,
+);
+
+typedef _CloseHandleNative = Int32 Function(IntPtr hObject);
+typedef _CloseHandleDart = int Function(int hObject);
+
+typedef _GetLastErrorNative = Uint32 Function();
+typedef _GetLastErrorDart = int Function();
+
+// Win32 constants
+const int _kGenericRead = 0x80000000;
+const int _kGenericWrite = 0x40000000;
+const int _kFileShareNone = 0;
+const int _kOpenExisting = 3;
+const int _kFileAttributeNormal = 0x80;
+// INVALID_HANDLE_VALUE = (HANDLE)(LONG_PTR)(-1)
+const int _kInvalidHandle = -1;
 
 class SSHAgentUnavailableException implements Exception {
   final String message;
@@ -11,17 +82,201 @@ class SSHAgentUnavailableException implements Exception {
   String toString() => 'SSHAgentUnavailableException: $message';
 }
 
+// ---------------------------------------------------------------------------
+// Transport abstraction
+// ---------------------------------------------------------------------------
+
+abstract class _AgentTransport {
+  void write(List<int> data);
+  Stream<List<int>> get incoming;
+  Future<void> close();
+}
+
+class _SocketTransport implements _AgentTransport {
+  final Socket _socket;
+  _SocketTransport(this._socket);
+
+  @override
+  void write(List<int> data) => _socket.add(data);
+
+  @override
+  Stream<List<int>> get incoming => _socket;
+
+  @override
+  Future<void> close() => _socket.close();
+}
+
+class _WindowsPipeTransport implements _AgentTransport {
+  final int _handle;
+  final _WriteFileDart _writeFn;
+  final _CloseHandleDart _closeFn;
+  final _controller = StreamController<List<int>>();
+  late final Isolate _readIsolate;
+  late final ReceivePort _receivePort;
+  late final StreamSubscription<dynamic> _portSub;
+
+  _WindowsPipeTransport._(this._handle, this._writeFn, this._closeFn);
+
+  static Future<_WindowsPipeTransport> connect(String pipeName) async {
+    final kernel32 = DynamicLibrary.open('kernel32.dll');
+    final createFile = kernel32
+        .lookupFunction<_CreateFileWNative, _CreateFileWDart>('CreateFileW');
+    final writeFile = kernel32
+        .lookupFunction<_WriteFileNative, _WriteFileDart>('WriteFile');
+    final closeHandle = kernel32
+        .lookupFunction<_CloseHandleNative, _CloseHandleDart>('CloseHandle');
+    final getLastError = kernel32
+        .lookupFunction<_GetLastErrorNative, _GetLastErrorDart>('GetLastError');
+
+    final pipeNamePtr = pipeName.toNativeUtf16();
+    final int handle;
+    try {
+      handle = createFile(
+        pipeNamePtr,
+        _kGenericRead | _kGenericWrite,
+        _kFileShareNone,
+        nullptr,
+        _kOpenExisting,
+        _kFileAttributeNormal,
+        0,
+      );
+    } finally {
+      calloc.free(pipeNamePtr);
+    }
+
+    if (handle == _kInvalidHandle) {
+      final err = getLastError();
+      throw SSHAgentUnavailableException(
+        'Cannot open Windows SSH agent pipe (Win32 error $err). '
+        'Ensure the OpenSSH Authentication Agent service is running.',
+      );
+    }
+
+    final transport = _WindowsPipeTransport._(handle, writeFile, closeHandle);
+    await transport._startReading();
+    return transport;
+  }
+
+  Future<void> _startReading() async {
+    _receivePort = ReceivePort();
+    _portSub = _receivePort.listen((message) {
+      if (message == null) {
+        _controller.close();
+      } else if (message is List<int>) {
+        _controller.add(message);
+      } else if (message is String) {
+        _controller.addError(SSHAgentUnavailableException(message));
+        _controller.close();
+      }
+    });
+    _readIsolate = await Isolate.spawn(
+      _readLoop,
+      [_handle, _receivePort.sendPort],
+      debugName: 'ssh_agent_pipe_reader',
+    );
+  }
+
+  // Top-level-compatible static function required by Isolate.spawn.
+  // Runs blocking ReadFile calls in a background isolate; sends chunks via SendPort.
+  // Sends null on EOF, String message on error.
+  static void _readLoop(List<dynamic> args) {
+    final int handle = args[0] as int;
+    final SendPort sendPort = args[1] as SendPort;
+
+    final kernel32 = DynamicLibrary.open('kernel32.dll');
+    final readFile =
+        kernel32.lookupFunction<_ReadFileNative, _ReadFileDart>('ReadFile');
+
+    const bufSize = 4096;
+    final buf = calloc<Uint8>(bufSize);
+    final bytesRead = calloc<Uint32>();
+
+    try {
+      while (true) {
+        final ok = readFile(handle, buf, bufSize, bytesRead, nullptr);
+        if (ok == 0 || bytesRead.value == 0) {
+          sendPort.send(null);
+          break;
+        }
+        final chunk = List<int>.unmodifiable(buf.asTypedList(bytesRead.value));
+        sendPort.send(chunk);
+      }
+    } finally {
+      calloc.free(buf);
+      calloc.free(bytesRead);
+    }
+  }
+
+  @override
+  void write(List<int> data) {
+    final buf = calloc<Uint8>(data.length);
+    final written = calloc<Uint32>();
+    try {
+      for (var i = 0; i < data.length; i++) {
+        buf[i] = data[i];
+      }
+      _writeFn(_handle, buf, data.length, written, nullptr);
+    } finally {
+      calloc.free(buf);
+      calloc.free(written);
+    }
+  }
+
+  @override
+  Stream<List<int>> get incoming => _controller.stream;
+
+  @override
+  Future<void> close() async {
+    _readIsolate.kill(priority: Isolate.immediate);
+    await _portSub.cancel();
+    _receivePort.close();
+    await _controller.close();
+    _closeFn(_handle);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 class SystemAgentProxy {
   final _AgentSession _session;
 
   SystemAgentProxy._(this._session);
 
   static Future<SystemAgentProxy> connect() async {
+    if (Platform.isWindows) return _connectWindows();
     final sockPath = Platform.environment['SSH_AUTH_SOCK'];
     if (sockPath == null || sockPath.isEmpty) {
       throw const SSHAgentUnavailableException('SSH_AUTH_SOCK is not set');
     }
     return connectTo(sockPath);
+  }
+
+  static Future<SystemAgentProxy> _connectWindows() async {
+    // Prefer SSH_AUTH_SOCK when set — supports WSL agent forwarding and
+    // third-party agents that expose a Unix-compatible socket on Windows.
+    final sockPath = Platform.environment['SSH_AUTH_SOCK'];
+    if (sockPath != null && sockPath.isNotEmpty) {
+      try {
+        return await connectTo(sockPath);
+      } catch (_) {
+        // Fall through to named pipe
+      }
+    }
+
+    const pipePath = r'\\.\pipe\openssh-ssh-agent';
+    try {
+      final transport = await _WindowsPipeTransport.connect(pipePath);
+      return SystemAgentProxy._(_AgentSession(transport));
+    } on SSHAgentUnavailableException {
+      rethrow;
+    } catch (e) {
+      throw SSHAgentUnavailableException(
+        'No SSH agent found. Start the OpenSSH Authentication Agent service '
+        'or set SSH_AUTH_SOCK. ($e)',
+      );
+    }
   }
 
   static Future<SystemAgentProxy> connectTo(String socketPath) async {
@@ -30,7 +285,7 @@ class SystemAgentProxy {
         InternetAddress(socketPath, type: InternetAddressType.unix),
         0,
       );
-      return SystemAgentProxy._(_AgentSession(socket));
+      return SystemAgentProxy._(_AgentSession(_SocketTransport(socket)));
     } catch (e) {
       throw SSHAgentUnavailableException(
           'Cannot connect to SSH agent at $socketPath: $e');
@@ -61,6 +316,10 @@ class SystemAgentProxy {
 
   Future<void> close() => _session.close();
 }
+
+// ---------------------------------------------------------------------------
+// Wire protocol helpers
+// ---------------------------------------------------------------------------
 
 class _AgentWriter {
   final _buf = BytesBuilder();
@@ -110,20 +369,20 @@ class _AgentReader {
   }
 }
 
-/// Buffers incoming socket data and supports sequential async reads via [readMessage].
+/// Buffers incoming transport data and supports sequential async message reads.
 ///
 /// Not thread-safe: callers must not issue concurrent [readMessage] calls.
 /// The SSH agent protocol is inherently serial (request/response), so this is
 /// satisfied as long as [_AgentKeyPair.signAsync] calls are not overlapped.
 class _AgentSession {
-  final Socket _socket;
+  final _AgentTransport _transport;
   final _buffer = <int>[];
   Completer<void>? _dataWaiter;
   late final StreamSubscription<List<int>> _sub;
   Object? _closeError;
 
-  _AgentSession(this._socket) {
-    _sub = _socket.listen(
+  _AgentSession(this._transport) {
+    _sub = _transport.incoming.listen(
       (chunk) {
         _buffer.addAll(chunk);
         _dataWaiter?.complete();
@@ -135,14 +394,15 @@ class _AgentSession {
         _dataWaiter = null;
       },
       onDone: () {
-        _closeError ??= const SSHAgentUnavailableException('Agent socket closed unexpectedly');
+        _closeError ??= const SSHAgentUnavailableException(
+            'Agent socket closed unexpectedly');
         _dataWaiter?.completeError(_closeError!);
         _dataWaiter = null;
       },
     );
   }
 
-  void write(List<int> data) => _socket.add(data);
+  void write(List<int> data) => _transport.write(data);
 
   Future<Uint8List> _readExact(int count) async {
     while (_buffer.length < count) {
@@ -163,7 +423,7 @@ class _AgentSession {
 
   Future<void> close() async {
     await _sub.cancel();
-    await _socket.close();
+    await _transport.close();
   }
 }
 
