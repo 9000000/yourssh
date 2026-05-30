@@ -163,8 +163,8 @@ class _AddHostDialogState extends State<AddHostDialog> {
                   onChanged: (v) => setState(() => _selectedKeyId = v),
                   validator: (v) {
                     if (v == null) return 'Select a key';
-                    final key = keys.firstWhere((k) => k.id == v, orElse: () => keys.first);
-                    if (!key.hasCertificate) {
+                    final key = keys.where((k) => k.id == v).firstOrNull;
+                    if (key == null || !key.hasCertificate) {
                       return 'Selected key has no linked certificate. Add one in Keychain.';
                     }
                     return null;
