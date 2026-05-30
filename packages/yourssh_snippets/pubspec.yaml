@@ -1,0 +1,18 @@
+name: yourssh_snippets
+description: Snippets plugin for YourSSH — save and recall reusable shell commands.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  yourssh_plugin_api:
+    path: ../yourssh_plugin_api
+
+  shared_preferences: ^2.3.2
+  uuid: ^4.5.1
+  provider: ^6.1.2

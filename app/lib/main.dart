@@ -9,7 +9,7 @@ import 'providers/key_provider.dart';
 import 'providers/port_forward_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/settings_provider.dart';
-import 'providers/snippet_provider.dart';
+import 'package:yourssh_snippets/yourssh_snippets.dart';
 import 'providers/local_session_provider.dart';
 import 'providers/terminal_layout_provider.dart';
 import 'providers/sync_provider.dart';

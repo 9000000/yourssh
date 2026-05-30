@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import '../providers/host_provider.dart';
-import '../providers/snippet_provider.dart';
+import 'package:yourssh_snippets/yourssh_snippets.dart';
 import '../services/sync_encryption.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';

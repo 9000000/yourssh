@@ -1,7 +1,7 @@
-name: yourssh
+name: YourSSH
 description: YourSSH - A professional SSH client for macOS and Windows
 publish_to: 'none'
-version: 0.1.2+1
+version: 0.1.3+1
 
 environment:
   sdk: ^3.12.0
@@ -61,6 +61,10 @@ dependencies:
     path: ../packages/yourssh_plugin_api
   yourssh_devops:
     path: ../packages/yourssh_devops
+  yourssh_web_tools:
+    path: ../packages/yourssh_web_tools
+  yourssh_snippets:
+    path: ../packages/yourssh_snippets
 
   # Cryptography utilities
   cryptography: ^2.7.0

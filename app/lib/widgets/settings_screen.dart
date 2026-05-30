@@ -194,21 +194,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ]),
                 const SizedBox(height: 24),
-                _Section(title: 'Features', children: [
-                  SwitchListTile(
-                    title: const Text('Web Tools', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                    subtitle: const Text('Show Web Tools section in sidebar', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                    value: settings.showWebTools,
-                    onChanged: (v) => context.read<SettingsProvider>().save(showWebTools: v),
-                  ),
-                  SwitchListTile(
-                    title: const Text('Snippets', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                    subtitle: const Text('Show Snippets section in sidebar', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                    value: settings.showSnippets,
-                    onChanged: (v) => context.read<SettingsProvider>().save(showSnippets: v),
-                  ),
-                ]),
-                const SizedBox(height: 24),
                 _SyncSection(sync: sync),
                 const SizedBox(height: 24),
                 const _AiProvidersSection(),

@@ -1,6 +1,6 @@
 name: YourSSH
 options:
-  bundleIdPrefix: com.thangnm
+  bundleIdPrefix: com.yoursshlabs
   deploymentTarget:
     macOS: "13.0"
   xcodeVersion: "15"
@@ -8,7 +8,7 @@ options:
 settings:
   SWIFT_VERSION: "5.9"
   MACOSX_DEPLOYMENT_TARGET: "13.0"
-  PRODUCT_BUNDLE_IDENTIFIER: com.thangnm.yourssh
+  PRODUCT_BUNDLE_IDENTIFIER: com.yoursshlabs.yourssh
   PRODUCT_NAME: YourSSH
   MARKETING_VERSION: "0.1.0"
   CURRENT_PROJECT_VERSION: "1"
@@ -22,7 +22,7 @@ targets:
       - path: YourSSH
     settings:
       INFOPLIST_FILE: YourSSH/Resources/Info.plist
-      PRODUCT_BUNDLE_IDENTIFIER: com.thangnm.yourssh
+      PRODUCT_BUNDLE_IDENTIFIER: com.yoursshlabs.yourssh
       ENABLE_HARDENED_RUNTIME: YES
       CODE_SIGN_ENTITLEMENTS: YourSSH/Resources/YourSSH.entitlements
     dependencies: []
