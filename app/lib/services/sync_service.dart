@@ -200,18 +200,26 @@ class SyncService {
 
   // ── Disable ───────────────────────────────────────────────
 
-  Future<void> disableAndDelete() async {
+  /// Stops the retry timer, deletes the remote row (best-effort) and clears
+  /// local Supabase config. Returns null on success, or an error message if
+  /// the remote delete failed — caller should surface that so the user knows
+  /// the cloud row may still exist.
+  Future<String?> disableAndDelete() async {
     stopRetryTimer();
+    String? remoteError;
     try {
       final supabase = _getSupabase();
       if (supabase != null) {
         await supabase.deleteRow();
       }
-    } catch (_) {}
+    } catch (e) {
+      remoteError = e.toString();
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_pendingPushKey);
     await prefs.remove(_lastPushKey);
     await _syncProvider.clearSupabaseConfig();
+    return remoteError;
   }
 
   void dispose() {

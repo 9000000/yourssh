@@ -8,6 +8,11 @@ class RecordingProvider extends ChangeNotifier {
   final RecordingService _service;
   final String Function() getPath;
 
+  /// Invoked when a recording fails to start (e.g., auto-record on connect).
+  /// The UI layer should surface this — silently dropping it makes `autoRecord`
+  /// look like it turned itself off, which is the bug report we keep getting.
+  void Function(SshSession session, Object error)? onStartFailed;
+
   final List<RecordingEntry> _recordings = [];
   final Set<String> _activeIds = {};
 
@@ -45,9 +50,10 @@ class RecordingProvider extends ChangeNotifier {
         title: '${session.host.username}@${session.host.host}',
       );
       notifyListeners();
-    } catch (_) {
+    } catch (e) {
       _activeIds.remove(session.id);
       notifyListeners();
+      onStartFailed?.call(session, e);
     }
   }
 
@@ -87,7 +93,14 @@ class RecordingProvider extends ChangeNotifier {
   }
 
   Future<void> deleteRecording(String filePath) async {
-    await File(filePath).delete();
+    final file = File(filePath);
+    try {
+      if (await file.exists()) await file.delete();
+    } catch (e) {
+      // File still appears in the library until next refresh — surface the
+      // failure via the caller (UI) rather than silently keeping the entry.
+      rethrow;
+    }
     _recordings.removeWhere((r) => r.filePath == filePath);
     notifyListeners();
   }

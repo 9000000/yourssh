@@ -15,22 +15,29 @@ class McpEndpoint {
   });
 }
 
+class McpStartResult {
+  final bool ok;
+  final String? error;
+  const McpStartResult.success() : ok = true, error = null;
+  const McpStartResult.failure(this.error) : ok = false;
+}
+
 class McpGatewayService {
   final SshService _sshService;
   final Map<String, McpEndpoint> _endpoints = {};
 
   McpGatewayService(this._sshService);
 
-  Future<bool> start(McpEndpoint endpoint) async {
+  Future<McpStartResult> start(McpEndpoint endpoint) async {
     try {
       final remotePort = 9000 + endpoint.localPort;
       final cmd = '${endpoint.mcpCommand} --port $remotePort &';
       await _sshService.exec(endpoint.host, cmd);
       endpoint.isRunning = true;
       _endpoints[endpoint.host.id] = endpoint;
-      return true;
-    } catch (_) {
-      return false;
+      return const McpStartResult.success();
+    } catch (e) {
+      return McpStartResult.failure(e.toString());
     }
   }
 

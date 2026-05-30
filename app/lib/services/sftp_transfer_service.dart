@@ -148,7 +148,16 @@ class SftpTransferService {
     required void Function(String) onFileSkipped,
     required bool Function() isCancelled,
   }) async {
-    try { await sftp.mkdir(remoteDir); } catch (_) {}
+    // mkdir often fails because the dir already exists — that's fine. Anything
+    // else (e.g., SSH_FX_PERMISSION_DENIED) we want to surface so the user
+    // doesn't get a confusing later error from the file write.
+    try {
+      await sftp.mkdir(remoteDir);
+    } on SftpStatusError catch (e) {
+      // 4 = generic failure, 11 = "file already exists" (FX_FILE_ALREADY_EXISTS)
+      // are both expected for "directory exists". Anything else is fatal.
+      if (e.code != SftpStatusCode.failure && e.code != 11) rethrow;
+    }
     final entities = await Directory(localDir).list().toList();
     for (final entity in entities) {
       if (isCancelled()) return;
@@ -160,7 +169,23 @@ class SftpTransferService {
           onProgress: onProgress, onFileSkipped: onFileSkipped, isCancelled: isCancelled,
         );
       } else {
-        try { await sftp.stat(remotePath); onFileSkipped(entity.path); continue; } catch (_) {}
+        // stat: only treat "no such file" as "needs upload". Permission / I/O
+        // errors are surfaced so we don't silently overwrite or silently skip.
+        bool fileExists;
+        try {
+          await sftp.stat(remotePath);
+          fileExists = true;
+        } on SftpStatusError catch (e) {
+          if (e.code == SftpStatusCode.noSuchFile) {
+            fileExists = false;
+          } else {
+            rethrow;
+          }
+        }
+        if (fileExists) {
+          onFileSkipped(entity.path);
+          continue;
+        }
         await _uploadFileWithProgress(sftp, entity.path, remotePath, onProgress);
       }
     }
