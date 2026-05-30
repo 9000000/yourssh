@@ -46,6 +46,7 @@ class _MainScreenState extends State<MainScreen> {
   NavSection _nav = NavSection.hosts;
   String? _activePluginId;
   _SidePanel _sidePanel = _SidePanel.none;
+  final Map<String, PluginContextImpl> _pluginContexts = {};
   Host? _editingHost;
   String? _initialGroup;
   bool _viewingTerminal = false;
@@ -188,6 +189,14 @@ class _MainScreenState extends State<MainScreen> {
         _initialGroup = null;
       });
 
+  PluginContextImpl _pluginContext(String pluginId) {
+    return _pluginContexts.putIfAbsent(pluginId, () => PluginContextImpl(
+      sessions: context.read<SessionProvider>(),
+      ssh: context.read<SshService>(),
+      pluginId: pluginId,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessions = context.watch<SessionProvider>().sessions;
@@ -326,20 +335,14 @@ class _MainScreenState extends State<MainScreen> {
 
     // Active plugin view
     if (_activePluginId != null) {
-      final pluginProvider = context.read<PluginProvider>();
+      final pluginProvider = context.watch<PluginProvider>(); // watch so disable triggers rebuild
       final enabled = pluginProvider.enabledPlugins.where((p) => p.id == _activePluginId);
       if (enabled.isNotEmpty) {
         final plugin = enabled.first;
-        final ssh = context.read<SshService>();
-        final sessions = context.read<SessionProvider>();
-        final pluginCtx = PluginContextImpl(
-          sessions: sessions,
-          ssh: ssh,
-          pluginId: plugin.id,
-        );
         return _PluginErrorBoundary(
           key: ValueKey(plugin.id),
-          child: plugin.buildUI(context, pluginCtx),
+          plugin: plugin,
+          pluginCtx: _pluginContext(plugin.id),
         );
       }
       // Plugin was disabled while viewing it — reset
@@ -470,33 +473,62 @@ class _Sidebar extends StatelessWidget {
   }
 
   Widget _pluginNavItem(BuildContext context, YourSSHPlugin plugin) {
-    final isActive = activePluginId == plugin.id;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => onSelectPlugin(plugin.id),
+    return _PluginNavItem(
+      plugin: plugin,
+      isActive: activePluginId == plugin.id,
+      onTap: () => onSelectPlugin(plugin.id),
+    );
+  }
+}
+
+class _PluginNavItem extends StatefulWidget {
+  final YourSSHPlugin plugin;
+  final bool isActive;
+  final VoidCallback onTap;
+  const _PluginNavItem({required this.plugin, required this.isActive, required this.onTap});
+
+  @override
+  State<_PluginNavItem> createState() => _PluginNavItemState();
+}
+
+class _PluginNavItemState extends State<_PluginNavItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isActive
+        ? AppColors.accent.withValues(alpha: 0.12)
+        : _hovered
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.transparent;
+    final iconColor = widget.isActive ? AppColors.accent : AppColors.textSecondary;
+    final textColor = widget.isActive ? AppColors.accent : AppColors.textSecondary;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            color: isActive ? AppColors.accent.withValues(alpha: 0.12) : Colors.transparent,
+            color: bg,
             borderRadius: BorderRadius.circular(6),
-            border: isActive ? Border.all(color: AppColors.accent.withValues(alpha: 0.2)) : null,
+            border: widget.isActive ? Border.all(color: AppColors.accent.withValues(alpha: 0.2)) : null,
           ),
           child: Row(
             children: [
-              Icon(plugin.icon,
-                  size: 15,
-                  color: isActive ? AppColors.accent : AppColors.textSecondary),
+              Icon(widget.plugin.icon, size: 15, color: iconColor),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  plugin.name,
+                  widget.plugin.name,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: isActive ? AppColors.accent : AppColors.textSecondary,
+                    color: textColor,
                     fontSize: 13,
-                    fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
+                    fontWeight: widget.isActive ? FontWeight.w500 : FontWeight.normal,
                   ),
                 ),
               ),
@@ -899,8 +931,9 @@ class _HostKeyDialog extends StatelessWidget {
 // ── Plugin Error Boundary ─────────────────────────────────
 
 class _PluginErrorBoundary extends StatefulWidget {
-  final Widget child;
-  const _PluginErrorBoundary({super.key, required this.child});
+  final YourSSHPlugin plugin;
+  final PluginContextImpl pluginCtx;
+  const _PluginErrorBoundary({super.key, required this.plugin, required this.pluginCtx});
 
   @override
   State<_PluginErrorBoundary> createState() => _PluginErrorBoundaryState();
@@ -930,13 +963,20 @@ class _PluginErrorBoundaryState extends State<_PluginErrorBoundary> {
         ),
       );
     }
-    return widget.child;
+    try {
+      return widget.plugin.buildUI(context, widget.pluginCtx);
+    } catch (e) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _error = e);
+      });
+      return const SizedBox.shrink();
+    }
   }
 
   @override
   void didUpdateWidget(_PluginErrorBoundary oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.child != widget.child) _error = null;
+    if (oldWidget.plugin.id != widget.plugin.id) _error = null;
   }
 }
 
