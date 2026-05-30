@@ -24,6 +24,7 @@ class SessionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
     for (final t in _reconnectTimers.values) {
       t.cancel();
@@ -51,14 +52,14 @@ class SessionProvider extends ChangeNotifier {
 
   void setActive(String sessionId) {
     _activeSessionId = sessionId;
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<void> connect(Host host) async {
     final session = SshSession(host: host);
     _sessions.add(session);
     _activeSessionId = session.id;
-    notifyListeners();
+    _safeNotify();
 
     await _doConnect(session, host, attempt: 1);
   }
@@ -92,21 +93,21 @@ class SessionProvider extends ChangeNotifier {
         });
       }
       session.errorMessage = null;
-      notifyListeners();
+      _safeNotify();
 
       if (host.autoRecord) {
         unawaited(recordingStart?.call(session) ?? Future.value());
       }
 
       await _ssh.openShell(session, useTmux: tmuxEnabled?.call() ?? false);
-      notifyListeners();
+      _safeNotify();
 
       // Shell closed — try auto-reconnect
       if (_sessions.contains(session) && (autoReconnectEnabled?.call() ?? false)) {
         _scheduleReconnect(session, host, attempt: 1);
       } else if (_sessions.contains(session)) {
         session.status = SessionStatus.disconnected;
-        notifyListeners();
+        _safeNotify();
       }
     } catch (e) {
       if (!_sessions.contains(session)) return;
@@ -118,7 +119,7 @@ class SessionProvider extends ChangeNotifier {
         session.errorMessage = attempt > 1
             ? 'Failed after $attempt attempts: $e'
             : e.toString();
-        notifyListeners();
+        _safeNotify();
       }
     }
   }
@@ -152,7 +153,7 @@ class SessionProvider extends ChangeNotifier {
       _ssh.disconnect(hostId);
     }
 
-    notifyListeners();
+    _safeNotify();
   }
 
   void closeActive() {
@@ -165,7 +166,7 @@ class SessionProvider extends ChangeNotifier {
     final idx = _sessions.indexWhere((s) => s.id == _activeSessionId);
     final nextIdx = (idx + 1) % _sessions.length;
     _activeSessionId = _sessions[nextIdx].id;
-    notifyListeners();
+    _safeNotify();
   }
 
   void activatePrev() {
@@ -173,6 +174,6 @@ class SessionProvider extends ChangeNotifier {
     final idx = _sessions.indexWhere((s) => s.id == _activeSessionId);
     final prevIdx = (idx - 1 + _sessions.length) % _sessions.length;
     _activeSessionId = _sessions[prevIdx].id;
-    notifyListeners();
+    _safeNotify();
   }
 }

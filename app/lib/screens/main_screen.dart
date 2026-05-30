@@ -63,7 +63,18 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _sftpConnectionNotifier.addListener(_onSftpConnectionChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _wirePluginLifecycle());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _wirePluginLifecycle();
+      _wireRecordingErrors();
+    });
+  }
+
+  void _wireRecordingErrors() {
+    if (!mounted) return;
+    context.read<RecordingProvider>().onStartFailed = (session, error) {
+      if (!mounted) return;
+      AppSnack.error(context, 'Recording failed for ${session.host.label}: $error');
+    };
   }
 
   void _wirePluginLifecycle() {
