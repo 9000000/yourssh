@@ -212,6 +212,7 @@ class _HttpClientToolState extends State<HttpClientTool> {
     });
     final sw = Stopwatch()..start();
 
+    const requestTimeout = Duration(seconds: 60);
     try {
       final uri = Uri.parse(_buildFinalUrl());
       final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
@@ -240,9 +241,9 @@ class _HttpClientToolState extends State<HttpClientTool> {
           }
         }
 
-        final resp = await req.close();
+        final resp = await req.close().timeout(requestTimeout);
         sw.stop();
-        final bodyRaw = await resp.transform(utf8.decoder).join();
+        final bodyRaw = await resp.transform(utf8.decoder).join().timeout(requestTimeout);
         final sizeBytes = utf8.encode(bodyRaw).length;
 
         final respHeaders = <String, String>{};
