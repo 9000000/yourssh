@@ -123,8 +123,10 @@ class _QrExportDialogState extends State<QrExportDialog> {
                 items: _interfaces.map((i) => DropdownMenuItem(
                   value: i,
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(child: Text(i.displayName, style: const TextStyle(fontSize: 13))),
+                      Text(i.displayName, style: const TextStyle(fontSize: 13)),
+                      const SizedBox(width: 8),
                       Text(i.address, style: const TextStyle(fontSize: 11, color: Color(0xFF888888))),
                     ],
                   ),
