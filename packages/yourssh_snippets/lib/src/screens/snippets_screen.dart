@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/snippet.dart';
 import '../providers/snippet_provider.dart';
-import '../theme/app_theme.dart';
+import '../theme.dart';
 
 class SnippetsScreen extends StatefulWidget {
   const SnippetsScreen({super.key});
@@ -32,7 +32,7 @@ class _SnippetsScreenState extends State<SnippetsScreen> {
       children: [
         Expanded(
           child: Container(
-            color: AppColors.bg,
+            color: SnippetsColors.bg,
             child: Column(
               children: [
                 _TopBar(
@@ -44,7 +44,7 @@ class _SnippetsScreenState extends State<SnippetsScreen> {
                   child: filtered.isEmpty
                       ? const Center(
                           child: Text('No snippets',
-                              style: TextStyle(color: AppColors.textTertiary)))
+                              style: TextStyle(color: SnippetsColors.textTertiary)))
                       : ListView.builder(
                           padding: const EdgeInsets.all(24),
                           itemCount: filtered.length,
@@ -81,8 +81,8 @@ class _TopBar extends StatelessWidget {
     return Container(
       height: 52,
       decoration: const BoxDecoration(
-        color: AppColors.sidebar,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+        color: SnippetsColors.sidebar,
+        border: Border(bottom: BorderSide(color: SnippetsColors.border)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -91,20 +91,20 @@ class _TopBar extends StatelessWidget {
             child: Container(
               height: 34,
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: SnippetsColors.card,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: SnippetsColors.border),
               ),
               child: TextField(
                 onChanged: onSearch,
                 style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 13),
+                    color: SnippetsColors.textPrimary, fontSize: 13),
                 decoration: const InputDecoration(
                   hintText: 'Search snippets…',
                   hintStyle:
-                      TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                      TextStyle(color: SnippetsColors.textTertiary, fontSize: 13),
                   prefixIcon: Icon(Icons.search,
-                      color: AppColors.textTertiary, size: 16),
+                      color: SnippetsColors.textTertiary, size: 16),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 8),
                   isDense: true,
@@ -119,7 +119,7 @@ class _TopBar extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                  color: AppColors.accent,
+                  color: SnippetsColors.accent,
                   borderRadius: BorderRadius.circular(6)),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
@@ -164,9 +164,9 @@ class _SnippetTileState extends State<_SnippetTile> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: _hovered ? AppColors.cardHover : AppColors.card,
+          color: _hovered ? SnippetsColors.cardHover : SnippetsColors.card,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: SnippetsColors.border),
         ),
         child: Row(
           children: [
@@ -178,7 +178,7 @@ class _SnippetTileState extends State<_SnippetTile> {
                     children: [
                       Text(s.label,
                           style: const TextStyle(
-                              color: AppColors.textPrimary,
+                              color: SnippetsColors.textPrimary,
                               fontSize: 13,
                               fontWeight: FontWeight.w500)),
                       if (s.tag.isNotEmpty) ...[
@@ -192,13 +192,13 @@ class _SnippetTileState extends State<_SnippetTile> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.bg,
+                      color: SnippetsColors.bg,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       s.command,
                       style: const TextStyle(
-                          color: AppColors.accent,
+                          color: SnippetsColors.accent,
                           fontSize: 12,
                           fontFamily: 'monospace'),
                     ),
@@ -207,7 +207,7 @@ class _SnippetTileState extends State<_SnippetTile> {
                     const SizedBox(height: 4),
                     Text(s.description,
                         style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 11)),
+                            color: SnippetsColors.textSecondary, fontSize: 11)),
                   ],
                 ],
               ),
@@ -223,7 +223,7 @@ class _SnippetTileState extends State<_SnippetTile> {
               _ActionBtn(
                 icon: Icons.delete_outlined,
                 tooltip: 'Delete',
-                color: AppColors.red,
+                color: SnippetsColors.red,
                 onTap: () => context.read<SnippetProvider>().delete(s.id),
               ),
             ],
@@ -255,12 +255,12 @@ class _ActionBtn extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: AppColors.bg,
+            color: SnippetsColors.bg,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: SnippetsColors.border),
           ),
           child:
-              Icon(icon, size: 14, color: color ?? AppColors.textSecondary),
+              Icon(icon, size: 14, color: color ?? SnippetsColors.textSecondary),
         ),
       ),
     );
@@ -276,10 +276,10 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-          color: AppColors.border, borderRadius: BorderRadius.circular(4)),
+          color: SnippetsColors.border, borderRadius: BorderRadius.circular(4)),
       child: Text(label,
           style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: SnippetsColors.textSecondary,
               fontSize: 10,
               fontWeight: FontWeight.w500)),
     );
@@ -333,8 +333,8 @@ class _SnippetPanelState extends State<_SnippetPanel> {
     return Container(
       width: 340,
       decoration: const BoxDecoration(
-        color: AppColors.sidebar,
-        border: Border(left: BorderSide(color: AppColors.border)),
+        color: SnippetsColors.sidebar,
+        border: Border(left: BorderSide(color: SnippetsColors.border)),
       ),
       child: Column(
         children: [
@@ -364,7 +364,7 @@ class _SnippetPanelState extends State<_SnippetPanel> {
                     child: FilledButton(
                       onPressed: _saving ? null : _submit,
                       style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.accent,
+                          backgroundColor: SnippetsColors.accent,
                           foregroundColor: Colors.black),
                       child: _saving
                           ? const SizedBox(
@@ -390,7 +390,7 @@ class _SnippetPanelState extends State<_SnippetPanel> {
     return Container(
       height: 52,
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+        border: Border(bottom: BorderSide(color: SnippetsColors.border)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -398,7 +398,7 @@ class _SnippetPanelState extends State<_SnippetPanel> {
           const Expanded(
             child: Text('New Snippet',
                 style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: SnippetsColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600)),
           ),
@@ -408,12 +408,12 @@ class _SnippetPanelState extends State<_SnippetPanel> {
               width: 28,
               height: 28,
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: SnippetsColors.card,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: SnippetsColors.border),
               ),
               child: const Icon(Icons.close,
-                  size: 14, color: AppColors.textSecondary),
+                  size: 14, color: SnippetsColors.textSecondary),
             ),
           ),
         ],
@@ -432,22 +432,22 @@ class _SnippetPanelState extends State<_SnippetPanel> {
       controller: ctrl,
       autofocus: autofocus,
       maxLines: maxLines,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+      style: const TextStyle(color: SnippetsColors.textPrimary, fontSize: 13),
       decoration: InputDecoration(
         labelText: label,
         labelStyle:
-            const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            const TextStyle(color: SnippetsColors.textSecondary, fontSize: 13),
         filled: true,
-        fillColor: AppColors.card,
+        fillColor: SnippetsColors.card,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.border)),
+            borderSide: const BorderSide(color: SnippetsColors.border)),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.border)),
+            borderSide: const BorderSide(color: SnippetsColors.border)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.accent)),
+            borderSide: const BorderSide(color: SnippetsColors.accent)),
         isDense: true,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

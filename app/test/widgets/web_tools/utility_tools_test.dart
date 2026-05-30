@@ -1,6 +1,6 @@
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yourssh/widgets/web_tools/utility_tools.dart';
+import 'package:yourssh_web_tools/src/screens/utility_tools.dart';
 
 void main() {
   group('Base64', () {

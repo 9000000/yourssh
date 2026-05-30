@@ -1,0 +1,17 @@
+name: yourssh_web_tools
+description: Web Tools plugin for YourSSH — embedded browser, HTTP client, and utilities.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  yourssh_plugin_api:
+    path: ../yourssh_plugin_api
+
+  webview_flutter: ^4.8.0
+  cryptography: ^2.7.0

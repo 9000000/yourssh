@@ -9,13 +9,14 @@ import 'providers/key_provider.dart';
 import 'providers/port_forward_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/settings_provider.dart';
-import 'providers/snippet_provider.dart';
+import 'package:yourssh_snippets/yourssh_snippets.dart';
 import 'providers/local_session_provider.dart';
 import 'providers/terminal_layout_provider.dart';
 import 'providers/sync_provider.dart';
 import 'providers/known_hosts_provider.dart';
 import 'providers/plugin_provider.dart';
 import 'plugins/plugin_registry.dart';
+import 'services/notification_service.dart';
 import 'services/ssh_service.dart';
 import 'services/storage_service.dart';
 import 'services/sync_service.dart';
@@ -28,6 +29,7 @@ void main() async {
   await windowManager.setTitle('YourSSH');
   await windowManager.setMinimumSize(const Size(800, 600));
   await hotKeyManager.unregisterAll();
+  await NotificationService.init();
   runApp(const YourSSHApp());
 }
 
@@ -49,6 +51,8 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
   late final SyncService _syncService;
   late final KnownHostsProvider _knownHostsProvider;
   late final PluginProvider _pluginProvider;
+
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
@@ -85,6 +89,19 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
       getHosts: () async => _hostProvider.allHosts,
       loadPasswords: _loadAllPasswords,
     );
+
+    NotificationService.instance.enabled = _settingsProvider.commandNotificationsEnabled;
+    _settingsProvider.addListener(_syncNotificationSetting);
+    NotificationService.instance.onToast = (label) {
+      _messengerKey.currentState?.showSnackBar(SnackBar(
+        content: Text('✓ $label — command finished'),
+        duration: const Duration(seconds: 3),
+      ));
+    };
+  }
+
+  void _syncNotificationSetting() {
+    NotificationService.instance.enabled = _settingsProvider.commandNotificationsEnabled;
   }
 
   Future<Map<String, String>> _loadAllPasswords() async {
@@ -98,6 +115,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
 
   @override
   void onWindowFocus() {
+    NotificationService.instance.onWindowFocus();
     if (_syncProvider.enabled) {
       _syncService.pull().then((payload) {
         if (payload != null) {
@@ -108,7 +126,13 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
   }
 
   @override
+  void onWindowBlur() {
+    NotificationService.instance.onWindowBlur();
+  }
+
+  @override
   void dispose() {
+    _settingsProvider.removeListener(_syncNotificationSetting);
     windowManager.removeListener(this);
     _syncService.dispose();
     _hostProvider.dispose();
@@ -149,6 +173,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
       child: MaterialApp(
         title: 'YourSSH',
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: _messengerKey,
         theme: buildAppTheme(),
         darkTheme: buildAppTheme(),
         themeMode: ThemeMode.dark,

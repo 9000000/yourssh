@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import '../providers/host_provider.dart';
-import '../providers/snippet_provider.dart';
+import 'package:yourssh_snippets/yourssh_snippets.dart';
 import '../services/sync_encryption.dart';
+import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
+import 'qr_export_dialog.dart';
 
 class SyncSettingsScreen extends StatefulWidget {
   const SyncSettingsScreen({super.key});
@@ -109,6 +111,21 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
     }
   }
 
+  Future<void> _showQrExport(BuildContext context) async {
+    final hostProvider = context.read<HostProvider>();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => QrExportDialog(
+        getPayload: () async {
+          final hosts = hostProvider.allHosts;
+          final passwords = await hostProvider.loadAllPasswords();
+          return SyncService.buildPayload(hosts: hosts, passwords: passwords);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,6 +190,40 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'P2P Transfer',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Transfer all hosts to another device over LAN or Tailscale. No cloud required.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.qr_code, size: 16),
+                    label: const Text('Show QR Code'),
+                    onPressed: () => _showQrExport(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.content_paste, size: 16),
+                    label: const Text('Import via Code'),
+                    onPressed: null,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

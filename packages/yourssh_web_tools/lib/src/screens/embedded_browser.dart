@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import '../../theme/app_theme.dart';
+import '../theme.dart';
 
 class EmbeddedBrowser extends StatefulWidget {
   final String? initialUrl;
@@ -79,7 +79,7 @@ class _EmbeddedBrowserState extends State<EmbeddedBrowser> {
           onReload: () => _controller.reload(),
           onStop: _stop,
         ),
-        const Divider(height: 1, color: AppColors.border),
+        const Divider(height: 1, color: WebToolsColors.border),
         Expanded(child: WebViewWidget(controller: _controller)),
       ],
     );
@@ -111,7 +111,7 @@ class _AddressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 48,
-      color: AppColors.sidebar,
+      color: WebToolsColors.sidebar,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
@@ -129,9 +129,9 @@ class _AddressBar extends StatelessWidget {
             child: Container(
               height: 30,
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: WebToolsColors.card,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: WebToolsColors.border),
               ),
               child: Row(
                 children: [
@@ -140,18 +140,18 @@ class _AddressBar extends StatelessWidget {
                     const SizedBox(
                       width: 12, height: 12,
                       child: CircularProgressIndicator(
-                        strokeWidth: 1.5, color: AppColors.accent),
+                        strokeWidth: 1.5, color: WebToolsColors.accent),
                     )
                   else
                     const Icon(Icons.lock_outline, size: 12,
-                        color: AppColors.textTertiary),
+                        color: WebToolsColors.textTertiary),
                   const SizedBox(width: 6),
                   Expanded(
                     child: TextField(
                       controller: controller,
                       focusNode: focusNode,
                       style: const TextStyle(
-                          color: AppColors.textPrimary, fontSize: 12),
+                          color: WebToolsColors.textPrimary, fontSize: 12),
                       decoration: const InputDecoration(
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
@@ -193,11 +193,11 @@ class _NavBtnState extends State<_NavBtn> {
         child: Container(
           width: 28, height: 28,
           decoration: BoxDecoration(
-            color: _hovered ? AppColors.cardHover : Colors.transparent,
+            color: _hovered ? WebToolsColors.cardHover : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Icon(widget.icon, size: widget.size,
-              color: _hovered ? AppColors.textPrimary : AppColors.textSecondary),
+              color: _hovered ? WebToolsColors.textPrimary : WebToolsColors.textSecondary),
         ),
       ),
     );

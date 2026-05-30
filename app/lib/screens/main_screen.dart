@@ -13,12 +13,10 @@ import '../widgets/keychain_screen.dart';
 import '../widgets/known_hosts_screen.dart';
 import '../widgets/port_forwarding_screen.dart';
 import '../widgets/settings_screen.dart';
-import '../widgets/snippets_screen.dart';
 import '../widgets/local_terminal_screen.dart';
 import '../widgets/network_stats_overlay.dart';
 import '../widgets/dual_panel_sftp_screen.dart';
 import '../widgets/split_terminal_view.dart';
-import '../widgets/web_tools_screen.dart';
 import '../widgets/new_group_panel.dart';
 import '../widgets/import_panel.dart';
 import '../widgets/ai_chat_sidebar.dart';
@@ -31,7 +29,7 @@ import '../providers/settings_provider.dart';
 import '../providers/terminal_layout_provider.dart';
 import '../services/hotkey_service.dart';
 
-enum NavSection { hosts, keychain, portForwarding, sftp, webTools, snippets, localTerminal, knownHosts, settings, plugins }
+enum NavSection { hosts, keychain, portForwarding, sftp, localTerminal, knownHosts, settings, plugins }
 
 enum _SidePanel { none, host, newGroup, import }
 
@@ -292,16 +290,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildContent(SshSession? active) {
-    final settings = context.read<SettingsProvider>();
-    final hiddenNav = (_nav == NavSection.webTools && !settings.showWebTools) ||
-        (_nav == NavSection.snippets && !settings.showSnippets);
-    if (hiddenNav) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _nav = NavSection.hosts);
-      });
-      return const SizedBox.shrink();
-    }
-
     if (_viewingTerminal && active != null) {
       return Row(
         children: [
@@ -367,11 +355,9 @@ class _MainScreenState extends State<MainScreen> {
       NavSection.sftp => DualPanelSftpScreen(
           connectionNotifier: _sftpConnectionNotifier,
         ),
-      NavSection.snippets => const SnippetsScreen(),
       NavSection.localTerminal => const LocalTerminalScreen(),
       NavSection.knownHosts => const KnownHostsScreen(),
       NavSection.settings => const SettingsScreen(),
-      NavSection.webTools => const WebToolsScreen(),
       NavSection.plugins => const PluginMarketplaceScreen(),
     };
   }
@@ -422,10 +408,6 @@ class _Sidebar extends StatelessWidget {
           _navItem(Icons.folder_open, 'SFTP', NavSection.sftp),
 
           const _SectionLabel('TOOLS'),
-          if (context.watch<SettingsProvider>().showWebTools)
-            _navItem(Icons.build_outlined, 'Web Tools', NavSection.webTools),
-          if (context.watch<SettingsProvider>().showSnippets)
-            _navItem(Icons.code, 'Snippets', NavSection.snippets),
           _navItem(Icons.laptop_mac, 'Local Terminal', NavSection.localTerminal),
           ...context.watch<PluginProvider>().enabledPlugins.map(
             (plugin) => _pluginNavItem(context, plugin),

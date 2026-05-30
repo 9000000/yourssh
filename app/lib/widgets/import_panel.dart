@@ -64,10 +64,129 @@ List<Host> parseJsonHosts(String input) {
   }
 }
 
+List<String> _splitCsvLine(String line) {
+  final fields = <String>[];
+  final sb = StringBuffer();
+  var inQuotes = false;
+  var i = 0;
+  while (i < line.length) {
+    final ch = line[i];
+    if (ch == '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+        sb.write('"');
+        i += 2;
+      } else {
+        inQuotes = !inQuotes;
+        i++;
+      }
+    } else if (ch == ',' && !inQuotes) {
+      fields.add(sb.toString());
+      sb.clear();
+      i++;
+    } else {
+      sb.write(ch);
+      i++;
+    }
+  }
+  if (inQuotes) throw FormatException('Unterminated quote in CSV');
+  fields.add(sb.toString());
+  return fields;
+}
+
+({List<Host> hosts, List<String> warnings}) parseCsvHosts(String input) {
+  final lines = input.split('\n').map((l) => l.trimRight()).toList();
+  while (lines.isNotEmpty && lines.last.isEmpty) { lines.removeLast(); }
+  if (lines.isEmpty) return (hosts: [], warnings: []);
+
+  final header = _splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase()).toList();
+  if (!header.contains('host')) {
+    throw FormatException("CSV missing required 'host' column");
+  }
+
+  int idx(String name) => header.indexOf(name);
+  final hostIdx = idx('host');
+  final labelIdx = idx('label');
+  final portIdx = idx('port');
+  final userIdx = idx('username');
+  final authIdx = idx('auth_type');
+  final groupIdx = idx('group');
+  final tagsIdx = idx('tags');
+
+  final hosts = <Host>[];
+  final warnings = <String>[];
+
+  for (var i = 1; i < lines.length; i++) {
+    final line = lines[i].trim();
+    if (line.isEmpty) continue;
+
+    List<String> cells;
+    try {
+      cells = _splitCsvLine(line);
+    } catch (_) {
+      warnings.add('Row ${i + 1}: malformed CSV, skipped');
+      continue;
+    }
+
+    String cell(int colIdx) =>
+        colIdx >= 0 && colIdx < cells.length ? cells[colIdx].trim() : '';
+
+    final hostVal = cell(hostIdx);
+    if (hostVal.isEmpty) {
+      warnings.add('Row ${i + 1}: missing host, skipped');
+      continue;
+    }
+
+    int port = 22;
+    final portStr = cell(portIdx);
+    if (portStr.isNotEmpty) {
+      final parsed = int.tryParse(portStr);
+      if (parsed == null || parsed < 1 || parsed > 65535) {
+        warnings.add("Row ${i + 1}: invalid port '$portStr', skipped");
+        continue;
+      }
+      port = parsed;
+    }
+
+    final labelVal = cell(labelIdx);
+    final authVal = cell(authIdx).toLowerCase();
+    final tagsVal = cell(tagsIdx);
+
+    final authType = switch (authVal) {
+      'key' || 'privatekey' => AuthType.privateKey,
+      'agent' => AuthType.agent,
+      _ => AuthType.password,
+    };
+
+    final tags = tagsVal.isEmpty
+        ? <String>[]
+        : tagsVal.split(';').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+
+    hosts.add(Host(
+      label: labelVal.isEmpty ? hostVal : labelVal,
+      host: hostVal,
+      port: port,
+      username: cell(userIdx),
+      authType: authType,
+      group: cell(groupIdx),
+      tags: tags,
+    ));
+  }
+
+  return (hosts: hosts, warnings: warnings);
+}
+
 List<Host> detectAndParse(String input) {
   final trimmed = input.trimLeft();
   if (trimmed.toLowerCase().startsWith('host ')) return parseSshConfig(input);
   if (trimmed.startsWith('[') || trimmed.startsWith('{')) return parseJsonHosts(input);
+  final firstLine = trimmed.split('\n').first;
+  if (firstLine.contains(',')) {
+    try {
+      return parseCsvHosts(input).hosts;
+    } on FormatException {
+      return [];
+    }
+  }
   return [];
 }
 
@@ -90,6 +209,7 @@ class _ImportPanelState extends State<ImportPanel> {
   List<Host> _parsed = [];
   final Map<int, bool> _included = {};
   final Map<int, bool> _overwrite = {};
+  List<String> _csvWarnings = [];
 
   @override
   void dispose() {
@@ -103,10 +223,13 @@ class _ImportPanelState extends State<ImportPanel> {
             e.username.toLowerCase() == h.username.toLowerCase(),
       );
 
-  void _applyParsed(List<Host> hosts) {
+  void _applyParsed(List<Host> hosts, {List<String> warnings = const []}) {
     setState(() {
       _parsed = hosts;
-      _parseError = hosts.isEmpty ? 'No hosts found or unrecognized format' : null;
+      _csvWarnings = List.of(warnings);
+      _parseError = hosts.isEmpty && warnings.isEmpty
+          ? 'No hosts found or unrecognized format'
+          : (hosts.isEmpty && warnings.isNotEmpty ? 'All rows were skipped' : null);
       _included.clear();
       _overwrite.clear();
       for (var i = 0; i < hosts.length; i++) {
@@ -116,19 +239,45 @@ class _ImportPanelState extends State<ImportPanel> {
     });
   }
 
+  void _parseInput(String input) {
+    final trimmed = input.trimLeft();
+    final firstLine = trimmed.split('\n').first;
+    final looksLikeCsv = firstLine.contains(',') &&
+        !trimmed.toLowerCase().startsWith('host ') &&
+        !trimmed.startsWith('[') &&
+        !trimmed.startsWith('{');
+
+    if (looksLikeCsv) {
+      try {
+        final result = parseCsvHosts(input);
+        _applyParsed(result.hosts, warnings: result.warnings);
+      } on FormatException catch (e) {
+        setState(() {
+          _csvWarnings = [];
+          _parsed = [];
+          _parseError = e.message;
+          _included.clear();
+          _overwrite.clear();
+        });
+      }
+    } else {
+      _applyParsed(detectAndParse(input));
+    }
+  }
+
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json', 'config', 'conf', 'txt'],
+      allowedExtensions: ['json', 'config', 'conf', 'txt', 'csv'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
     final bytes = result.files.first.bytes;
     if (bytes == null) return;
-    _applyParsed(detectAndParse(utf8.decode(bytes)));
+    _parseInput(utf8.decode(bytes));
   }
 
-  void _parsePaste() => _applyParsed(detectAndParse(_pasteCtrl.text));
+  void _parsePaste() => _parseInput(_pasteCtrl.text);
 
   int _effectiveImportCount(List<Host> existing) => _included.entries
       .where((e) => e.value)
@@ -161,6 +310,10 @@ class _ImportPanelState extends State<ImportPanel> {
                 if (_parseError != null) ...[
                   const SizedBox(height: 8),
                   Text(_parseError!, style: const TextStyle(color: AppColors.red, fontSize: 11)),
+                ],
+                if (_csvWarnings.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildWarnings(),
                 ],
                 if (_parsed.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -230,6 +383,7 @@ class _ImportPanelState extends State<ImportPanel> {
           _mode = mode;
           _parsed = [];
           _parseError = null;
+          _csvWarnings = [];
         }),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -263,7 +417,7 @@ class _ImportPanelState extends State<ImportPanel> {
           children: [
             Icon(Icons.upload_file_outlined, size: 16, color: AppColors.textSecondary),
             SizedBox(width: 8),
-            Text('Choose .json or config file',
+            Text('Choose file (.json, .csv, .config)',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           ],
         ),
@@ -286,7 +440,7 @@ class _ImportPanelState extends State<ImportPanel> {
             maxLines: 10,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontFamily: 'monospace'),
             decoration: const InputDecoration(
-              hintText: 'Paste .ssh/config or JSON here...',
+              hintText: 'Paste SSH config, JSON, or CSV...',
               hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 12),
               contentPadding: EdgeInsets.all(12),
               border: InputBorder.none,
@@ -308,6 +462,27 @@ class _ImportPanelState extends State<ImportPanel> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildWarnings() {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Text(
+          '${_csvWarnings.length} row${_csvWarnings.length == 1 ? '' : 's'} skipped — click to expand',
+          style: const TextStyle(color: Colors.orange, fontSize: 11),
+        ),
+        children: _csvWarnings
+            .map((w) => Padding(
+                  padding: const EdgeInsets.only(left: 8, bottom: 4),
+                  child: Text(w,
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 11)),
+                ))
+            .toList(),
+      ),
     );
   }
 

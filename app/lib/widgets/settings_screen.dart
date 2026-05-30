@@ -186,20 +186,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       settings.save();
                     },
                   ),
-                ]),
-                const SizedBox(height: 24),
-                _Section(title: 'Features', children: [
                   SwitchListTile(
-                    title: const Text('Web Tools', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                    subtitle: const Text('Show Web Tools section in sidebar', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                    value: settings.showWebTools,
-                    onChanged: (v) => context.read<SettingsProvider>().save(showWebTools: v),
-                  ),
-                  SwitchListTile(
-                    title: const Text('Snippets', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                    subtitle: const Text('Show Snippets section in sidebar', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                    value: settings.showSnippets,
-                    onChanged: (v) => context.read<SettingsProvider>().save(showSnippets: v),
+                    title: const Text('Command finish notification', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                    subtitle: const Text('Alert when a command completes in an unfocused session', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                    value: settings.commandNotificationsEnabled,
+                    onChanged: (v) => context.read<SettingsProvider>().save(commandNotificationsEnabled: v),
                   ),
                 ]),
                 const SizedBox(height: 24),

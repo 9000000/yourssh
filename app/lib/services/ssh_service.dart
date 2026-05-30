@@ -7,6 +7,7 @@ import '../models/host.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
 import 'certificate_key_pair.dart';
+import 'notification_service.dart';
 import 'storage_service.dart';
 import 'system_agent_proxy.dart';
 
@@ -196,8 +197,20 @@ class SshService {
     const utf8 = Utf8Decoder(allowMalformed: true);
 
     // Pipe SSH output → xterm terminal; complete when shell closes
+    final sessionLabel =
+        '${session.host.label} (${session.host.username}@${session.host.host})';
     shell.stdout.cast<List<int>>().listen(
-      (data) => session.terminal.write(utf8.convert(data)),
+      (data) {
+        final text = utf8.convert(data);
+        session.terminal.write(text);
+        try {
+          NotificationService.instance.onTerminalData(
+            text,
+            sessionId: session.id,
+            sessionLabel: sessionLabel,
+          );
+        } catch (_) {}
+      },
       onDone: () {
         _onShellClosed(session);
         if (!done.isCompleted) done.complete();
@@ -228,6 +241,7 @@ class SshService {
   void _onShellClosed(SshSession session) {
     _shells.remove(session.id);
     session.terminal.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+    NotificationService.instance.removeSession(session.id);
   }
 
   // ── Exec ───────────────────────────────────────────────
@@ -255,7 +269,11 @@ class SshService {
   // ── Disconnect ─────────────────────────────────────────
 
   void disconnect(String hostId) {
+    final removed = _shells.keys.where((k) => k.startsWith(hostId)).toList();
     _shells.removeWhere((k, _) => k.startsWith(hostId));
+    for (final id in removed) {
+      NotificationService.instance.removeSession(id);
+    }
     _clients[hostId]?.close();
     _clients.remove(hostId);
     unawaited(_agentProxies[hostId]?.close() ?? Future.value());
@@ -265,6 +283,7 @@ class SshService {
   void disconnectSession(String sessionId) {
     _shells[sessionId]?.close();
     _shells.remove(sessionId);
+    NotificationService.instance.removeSession(sessionId);
   }
 
   bool isConnected(String hostId) => _clients.containsKey(hostId);

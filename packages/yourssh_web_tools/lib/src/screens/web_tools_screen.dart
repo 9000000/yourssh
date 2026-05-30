@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
-import 'web_tools/embedded_browser.dart';
-import 'web_tools/http_client.dart';
-import 'web_tools/utility_tools.dart';
-import 'web_tools/port_forward_browser.dart';
+import '../theme.dart';
+import '../web_tools_plugin_config.dart';
+import 'embedded_browser.dart';
+import 'http_client.dart';
+import 'utility_tools.dart';
 
 enum _WebTool { browser, http, utilities, portForward }
 
 class WebToolsScreen extends StatefulWidget {
-  const WebToolsScreen({super.key});
+  final WebToolsPluginConfig config;
+
+  const WebToolsScreen({super.key, required this.config});
 
   @override
   State<WebToolsScreen> createState() => _WebToolsScreenState();
@@ -30,7 +32,7 @@ class _WebToolsScreenState extends State<WebToolsScreen> {
     return Row(
       children: [
         _SubNav(active: _active, onSelect: (t) => setState(() => _active = t)),
-        Container(width: 1, color: AppColors.border),
+        Container(width: 1, color: WebToolsColors.border),
         Expanded(child: _buildContent()),
       ],
     );
@@ -40,7 +42,7 @@ class _WebToolsScreenState extends State<WebToolsScreen> {
         _WebTool.browser     => EmbeddedBrowser(key: ValueKey(_browserUrl), initialUrl: _browserUrl),
         _WebTool.http        => const HttpClientTool(),
         _WebTool.utilities   => const UtilityTools(),
-        _WebTool.portForward => PortForwardBrowser(onOpenUrl: _openUrl),
+        _WebTool.portForward => widget.config.portForwardBrowserBuilder(_openUrl),
       };
 }
 
@@ -54,7 +56,7 @@ class _SubNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 160,
-      color: AppColors.sidebar,
+      color: WebToolsColors.sidebar,
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +66,7 @@ class _SubNav extends StatelessWidget {
             child: Text(
               'Web Tools',
               style: TextStyle(
-                color: AppColors.textSecondary,
+                color: WebToolsColors.textSecondary,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.8,
@@ -103,7 +105,7 @@ class _SubNavItemState extends State<_SubNavItem> {
   @override
   Widget build(BuildContext context) {
     final bg = widget.selected
-        ? AppColors.accent.withValues(alpha: 0.12)
+        ? WebToolsColors.accent.withValues(alpha: 0.12)
         : _hovered
             ? Colors.white.withValues(alpha: 0.04)
             : Colors.transparent;
@@ -119,16 +121,16 @@ class _SubNavItemState extends State<_SubNavItem> {
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(6),
-            border: widget.selected ? Border.all(color: AppColors.accent.withValues(alpha: 0.2)) : null,
+            border: widget.selected ? Border.all(color: WebToolsColors.accent.withValues(alpha: 0.2)) : null,
           ),
           child: Row(
             children: [
               Icon(widget.icon, size: 14,
-                  color: widget.selected ? AppColors.accent : AppColors.textSecondary),
+                  color: widget.selected ? WebToolsColors.accent : WebToolsColors.textSecondary),
               const SizedBox(width: 8),
               Text(widget.label,
                   style: TextStyle(
-                    color: widget.selected ? AppColors.accent : AppColors.textSecondary,
+                    color: widget.selected ? WebToolsColors.accent : WebToolsColors.textSecondary,
                     fontSize: 12,
                     fontWeight: widget.selected ? FontWeight.w500 : FontWeight.normal,
                   )),

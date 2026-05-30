@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../theme/app_theme.dart';
+import '../theme.dart';
 
 @visibleForTesting
 String encodeBase64(String input) => base64.encode(utf8.encode(input));
@@ -63,7 +63,7 @@ class _UtilityToolsState extends State<UtilityTools> {
     return Row(
       children: [
         _UtilSubNav(active: _tab, onSelect: (t) => setState(() => _tab = t)),
-        Container(width: 1, color: AppColors.border),
+        Container(width: 1, color: WebToolsColors.border),
         Expanded(child: _buildTab()),
       ],
     );
@@ -86,7 +86,7 @@ class _UtilSubNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 120,
-      color: AppColors.card,
+      color: WebToolsColors.card,
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,12 +108,12 @@ class _UtilSubNav extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: sel ? AppColors.accent.withValues(alpha: 0.12) : Colors.transparent,
+          color: sel ? WebToolsColors.accent.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(label,
             style: TextStyle(
-              color: sel ? AppColors.accent : AppColors.textSecondary,
+              color: sel ? WebToolsColors.accent : WebToolsColors.textSecondary,
               fontSize: 12,
               fontWeight: sel ? FontWeight.w500 : FontWeight.normal,
             )),
@@ -147,14 +147,14 @@ class _IoPane extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(inputLabel,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              style: const TextStyle(color: WebToolsColors.textSecondary, fontSize: 11)),
           const SizedBox(height: 6),
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: WebToolsColors.card,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: WebToolsColors.border),
               ),
               padding: const EdgeInsets.all(10),
               child: TextField(
@@ -162,7 +162,7 @@ class _IoPane extends StatelessWidget {
                 maxLines: null,
                 expands: true,
                 style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 12, fontFamily: 'monospace'),
+                    color: WebToolsColors.textPrimary, fontSize: 12, fontFamily: 'monospace'),
                 decoration:
                     const InputDecoration(border: InputBorder.none, isDense: true),
               ),
@@ -171,7 +171,7 @@ class _IoPane extends StatelessWidget {
           const SizedBox(height: 12),
           Row(children: [
             Text(outputLabel,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                style: const TextStyle(color: WebToolsColors.textSecondary, fontSize: 11)),
             const Spacer(),
             ...actions,
             const SizedBox(width: 4),
@@ -182,16 +182,16 @@ class _IoPane extends StatelessWidget {
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: AppColors.bg,
+                color: WebToolsColors.bg,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: WebToolsColors.border),
               ),
               padding: const EdgeInsets.all(10),
               child: SingleChildScrollView(
                 child: SelectableText(
                   output,
                   style: const TextStyle(
-                      color: AppColors.textPrimary,
+                      color: WebToolsColors.textPrimary,
                       fontSize: 12,
                       fontFamily: 'monospace'),
                 ),
@@ -212,7 +212,7 @@ class _CopyBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.copy, size: 14),
-      color: AppColors.textSecondary,
+      color: WebToolsColors.textSecondary,
       tooltip: 'Copy output',
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
@@ -233,12 +233,12 @@ class _ActionBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: WebToolsColors.card,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: WebToolsColors.border),
         ),
         child: Text(label,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+            style: const TextStyle(color: WebToolsColors.textSecondary, fontSize: 11)),
       ),
     );
   }
