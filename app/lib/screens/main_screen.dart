@@ -63,6 +63,32 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _sftpConnectionNotifier.addListener(_onSftpConnectionChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _wirePluginLifecycle());
+  }
+
+  void _wirePluginLifecycle() {
+    if (!mounted) return;
+    final pluginProvider = context.read<PluginProvider>();
+    // Catch per-plugin so one buggy plugin can't take down the whole toggle.
+    pluginProvider.onToggled = (plugin, enabled) {
+      try {
+        if (enabled) {
+          plugin.onActivate(_pluginContext(plugin.id));
+        } else {
+          plugin.onDeactivate();
+        }
+      } catch (e, st) {
+        debugPrint('[plugin ${plugin.id}] lifecycle error: $e\n$st');
+      }
+    };
+    // Fire onActivate for plugins already enabled at startup (prefs already loaded).
+    for (final plugin in pluginProvider.enabledPlugins) {
+      try {
+        plugin.onActivate(_pluginContext(plugin.id));
+      } catch (e, st) {
+        debugPrint('[plugin ${plugin.id}] onActivate error: $e\n$st');
+      }
+    }
   }
 
   Future<void> _registerHotkeys(Map<String, String> hotkeys) async {

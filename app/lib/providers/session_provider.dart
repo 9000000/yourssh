@@ -39,6 +39,9 @@ class SessionProvider extends ChangeNotifier {
 
   List<SshSession> get sessions => _sessions;
 
+  Host? hostForSession(String sessionId) =>
+      _sessions.where((s) => s.id == sessionId).firstOrNull?.host;
+
   SshSession? get activeSession => _sessions.isEmpty
       ? null
       : _sessions.firstWhere(
