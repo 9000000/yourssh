@@ -373,15 +373,44 @@ Include a short description of **what** changed and **why**. Screenshots for UI 
 
 ## Roadmap
 
+### ✅ Shipped
+
 - [x] Custom terminal color themes (35 presets)
 - [x] SSH certificate authentication (CA-signed certs)
 - [x] SSH agent authentication (`SSH_AUTH_SOCK`)
 - [x] Linux desktop target
 - [x] Plugin / extension system
 - [x] Multi-provider AI assistant (Claude, OpenAI, Gemini)
-- [ ] Jump host / bastion proxy support
-- [ ] iOS / iPadOS target (experimental)
 - [x] P2P host sync via QR code (LAN / Tailscale, AES-256-GCM encrypted)
+
+### 🔜 Phase 1 — Quick wins
+
+- [ ] **SSH config import** — parse `~/.ssh/config` and populate host list automatically
+- [ ] **Host import from CSV** — bulk import connection profiles from a spreadsheet
+- [ ] **Command finish notification** — system alert when a long-running command completes while the window is not focused
+
+### 🔜 Phase 2 — Core SSH improvements
+
+- [ ] **Jump host / bastion proxy** — `ProxyJump` support for multi-hop connections
+- [ ] **TOTP / keyboard-interactive 2FA** — OTP prompt for servers that require it after password
+- [ ] **Windows SSH agent (Pageant)** — named-pipe agent support alongside `SSH_AUTH_SOCK`
+
+### 🔜 Phase 3 — Productivity
+
+- [ ] **Session recording** — save terminal sessions to file (asciinema format) with playback
+- [ ] **Multi-host scripting** — run a script or command across multiple selected hosts in parallel
+- [ ] **Smarter tab completion** — history-aware suggestions + remote filesystem path completion
+
+### 🔜 Phase 4 — DevOps tooling
+
+- [ ] **Docker / Kubernetes exec** — list containers/pods on the remote host and exec into them directly
+- [ ] **Remote process manager** — `htop`-style process list with kill support
+- [ ] **Log tail viewer** — real-time `tail -f` panel with regex filter and highlight
+
+### 🔜 Phase 5 — Platform expansion
+
+- [ ] **iOS / iPadOS target** (experimental)
+- [ ] **Android target** (experimental)
 
 ---
 
