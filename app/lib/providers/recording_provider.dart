@@ -35,6 +35,7 @@ class RecordingProvider extends ChangeNotifier {
         '_${_pad(now.hour)}-${_pad(now.minute)}-${_pad(now.second)}';
     final filePath = '$basePath/$hostFolder/session_$ts.cast';
 
+    _activeIds.add(session.id);
     try {
       await _service.startRecording(
         session.id,
@@ -43,9 +44,11 @@ class RecordingProvider extends ChangeNotifier {
         height: session.terminal.viewHeight,
         title: '${session.host.username}@${session.host.host}',
       );
-      _activeIds.add(session.id);
       notifyListeners();
-    } catch (_) {}
+    } catch (_) {
+      _activeIds.remove(session.id);
+      notifyListeners();
+    }
   }
 
   Future<void> stopRecording(String sessionId) async {
@@ -79,9 +82,7 @@ class RecordingProvider extends ChangeNotifier {
   }
 
   Future<void> deleteRecording(String filePath) async {
-    try {
-      await File(filePath).delete();
-    } catch (_) {}
+    await File(filePath).delete();
     _recordings.removeWhere((r) => r.filePath == filePath);
     notifyListeners();
   }
