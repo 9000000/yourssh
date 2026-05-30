@@ -15,24 +15,27 @@ class RecordingService {
     required String title,
   }) async {
     if (_active.containsKey(sessionId)) return;
-    final dir = File(filePath).parent;
-    if (!await dir.exists()) await dir.create(recursive: true);
-
-    final sink = File(filePath).openWrite(mode: FileMode.write);
-    final header = {
-      'version': 2,
-      'width': width,
-      'height': height,
-      'timestamp': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      'title': title,
-    };
-    sink.writeln(jsonEncode(header));
-
-    _active[sessionId] = _ActiveRecording(
-      sink: sink,
-      stopwatch: Stopwatch()..start(),
-      filePath: filePath,
-    );
+    IOSink? sink;
+    try {
+      final dir = File(filePath).parent;
+      if (!await dir.exists()) await dir.create(recursive: true);
+      sink = File(filePath).openWrite(mode: FileMode.write);
+      final header = {
+        'version': 2,
+        'width': width,
+        'height': height,
+        'timestamp': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        'title': title,
+      };
+      sink.writeln(jsonEncode(header));
+      _active[sessionId] = _ActiveRecording(
+        sink: sink,
+        stopwatch: Stopwatch()..start(),
+        filePath: filePath,
+      );
+    } catch (_) {
+      await sink?.close();
+    }
   }
 
   void writeOutput(String sessionId, String data) {
