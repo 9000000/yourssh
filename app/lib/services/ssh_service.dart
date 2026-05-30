@@ -109,7 +109,13 @@ class SshService {
         unawaited(_agentProxies[host.id]?.close() ?? Future.value());
         _agentProxies.remove(host.id);
       }
-      _hostToJump.remove(host.id);
+      final jumpId = _hostToJump.remove(host.id);
+      if (jumpId != null && !_hostToJump.values.contains(jumpId)) {
+        _jumpClients[jumpId]?.close();
+        _jumpClients.remove(jumpId);
+        unawaited(_jumpAgentProxies[jumpId]?.close() ?? Future.value());
+        _jumpAgentProxies.remove(jumpId);
+      }
       rethrow;
     }
     _clients[host.id] = client;
