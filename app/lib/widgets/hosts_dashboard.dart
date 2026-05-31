@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../models/host.dart';
 import '../models/ssh_key.dart';
+import '../util/host_query.dart';
 import '../providers/host_provider.dart';
 import '../providers/key_provider.dart';
 import '../providers/session_provider.dart';
@@ -32,14 +33,10 @@ class _HostsDashboardState extends State<HostsDashboard> {
   @override
   Widget build(BuildContext context) {
     final hostProvider = context.watch<HostProvider>();
-    final hosts = hostProvider.hosts;
-    final query = _search.toLowerCase();
-    final filtered = _search.isEmpty
-        ? hosts
-        : hosts.where((h) =>
-            h.label.toLowerCase().contains(query) ||
-            h.host.toLowerCase().contains(query) ||
-            h.username.toLowerCase().contains(query)).toList();
+    final hosts = hostProvider.allHosts;
+    final query = HostQuery.parse(_search);
+    final filtered =
+        query.isEmpty ? hosts : hosts.where(query.matches).toList();
 
     final pinnedGroupsUpper =
         hostProvider.pinnedGroups.map((g) => g.toUpperCase()).toSet();
