@@ -137,7 +137,7 @@ class ContainerService {
   static String kubectlExecCommand(
       String pod, String namespace, String? container) {
     final containerFlag = container == null ? '' : '-c $container ';
-    return 'kubectl exec -it $pod -n $namespace ${containerFlag}-- $_shFallback';
+    return 'kubectl exec -it $pod -n $namespace $containerFlag-- $_shFallback';
   }
 
   // ── Install / fix hints ───────────────────────────────

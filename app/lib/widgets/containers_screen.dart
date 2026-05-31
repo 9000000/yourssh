@@ -32,6 +32,20 @@ class _ContainersScreenState extends State<ContainersScreen> {
   bool _loading = false;
   String? _error;
 
+  late final TextEditingController _nsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nsController = TextEditingController(text: _namespace);
+  }
+
+  @override
+  void dispose() {
+    _nsController.dispose();
+    super.dispose();
+  }
+
   ContainerService _ensureService() {
     _service ??= ContainerService(context.read<SshService>());
     return _service!;
@@ -102,7 +116,12 @@ class _ContainersScreenState extends State<ContainersScreen> {
     return ChoiceChip(
       label: Text(label),
       selected: active,
-      onSelected: (_) => setState(() => _tab = tab),
+      onSelected: (_) => setState(() {
+        _tab = tab;
+        _containers = [];
+        _pods = [];
+        _error = null;
+      }),
     );
   }
 
@@ -115,8 +134,7 @@ class _ContainersScreenState extends State<ContainersScreen> {
           child: TextField(
             enabled: !_allNamespaces,
             decoration: const InputDecoration(labelText: 'Namespace', isDense: true),
-            controller: TextEditingController(text: _namespace)
-              ..selection = TextSelection.collapsed(offset: _namespace.length),
+            controller: _nsController,
             onSubmitted: (v) {
               _namespace = v.trim().isEmpty ? 'default' : v.trim();
               _refresh();
@@ -248,10 +266,11 @@ class _ContainersScreenState extends State<ContainersScreen> {
   Future<void> _execContainer(ContainerEntry c) async {
     final host = _hostForSelected();
     if (host == null) return;
-    await context.read<SessionProvider>().connect(
-          host,
-          initialCommand: ContainerService.dockerExecCommand(c.id),
-        );
+    final sessionProvider = context.read<SessionProvider>();
+    await sessionProvider.connect(
+      host,
+      initialCommand: ContainerService.dockerExecCommand(c.id),
+    );
   }
 
   Future<void> _execPod(PodEntry p) async {
@@ -278,11 +297,12 @@ class _ContainersScreenState extends State<ContainersScreen> {
       container = names.first;
     }
     if (!mounted) return;
-    await context.read<SessionProvider>().connect(
-          host,
-          initialCommand:
-              ContainerService.kubectlExecCommand(p.name, p.namespace, container),
-        );
+    final sessionProvider = context.read<SessionProvider>();
+    await sessionProvider.connect(
+      host,
+      initialCommand:
+          ContainerService.kubectlExecCommand(p.name, p.namespace, container),
+    );
   }
 
   Host? _hostForSelected() {
