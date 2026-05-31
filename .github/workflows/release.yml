@@ -314,21 +314,21 @@ jobs:
           ln -s /usr/share/yourssh/yourssh "$PKG/usr/bin/yourssh"
 
           cat > "$PKG/usr/share/applications/yourssh.desktop" << 'DESKTOP'
-[Desktop Entry]
-Name=YourSSH
-Exec=/usr/share/yourssh/yourssh
-Icon=yourssh
-Type=Application
-Categories=Network;
-DESKTOP
+          [Desktop Entry]
+          Name=YourSSH
+          Exec=/usr/share/yourssh/yourssh
+          Icon=yourssh
+          Type=Application
+          Categories=Network;
+          DESKTOP
 
           cat > "$PKG/DEBIAN/control" << CTRL
-Package: yourssh
-Version: ${VERSION}
-Architecture: ${DEB_ARCH}
-Maintainer: YourSSH Team
-Description: YourSSH - SSH client
-CTRL
+          Package: yourssh
+          Version: ${VERSION}
+          Architecture: ${DEB_ARCH}
+          Maintainer: YourSSH Team
+          Description: YourSSH - SSH client
+          CTRL
 
           dpkg-deb --build "$PKG"
 
