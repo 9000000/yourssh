@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../models/host.dart';
 import '../models/ssh_key.dart';
+import '../util/host_query.dart';
 import '../providers/host_provider.dart';
 import '../providers/key_provider.dart';
 import '../providers/session_provider.dart';
@@ -28,18 +29,30 @@ class HostsDashboard extends StatefulWidget {
 
 class _HostsDashboardState extends State<HostsDashboard> {
   String _search = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleFacet(String facet) {
+    final next = HostQuery.toggleToken(_search, facet);
+    setState(() => _search = next);
+    _searchController.text = next;
+    _searchController.selection =
+        TextSelection.collapsed(offset: next.length);
+  }
 
   @override
   Widget build(BuildContext context) {
     final hostProvider = context.watch<HostProvider>();
-    final hosts = hostProvider.hosts;
-    final query = _search.toLowerCase();
-    final filtered = _search.isEmpty
-        ? hosts
-        : hosts.where((h) =>
-            h.label.toLowerCase().contains(query) ||
-            h.host.toLowerCase().contains(query) ||
-            h.username.toLowerCase().contains(query)).toList();
+    final hosts = hostProvider.allHosts;
+    final query = HostQuery.parse(_search);
+    final filtered =
+        query.isEmpty ? hosts : hosts.where(query.matches).toList();
+    final facets = HostQuery.availableFacets(hosts);
 
     final pinnedGroupsUpper =
         hostProvider.pinnedGroups.map((g) => g.toUpperCase()).toSet();
@@ -59,7 +72,7 @@ class _HostsDashboardState extends State<HostsDashboard> {
       child: Column(
         children: [
           _TopBar(
-            search: _search,
+            controller: _searchController,
             onSearch: (v) => setState(() => _search = v),
             totalHosts: hosts.length,
             filteredCount: filtered.length,
@@ -74,6 +87,14 @@ class _HostsDashboardState extends State<HostsDashboard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (facets.isNotEmpty) ...[
+                    _FacetChipBar(
+                      facets: facets,
+                      query: _search,
+                      onToggle: _toggleFacet,
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   if (_search.isEmpty) ...[
                     _SectionHeader(title: 'Groups', count: '${groups.length} group${groups.length == 1 ? '' : 's'}'),
                     const SizedBox(height: 12),
@@ -121,7 +142,7 @@ class _HostsDashboardState extends State<HostsDashboard> {
 // ── Top Bar ───────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  final String search;
+  final TextEditingController controller;
   final ValueChanged<String> onSearch;
   final int totalHosts;
   final int filteredCount;
@@ -130,7 +151,7 @@ class _TopBar extends StatelessWidget {
   final VoidCallback? onNewGroup;
   final VoidCallback? onImport;
 
-  const _TopBar({required this.search, required this.onSearch, required this.totalHosts, required this.filteredCount, this.onAddHost, this.onLocalTerminal, this.onNewGroup, this.onImport});
+  const _TopBar({required this.controller, required this.onSearch, required this.totalHosts, required this.filteredCount, this.onAddHost, this.onLocalTerminal, this.onNewGroup, this.onImport});
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +173,7 @@ class _TopBar extends StatelessWidget {
                 border: Border.all(color: AppColors.border),
               ),
               child: TextField(
+                controller: controller,
                 onChanged: onSearch,
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                 decoration: const InputDecoration(
@@ -962,3 +984,70 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+
+class _FacetChipBar extends StatelessWidget {
+  final List<String> facets;
+  final String query;
+  final void Function(String facet) onToggle;
+
+  const _FacetChipBar({
+    required this.facets,
+    required this.query,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = HostQuery.parse(query);
+    bool isActive(String facet) {
+      final colon = facet.indexOf(':');
+      if (colon <= 0) return false;
+      final key = facet.substring(0, colon);
+      final value = facet.substring(colon + 1);
+      return parsed.facets[key]?.contains(value) ?? false;
+    }
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: facets.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final facet = facets[i];
+          final on = isActive(facet);
+          return GestureDetector(
+            onTap: () => onToggle(facet),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: on
+                    ? AppColors.accent.withValues(alpha: 0.18)
+                    : AppColors.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: on ? AppColors.accent : AppColors.border),
+              ),
+              child: Text(
+                facet,
+                style: TextStyle(
+                  color: on ? AppColors.accent : AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Test-only entry point to the private facet chip bar.
+@visibleForTesting
+Widget facetChipBarForTest({
+  required List<String> facets,
+  required String query,
+  required void Function(String) onToggle,
+}) =>
+    _FacetChipBar(facets: facets, query: query, onToggle: onToggle);
