@@ -986,11 +986,14 @@ class _FacetChipBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = query
-        .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .where((t) => t.isNotEmpty)
-        .toSet();
+    final parsed = HostQuery.parse(query);
+    bool isActive(String facet) {
+      final colon = facet.indexOf(':');
+      if (colon <= 0) return false;
+      final key = facet.substring(0, colon);
+      final value = facet.substring(colon + 1);
+      return parsed.facets[key]?.contains(value) ?? false;
+    }
     return SizedBox(
       height: 32,
       child: ListView.separated(
@@ -999,7 +1002,7 @@ class _FacetChipBar extends StatelessWidget {
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final facet = facets[i];
-          final on = active.contains(facet.toLowerCase());
+          final on = isActive(facet);
           return GestureDetector(
             onTap: () => onToggle(facet),
             child: Container(
