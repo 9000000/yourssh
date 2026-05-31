@@ -69,8 +69,6 @@ dependencies:
     path: ../packages/yourssh_devops
   yourssh_web_tools:
     path: ../packages/yourssh_web_tools
-  yourssh_snippets:
-    path: ../packages/yourssh_snippets
   yourssh_script_engine:
     path: ../packages/yourssh_script_engine
 

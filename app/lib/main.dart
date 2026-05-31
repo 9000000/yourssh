@@ -12,7 +12,6 @@ import 'providers/plugin_engine_provider.dart';
 import 'providers/port_forward_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/settings_provider.dart';
-import 'package:yourssh_snippets/yourssh_snippets.dart';
 import 'providers/local_session_provider.dart';
 import 'providers/terminal_layout_provider.dart';
 import 'providers/sync_provider.dart';
@@ -256,7 +255,6 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
         ChangeNotifierProvider.value(value: _syncProvider),
         Provider.value(value: _syncService),
         ChangeNotifierProvider(create: (_) => PortForwardProvider()),
-        ChangeNotifierProvider(create: (_) => SnippetProvider()),
         ChangeNotifierProvider(create: (_) {
           final p = CommandHistoryProvider();
           p.init();
