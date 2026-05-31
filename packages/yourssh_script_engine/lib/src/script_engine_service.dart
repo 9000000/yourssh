@@ -1,1 +1,169 @@
-// stub
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'native/quickjs_runtime.dart';
+import 'hook_bus.dart';
+import 'plugin_manifest.dart';
+import 'permission_guard.dart';
+import 'plugin_error_tracker.dart';
+import 'plugin_ui_registry.dart';
+import 'bridge/storage_bridge.dart';
+import 'bridge/ssh_bridge.dart';
+import 'bridge/sftp_bridge.dart';
+import 'bridge/ui_bridge.dart';
+
+// JS bootstrap injected at runtime load time.
+// Provides `plugin.on(event, handler)` and `plugin._dispatch(event, ctxJson)`.
+const _kBootstrap = r'''
+var plugin = (function() {
+  var _h = {};
+  return {
+    on: function(event, handler) {
+      if (!_h[event]) _h[event] = [];
+      _h[event].push(handler);
+    },
+    _dispatch: function(event, ctxJson) {
+      var ctx = JSON.parse(ctxJson);
+      var handlers = _h[event] || [];
+      var current = ctx;
+      for (var i = 0; i < handlers.length; i++) {
+        var r = handlers[i](current);
+        if (r === false) return {cancelled: true};
+        if (typeof r === 'string') current = Object.assign({}, current, {data: r});
+      }
+      return {data: current.data};
+    }
+  };
+})();
+''';
+
+class _LoadedPlugin {
+  final String id;
+  final QuickJsRuntime runtime;
+  final PluginErrorTracker errorTracker;
+
+  _LoadedPlugin(this.id, this.runtime) : errorTracker = PluginErrorTracker(id);
+
+  void dispose() => runtime.dispose();
+}
+
+class ScriptEngineService {
+  final HookBus hookBus;
+  final PluginUiRegistry? uiRegistry;
+  final SshBridgeDelegate? sshDelegate;
+  final SftpBridgeDelegate? sftpDelegate;
+
+  final _plugins = <String, _LoadedPlugin>{};
+
+  ScriptEngineService({
+    required this.hookBus,
+    required this.uiRegistry,
+    required this.sshDelegate,
+    required this.sftpDelegate,
+  });
+
+  Future<void> loadPlugin(
+    String pluginDir, {
+    required Set<String> grantedPermissions,
+  }) async {
+    final manifest = PluginManifest.fromJson(
+        await File('$pluginDir/plugin.json').readAsString());
+
+    final guard =
+        PermissionGuard(pluginId: manifest.id, granted: grantedPermissions);
+    final rt = QuickJsRuntime();
+
+    // Inject plugin bootstrap (plugin.on / plugin._dispatch)
+    rt.eval(_kBootstrap, filename: '<bootstrap>');
+
+    // Register bridges based on permissions
+    StorageBridge(manifest.id).register(rt);
+    if (sshDelegate != null) SshBridge(guard, sshDelegate!).register(rt);
+    if (sftpDelegate != null) SftpBridge(guard, sftpDelegate!).register(rt);
+    if (uiRegistry != null) {
+      UiBridge(manifest.id, guard, uiRegistry!, null).register(rt);
+    }
+
+    // Execute plugin entry point
+    final src = await File('$pluginDir/${manifest.entry}').readAsString();
+    rt.eval(src, filename: manifest.entry);
+
+    // Wire JS dispatch into HookBus
+    _wireHooks(manifest.id, rt, grantedPermissions);
+
+    _plugins[manifest.id] = _LoadedPlugin(manifest.id, rt);
+  }
+
+  void _wireHooks(
+      String pluginId, QuickJsRuntime rt, Set<String> perms) {
+    // Transform hooks: terminal.output requires terminal.transform or terminal.read
+    if (perms.contains('terminal.transform') || perms.contains('terminal.read')) {
+      hookBus.register('terminal.output', pluginId, (e) {
+        return _dispatch(rt, 'terminal.output', e, pluginId);
+      });
+    }
+
+    // Interceptable hooks: terminal.input requires terminal.intercept
+    if (perms.contains('terminal.intercept')) {
+      hookBus.register('terminal.input', pluginId, (e) {
+        return _dispatch(rt, 'terminal.input', e, pluginId);
+      });
+    }
+
+    // Observe hooks
+    if (perms.contains('session.observe') || perms.contains('session.control')) {
+      hookBus.registerObserver('session.connect', pluginId, (e) {
+        _dispatchObserve(rt, 'session.connect', e, pluginId);
+      });
+      hookBus.registerObserver('session.disconnect', pluginId, (e) {
+        _dispatchObserve(rt, 'session.disconnect', e, pluginId);
+      });
+    }
+
+    if (perms.contains('command.intercept')) {
+      hookBus.register('command.before', pluginId, (e) {
+        return _dispatch(rt, 'command.before', e, pluginId);
+      });
+    }
+  }
+
+  dynamic _dispatch(
+      QuickJsRuntime rt, String event, TransformEvent e, String pluginId) {
+    try {
+      final resultJson =
+          rt.callDispatch(event, {'sessionId': e.sessionId, 'data': e.data});
+      if (resultJson == null) return null;
+      final decoded = json.decode(resultJson) as Map<String, dynamic>;
+      if (decoded['cancelled'] == true) return false;
+      return decoded['data'];
+    } catch (err) {
+      final loaded = _plugins[pluginId];
+      loaded?.errorTracker.recordError();
+      debugPrint('[ScriptEngine] $pluginId error in $event: $err');
+      return null; // pass-through
+    }
+  }
+
+  void _dispatchObserve(
+      QuickJsRuntime rt, String event, ObserveEvent e, String pluginId) {
+    try {
+      rt.callDispatch(event, {'sessionId': e.sessionId, ...e.payload});
+    } catch (err) {
+      debugPrint('[ScriptEngine] $pluginId observer error in $event: $err');
+    }
+  }
+
+  void unloadPlugin(String pluginId) {
+    hookBus.unregisterAll(pluginId);
+    uiRegistry?.clearPlugin(pluginId);
+    _plugins[pluginId]?.dispose();
+    _plugins.remove(pluginId);
+  }
+
+  void dispose() {
+    for (final p in _plugins.values) {
+      p.dispose();
+    }
+    _plugins.clear();
+  }
+}
