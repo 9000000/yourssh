@@ -1,7 +1,7 @@
 # YourSSH — Roadmap
 
 > Direction: **infra workstation for DevOps/SRE managing 10–100+ hosts**, not just an SSH client.
-> Current version: 0.1.10 · updated: 2026-05-31 (host import + tagging shipped; internal refactor pass)
+> Current version: 0.1.12 · updated: 2026-05-31 (Docker/Kubernetes container browser + exec shipped)
 
 This document lists proposed features ordered by priority. Each item can be broken out into its own spec (`docs/superpowers/specs/`) when ready for implementation.
 
@@ -23,8 +23,8 @@ Already shipped (not repeated in roadmap): multi-tab terminal, split view, broad
 ## P1 — Differentiation & DevOps depth
 
 ### Workflow & integrations
-- **Kubernetes panel** — list context/namespace/pod → exec / `logs -f` / 1-click port-forward via `kubectl` (local or remote host).
-- **Docker / Compose panel** — container exec, logs, restart on remote host.
+- **Kubernetes panel** — _list pods + exec shipped (0.1.12)._ Remaining: context switcher, `logs -f`, 1-click port-forward via `kubectl`.
+- **Docker / Compose panel** — _list containers + exec shipped (0.1.12)._ Remaining: logs, restart/stop, Compose awareness.
 - **systemd / service browser** — list units, status, `journalctl` tail.
 - **Log tail viewer** — multi-file `tail -f` with highlight rules, level filter, pause/resume, save view.
 - **SFTP file watcher** — local edit → auto upload (direct competitor to VSCode Remote SSH for fast dev loops).
