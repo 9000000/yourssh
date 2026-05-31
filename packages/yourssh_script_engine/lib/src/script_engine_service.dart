@@ -11,6 +11,8 @@ import 'bridge/storage_bridge.dart';
 import 'bridge/ssh_bridge.dart';
 import 'bridge/sftp_bridge.dart';
 import 'bridge/ui_bridge.dart';
+import 'bridge/terminal_inject_bridge.dart';
+import 'bridge/migration_bridge.dart';
 
 // JS bootstrap injected at runtime load time.
 // Provides `plugin.on(event, handler)` and `plugin._dispatch(event, ctxJson)`.
@@ -79,7 +81,11 @@ class ScriptEngineService {
 
       // Register bridges based on permissions
       StorageBridge(manifest.id).register(rt);
-      if (sshDelegate != null) SshBridge(guard, sshDelegate!).register(rt);
+      MigrationBridge().register(rt);
+      if (sshDelegate != null) {
+        SshBridge(guard, sshDelegate!).register(rt);
+        TerminalInjectBridge(guard, _TerminalInjectAdapter(sshDelegate!)).register(rt);
+      }
       if (sftpDelegate != null) SftpBridge(guard, sftpDelegate!).register(rt);
       if (uiRegistry != null) {
         UiBridge(manifest.id, guard, uiRegistry!, null).register(rt);
@@ -171,4 +177,11 @@ class ScriptEngineService {
     }
     _plugins.clear();
   }
+}
+
+class _TerminalInjectAdapter implements TerminalInjectDelegate {
+  final SshBridgeDelegate _ssh;
+  _TerminalInjectAdapter(this._ssh);
+  @override
+  void sendInput(String sessionId, String text) => _ssh.sendInput(sessionId, text);
 }

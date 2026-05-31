@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import '../permission_guard.dart';
 import '../plugin_ui_registry.dart';
 import '../js_runtime_registrar.dart';
@@ -22,6 +23,9 @@ class UiBridge {
     }
     if (_guard.has('ui.panel')) {
       rt.registerHostFn('_ui', 'registerPanel', _registerPanel);
+    }
+    if (_guard.has('ui.clipboard')) {
+      rt.registerHostFn('_ui', 'copyToClipboard', _clipboardCopy);
     }
   }
 
@@ -55,6 +59,13 @@ class UiBridge {
   String? _statusRemove(String argJson) {
     final arg = json.decode(argJson) as Map<String, dynamic>;
     _registry.removeStatusBarItem(arg['id'] as String);
+    return null;
+  }
+
+  String? _clipboardCopy(String argJson) {
+    final arg = json.decode(argJson) as Map<String, dynamic>;
+    final text = arg['text'] as String;
+    Clipboard.setData(ClipboardData(text: text));
     return null;
   }
 

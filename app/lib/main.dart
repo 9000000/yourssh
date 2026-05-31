@@ -62,6 +62,10 @@ class _SshBridgeAdapter implements SshBridgeDelegate {
       'exitCode': result.exitCode,
     };
   }
+
+  @override
+  void sendInput(String sessionId, String text) =>
+      _getSshService().sendInput(sessionId, text);
 }
 
 void main() async {

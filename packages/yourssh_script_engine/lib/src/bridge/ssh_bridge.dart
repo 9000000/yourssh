@@ -5,6 +5,7 @@ import '../js_runtime_registrar.dart';
 abstract class SshBridgeDelegate {
   List<Map<String, dynamic>> activeSessions();
   Future<Map<String, dynamic>> execCommand(String sessionId, String command);
+  void sendInput(String sessionId, String text);
 }
 
 class SshBridge {
