@@ -73,25 +73,30 @@ class ScriptEngineService {
         PermissionGuard(pluginId: manifest.id, granted: grantedPermissions);
     final rt = QuickJsRuntime();
 
-    // Inject plugin bootstrap (plugin.on / plugin._dispatch)
-    rt.eval(_kBootstrap, filename: '<bootstrap>');
+    try {
+      // Inject plugin bootstrap (plugin.on / plugin._dispatch)
+      rt.eval(_kBootstrap, filename: '<bootstrap>');
 
-    // Register bridges based on permissions
-    StorageBridge(manifest.id).register(rt);
-    if (sshDelegate != null) SshBridge(guard, sshDelegate!).register(rt);
-    if (sftpDelegate != null) SftpBridge(guard, sftpDelegate!).register(rt);
-    if (uiRegistry != null) {
-      UiBridge(manifest.id, guard, uiRegistry!, null).register(rt);
+      // Register bridges based on permissions
+      StorageBridge(manifest.id).register(rt);
+      if (sshDelegate != null) SshBridge(guard, sshDelegate!).register(rt);
+      if (sftpDelegate != null) SftpBridge(guard, sftpDelegate!).register(rt);
+      if (uiRegistry != null) {
+        UiBridge(manifest.id, guard, uiRegistry!, null).register(rt);
+      }
+
+      // Execute plugin entry point
+      final src = await File('$pluginDir/${manifest.entry}').readAsString();
+      rt.eval(src, filename: manifest.entry);
+
+      // Wire JS dispatch into HookBus
+      _wireHooks(manifest.id, rt, grantedPermissions);
+
+      _plugins[manifest.id] = _LoadedPlugin(manifest.id, rt);
+    } catch (e) {
+      rt.dispose();
+      rethrow;
     }
-
-    // Execute plugin entry point
-    final src = await File('$pluginDir/${manifest.entry}').readAsString();
-    rt.eval(src, filename: manifest.entry);
-
-    // Wire JS dispatch into HookBus
-    _wireHooks(manifest.id, rt, grantedPermissions);
-
-    _plugins[manifest.id] = _LoadedPlugin(manifest.id, rt);
   }
 
   void _wireHooks(
