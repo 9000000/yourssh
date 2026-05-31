@@ -49,9 +49,28 @@ class _TerminalWidget extends StatefulWidget {
 }
 
 class _TerminalWidgetState extends State<_TerminalWidget> {
+  final _controller = TerminalController();
+  final _scrollController = ScrollController();
+
+  // Search state
+  bool _searchVisible = false;
+  String _searchQuery = '';
+  bool _searchRegex = false;
+  bool _searchError = false;
+  List<_SearchMatch> _matches = [];
+  int _currentMatch = 0;
+  final List<TerminalHighlight> _highlights = [];
+  late final TextEditingController _searchTextController;
+
   String _inputBuffer = '';
   int _selectedIdx = 0;
   List<String> _suggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchTextController = TextEditingController();
+  }
 
   void _refreshSuggestions() {
     if (!mounted) return;
@@ -60,6 +79,22 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
       _suggestions = provider.suggestions(widget.session.id, _inputBuffer);
       _selectedIdx = 0;
     });
+  }
+
+  @override
+  void dispose() {
+    _clearHighlights();
+    _controller.dispose();
+    _scrollController.dispose();
+    _searchTextController.dispose();
+    super.dispose();
+  }
+
+  void _clearHighlights() {
+    for (final h in _highlights) {
+      h.dispose();
+    }
+    _highlights.clear();
   }
 
   void _completeTo(String suggestion) {
@@ -135,13 +170,15 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
       children: [
         TerminalView(
           widget.session.terminal,
+          controller: _controller,
+          scrollController: _scrollController,
           theme: theme,
           textStyle: TerminalStyle(
             fontSize: settings.fontSize,
             fontFamily: settings.terminalFont,
           ),
           padding: EdgeInsets.zero,
-          autofocus: true,
+          autofocus: !_searchVisible,
           onKeyEvent: _handleKey,
         ),
         Positioned(
@@ -218,4 +255,11 @@ class _RecordButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SearchMatch {
+  final int lineIdx;
+  final int startCol;
+  final int endCol;
+  const _SearchMatch(this.lineIdx, this.startCol, this.endCol);
 }
