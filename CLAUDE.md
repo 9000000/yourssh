@@ -45,6 +45,7 @@ The active codebase is `app/` — a Flutter app targeting macOS, Windows, and Li
 - `packages/yourssh_devops` — DevOps plugin (network tools, Cloudflare tunnel, mail catcher, MCP server, S3 browser)
 - `packages/yourssh_web_tools` — Web Tools plugin (in-app browser over port-forwarded HTTP)
 - `packages/yourssh_snippets` — Snippets plugin
+- `packages/yourssh_script_engine` — JS plugin runtime (QuickJS FFI, HookBus, bridges, PluginLoader, PermissionGuard)
 
 **Data flow:**
 
@@ -75,6 +76,7 @@ Flutter UI (widgets/screens)
 - `CommandHistoryProvider` — per-host command history for terminal autocomplete
 - `AiChatProvider` — AI chat sidebar; supports multiple providers (`AiProvider` enum: `anthropic`, `openai`, `gemini`); API keys and model selection stored per-provider in `SharedPreferences`
 - `PluginProvider` — activates/deactivates registered plugins; wraps `PluginContextImpl` for each
+- `PluginEngineProvider` — wires `ScriptEngineService` into the Flutter state tree; surfaces loaded JS plugins, enabled state, and per-plugin console logs to the UI
 - `RecordingProvider` — recording library state; `startRecording(session)` / `stopRecording(sessionId)`; `refreshLibrary()` scans disk for `.cast` files; `isRecording(sessionId)` for UI indicators; wired to `SessionProvider` via `recordingStart` callback in `main.dart`
 
 **Services** (`app/lib/services/`):
@@ -115,16 +117,45 @@ Flutter UI (widgets/screens)
 
 ## Plugin system
 
-Plugins are compiled into the app (no dynamic loading). All registered plugins live in `app/lib/plugins/plugin_registry.dart` (`kRegisteredPlugins`). To add a plugin:
+Two plugin types coexist:
+
+### Dart plugins (compile-time)
+
+Compiled into the app. Registered in `app/lib/plugins/plugin_registry.dart` (`kRegisteredPlugins`). To add one:
 1. Add the package to `app/pubspec.yaml` dependencies
 2. Import and instantiate in `plugin_registry.dart`
 
-Each plugin implements `YourSSHPlugin` (from `yourssh_plugin_api`):
-- `buildUI(context, pluginContext)` — returns the plugin's widget
+Each implements `YourSSHPlugin` (from `yourssh_plugin_api`):
+- `buildUI(context, pluginContext)` — plugin's widget
 - `onActivate(ctx)` / `onDeactivate()` — lifecycle hooks
 - `minApiVersion` — checked at runtime against `kApiVersion`
 
-`YourSSHPluginContext` gives plugins access to: `activeSessions`, `execCommand(sessionId, cmd)`, and namespaced `savePreference` / `getPreference`.
+`YourSSHPluginContext` exposes: `activeSessions`, `execCommand(sessionId, cmd)`, namespaced `savePreference` / `getPreference`.
+
+### JS plugins (disk-based, runtime)
+
+Loaded at runtime from a plugins directory via `packages/yourssh_script_engine`. No rebuild required.
+
+**Key components:**
+- `PluginManifest` — parses and validates `plugin.json` (name, version, permissions, hooks declared)
+- `QuickJsRuntime` — Dart FFI bindings for the QuickJS C engine; evaluates JS, calls hooks, returns structured results
+- `JsRuntimeRegistrar` — registers all Dart → JS bridge APIs into a `QuickJsRuntime`
+- `HookBus` — typed event bus; supports `transform` (modify data), `intercept` (block), and `observe` (side-effect) hooks; wired into `SshService` for `terminal.output`, `terminal.input`, and session lifecycle events
+- `PluginLoader` — scans a directory for `plugin.json` manifests, loads plugins, watches the filesystem for changes and hot-reloads modified plugins
+- `PermissionGuard` — enforces manifest-declared permissions before dispatching bridge calls
+- `PluginErrorTracker` — circuit breaker: counts consecutive errors per plugin; disables the plugin if it exceeds the threshold
+- `PluginUiRegistry` — plugins can register Flutter widgets by calling the `ui.register(id, widgetSpec)` JS API; the app renders these in the plugin manager
+
+**Bridges (Dart APIs exposed to JS):**
+- `SshBridge` — `ssh.exec(sessionId, cmd)`, `ssh.write(sessionId, data)`
+- `SftpBridge` — `sftp.list(sessionId, path)`, `sftp.readFile`, `sftp.writeFile`
+- `StorageBridge` — `storage.get/set/delete(key)` (namespaced per plugin)
+- `UiBridge` — `ui.showNotification(msg)`, `ui.register(id, spec)`
+
+**UI screens:**
+- `plugin_consent_dialog.dart` — shown on first load; user must accept declared permissions
+- `plugin_manager_screen.dart` — lists installed JS plugins, enable/disable toggle, reload action
+- `plugin_console_screen.dart` — per-plugin `console.log` output viewer
 
 ## Sync feature
 
