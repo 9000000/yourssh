@@ -25,9 +25,11 @@ import '../widgets/new_group_panel.dart';
 import '../widgets/import_panel.dart';
 import '../widgets/ai_chat_sidebar.dart';
 import '../widgets/command_palette.dart';
-import '../widgets/plugin_marketplace_screen.dart';
+import '../widgets/plugin_consent_dialog.dart';
+import '../widgets/plugin_manager_screen.dart';
 import '../widgets/recording_library_screen.dart';
 import '../plugins/plugin_context_impl.dart';
+import '../providers/plugin_engine_provider.dart';
 import '../providers/plugin_provider.dart';
 import '../services/ssh_service.dart';
 import 'package:yourssh_plugin_api/yourssh_plugin_api.dart';
@@ -65,6 +67,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   SettingsProvider? _settingsProvider;
   TerminalLayoutProvider? _layoutProvider;
   bool _hostKeyDialogShowing = false;
+  bool _consentDialogShowing = false;
 
   @override
   void initState() {
@@ -470,6 +473,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final sessions = sessionProvider.sessions;
     final activeSession = sessionProvider.activeSession;
 
+    final engineProvider = context.watch<PluginEngineProvider>();
+    if (engineProvider.pendingConsent != null && !_consentDialogShowing) {
+      _consentDialogShowing = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) =>
+              PluginConsentDialog(manifest: engineProvider.pendingConsent!),
+        ).then((_) => setState(() => _consentDialogShowing = false));
+      });
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Column(
@@ -635,7 +652,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       NavSection.recordings => const RecordingLibraryScreen(),
       NavSection.knownHosts => const KnownHostsScreen(),
       NavSection.settings => const SettingsScreen(),
-      NavSection.plugins => const PluginMarketplaceScreen(),
+      NavSection.plugins => const PluginManagerScreen(),
     };
   }
 }
