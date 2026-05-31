@@ -112,4 +112,24 @@ void main() {
       expect(ContainerService.installHint('kubectl', null), isNotEmpty);
     });
   });
+
+  group('exec commands', () {
+    test('docker exec uses bash->sh fallback', () {
+      final cmd = ContainerService.dockerExecCommand('abc123');
+      expect(cmd, contains('docker exec -it abc123'));
+      expect(cmd, contains('exec bash || exec sh'));
+    });
+    test('kubectl exec includes namespace and container', () {
+      final cmd = ContainerService.kubectlExecCommand('web-0', 'prod', 'app');
+      expect(cmd, contains('kubectl exec -it web-0'));
+      expect(cmd, contains('-n prod'));
+      expect(cmd, contains('-c app'));
+      expect(cmd, contains('--'));
+    });
+    test('kubectl exec omits -c when container is null', () {
+      final cmd = ContainerService.kubectlExecCommand('web-0', 'prod', null);
+      // No kubectl -c <name> flag; note: sh -c in the shell fallback is unrelated.
+      expect(cmd, isNot(matches(RegExp(r'-c \w'))));
+    });
+  });
 }

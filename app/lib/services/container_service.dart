@@ -127,6 +127,19 @@ class ContainerService {
     return RuntimeAvailability.available;
   }
 
+  // ── Exec command builders ─────────────────────────────
+  static const _shFallback =
+      "sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'";
+
+  static String dockerExecCommand(String id) =>
+      'docker exec -it $id $_shFallback';
+
+  static String kubectlExecCommand(
+      String pod, String namespace, String? container) {
+    final containerFlag = container == null ? '' : '-c $container ';
+    return 'kubectl exec -it $pod -n $namespace ${containerFlag}-- $_shFallback';
+  }
+
   // ── Install / fix hints ───────────────────────────────
   static String installHint(String runtime, String? os) {
     final isDebian = (os ?? '').toLowerCase().contains(RegExp(r'ubuntu|debian'));
