@@ -193,7 +193,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                     _divider(),
                     _PanelField(
                       controller: _tagsCtrl,
-                      hint: 'Tags (comma separated)',
+                      hint: 'Tags, e.g. env:prod, role:db',
                       icon: Icons.tag,
                     ),
                   ]),
