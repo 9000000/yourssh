@@ -178,12 +178,13 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
       hookBus: _hookBus,
       uiRegistry: _uiRegistry,
     );
-    // Install bundled plugins to ~/.yourssh/plugins/ on first run
-    await BundledPluginInstaller.ensureInstalled('snippets');
-    // Warm up SharedPreferences cache for migration bridge
-    await MigrationBridge.warmup();
-    // Fire-and-forget: scan ~/.yourssh/plugins and hot-watch for changes.
-    loader.scanAndLoad();
+    // Install bundled plugins, warm up migration cache, then scan for plugins.
+    // Runs async so initState() stays synchronous.
+    unawaited(() async {
+      await BundledPluginInstaller.ensureInstalled('snippets');
+      await MigrationBridge.warmup();
+      loader.scanAndLoad();
+    }());
 
     _syncProvider = SyncProvider(storage: _storage);
     _syncService = SyncService(_syncProvider);

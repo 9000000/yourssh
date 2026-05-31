@@ -10,7 +10,7 @@ class BundledPluginInstaller {
     ],
   };
 
-  /// Copies bundled plugin assets to ~/.yourssh/plugins/<name>/ if not already present.
+  /// Copies bundled plugin assets to `~/.yourssh/plugins/<name>/` if not already present.
   /// Never overwrites an existing installation.
   static Future<void> ensureInstalled(String pluginName) async {
     final home = Platform.isWindows
