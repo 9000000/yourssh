@@ -63,6 +63,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   SessionProvider? _sessionProvider;
   KnownHostsProvider? _knownHostsProvider;
   SettingsProvider? _settingsProvider;
+  TerminalLayoutProvider? _layoutProvider;
   bool _hostKeyDialogShowing = false;
 
   @override
@@ -152,8 +153,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final provider = context.read<SessionProvider>();
     if (_sessionProvider != provider) {
       _sessionProvider?.removeListener(_onSessionsChanged);
+      _sessionProvider?.removeListener(_onSessionsChangedForSave);
       _sessionProvider = provider;
       provider.addListener(_onSessionsChanged);
+      provider.addListener(_onSessionsChangedForSave);
     }
     final settings = context.read<SettingsProvider>();
     if (_settingsProvider != settings) {
@@ -167,6 +170,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       _knownHostsProvider?.removeListener(_onKnownHostsChanged);
       _knownHostsProvider = knownHostsProvider;
       knownHostsProvider.addListener(_onKnownHostsChanged);
+    }
+    final layout = context.read<TerminalLayoutProvider>();
+    if (_layoutProvider != layout) {
+      _layoutProvider?.removeListener(_onLayoutChangedForSave);
+      _layoutProvider = layout;
+      layout.addListener(_onLayoutChangedForSave);
     }
   }
 
@@ -201,13 +210,44 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _onLayoutChangedForSave() => _scheduleSave();
+  void _onSessionsChangedForSave() => _scheduleSave();
+
+  void _scheduleSave() {
+    _workspaceSaveDebounce?.cancel();
+    _workspaceSaveDebounce = Timer(
+      const Duration(milliseconds: 500),
+      _saveWorkspaceNow,
+    );
+  }
+
+  void _saveWorkspaceNow() {
+    final sessions = _sessionProvider?.sessions;
+    final layout = _layoutProvider;
+    if (sessions == null || layout == null) return;
+    final snapshot = WorkspaceSnapshot(
+      hostIds: sessions.map((s) => s.host.id).toList(),
+      activeHostId: _sessionProvider?.activeSession?.host.id,
+      layout: layout.layout,
+      inputBarVisible: layout.inputBarVisible,
+    );
+    _workspaceSvc.save(snapshot);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) _saveWorkspaceNow();
+  }
+
   @override
   void dispose() {
     _sftpConnectionNotifier.removeListener(_onSftpConnectionChanged);
     _sftpConnectionNotifier.dispose();
     _sessionProvider?.removeListener(_onSessionsChanged);
+    _sessionProvider?.removeListener(_onSessionsChangedForSave);
     _knownHostsProvider?.removeListener(_onKnownHostsChanged);
     _settingsProvider?.removeListener(_onSettingsChanged);
+    _layoutProvider?.removeListener(_onLayoutChangedForSave);
     WidgetsBinding.instance.removeObserver(this);
     _workspaceSaveDebounce?.cancel();
     HotkeyService().unregisterAll();
