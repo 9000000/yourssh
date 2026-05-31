@@ -29,6 +29,14 @@ class UiBridge {
     if (_guard.has('ui.clipboard')) {
       rt.registerHostFn('_ui', 'copyToClipboard', _clipboardCopy);
     }
+    if (_guard.has('ui.statusbar') || _guard.has('ui.panel')) {
+      // Commands registration available when plugin has any UI permission.
+      // NOTE: The handler is a no-op stub — invoking JS callbacks from Dart
+      // synchronously is not supported yet. The command will appear in the
+      // palette but clicking it won't call back into JS. An async callback
+      // bridge is required for full JS handler support (tracked as TODO).
+      rt.registerHostFn('_ui', 'addCommand', _addCommand);
+    }
   }
 
   String? _notify(String argJson) {
@@ -79,6 +87,22 @@ class UiBridge {
       icon: arg['icon'] as String? ?? 'extension',
       webviewEntry: arg['webviewEntry'] as String,
       onMessage: _onPanelMessage ?? (_) async => null,
+    ));
+    return null;
+  }
+
+  String? _addCommand(String argJson) {
+    final arg = json.decode(argJson) as Map<String, dynamic>;
+    final commandId = '$_pluginId.${arg['id'] as String}';
+    _registry.addCommand(CommandEntry(
+      commandId: commandId,
+      pluginId: _pluginId,
+      label: arg['label'] as String,
+      keybinding: arg['keybinding'] as String?,
+      // Handler is a no-op stub. Invoking JS callbacks from Dart synchronously
+      // is not currently supported. The command appears in the palette but
+      // clicking it does not invoke JS. TODO: wire to JS callback via async eval.
+      handler: () {},
     ));
     return null;
   }

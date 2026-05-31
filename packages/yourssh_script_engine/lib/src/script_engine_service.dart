@@ -16,7 +16,8 @@ import 'bridge/migration_bridge.dart';
 
 // JS bootstrap injected at runtime load time.
 // Provides `plugin.on(event, handler)`, `plugin._dispatch(event, ctxJson)`,
-// `plugin._setPanelMessage(handler)`, and `plugin._invokePanelMessage(msgJson)`.
+// `plugin._setPanelMessage(handler)`, `plugin._invokePanelMessage(msgJson)`,
+// and `console.log/warn/error` backed by the _console host bridge.
 const _kBootstrap = r'''
 var plugin = (function() {
   var _h = {};
@@ -53,6 +54,21 @@ var plugin = (function() {
     }
   };
 })();
+
+var console = {
+  log: function() {
+    var msg = Array.prototype.slice.call(arguments).join(' ');
+    _console.log(JSON.stringify(msg));
+  },
+  warn: function() {
+    var msg = Array.prototype.slice.call(arguments).join(' ');
+    _console.warn(JSON.stringify(msg));
+  },
+  error: function() {
+    var msg = Array.prototype.slice.call(arguments).join(' ');
+    _console.error(JSON.stringify(msg));
+  }
+};
 ''';
 
 class _LoadedPlugin {
@@ -70,6 +86,7 @@ class ScriptEngineService {
   final PluginUiRegistry? uiRegistry;
   final SshBridgeDelegate? sshDelegate;
   final SftpBridgeDelegate? sftpDelegate;
+  final void Function(String pluginId, String level, String message)? onLog;
 
   final _plugins = <String, _LoadedPlugin>{};
 
@@ -78,6 +95,7 @@ class ScriptEngineService {
     required this.uiRegistry,
     required this.sshDelegate,
     required this.sftpDelegate,
+    this.onLog,
   });
 
   Future<void> loadPlugin(
@@ -92,8 +110,11 @@ class ScriptEngineService {
     final rt = QuickJsRuntime();
 
     try {
-      // Inject plugin bootstrap (plugin.on / plugin._dispatch)
+      // Inject plugin bootstrap (plugin.on / plugin._dispatch / console)
       rt.eval(_kBootstrap, filename: '<bootstrap>');
+
+      // Register console bridge (always available — no permission required)
+      _registerConsole(manifest.id, rt);
 
       // Register bridges based on permissions
       StorageBridge(manifest.id).register(rt);
@@ -184,6 +205,26 @@ class ScriptEngineService {
       rt.callDispatch(event, {'sessionId': e.sessionId, ...e.payload});
     } catch (err) {
       debugPrint('[ScriptEngine] $pluginId observer error in $event: $err');
+    }
+  }
+
+  void _registerConsole(String pluginId, QuickJsRuntime rt) {
+    for (final level in ['log', 'warn', 'error']) {
+      final lvl = level; // capture loop variable
+      rt.registerHostFn('_console', lvl, (arg) {
+        final decoded = arg == 'null' ? '' : _safeDecodeArg(arg);
+        onLog?.call(pluginId, lvl, decoded);
+        return null;
+      });
+    }
+  }
+
+  String _safeDecodeArg(String arg) {
+    try {
+      final v = json.decode(arg);
+      return v is String ? v : arg;
+    } catch (_) {
+      return arg;
     }
   }
 
