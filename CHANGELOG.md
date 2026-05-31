@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Command Palette** (Cmd/Ctrl+K) — fuzzy search over all app actions with keyboard navigation and match highlighting
 - **Jump Host (SSH proxy)** — chain through a bastion host to reach targets behind firewalls; configurable per host profile
 - `command_palette` hotkey wired to `SettingsProvider`
+- Search-in-scrollback (`Cmd/Ctrl+F`): regex support, case-insensitive, prev/next navigation, match count, highlights via xterm TerminalController
+- Workspace persistence: auto-reconnects open SSH tabs on relaunch with saved layout; warns if hosts no longer exist
 
 ### Changed
 - Sync encryption upgraded to per-row random salt + optional user passphrase (PBKDF2-HMAC-SHA256, 100k iterations, AES-256-GCM); legacy rows auto-migrate on next write
