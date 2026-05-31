@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yourssh/models/container_entry.dart';
+import 'package:yourssh/models/container_entry.dart'
+    show ContainerEntry, PodEntry, RuntimeAvailability;
 import 'package:yourssh/services/container_service.dart';
 
 void main() {
@@ -67,6 +68,48 @@ void main() {
     });
     test('empty output yields empty list', () {
       expect(ContainerService.parseContainerNames('  \n'), isEmpty);
+    });
+  });
+
+  group('classifyRuntime', () {
+    test('missing command -> notInstalled', () {
+      expect(
+        ContainerService.classifyRuntime(commandExists: false, psExitCode: 127, psStderr: ''),
+        RuntimeAvailability.notInstalled,
+      );
+    });
+    test('present + ps ok -> available', () {
+      expect(
+        ContainerService.classifyRuntime(commandExists: true, psExitCode: 0, psStderr: ''),
+        RuntimeAvailability.available,
+      );
+    });
+    test('present + permission denied -> noPermission', () {
+      expect(
+        ContainerService.classifyRuntime(
+            commandExists: true, psExitCode: 1, psStderr: 'permission denied while trying to connect to the Docker daemon socket'),
+        RuntimeAvailability.noPermission,
+      );
+    });
+    test('present + other error -> available (let listing surface it)', () {
+      expect(
+        ContainerService.classifyRuntime(commandExists: true, psExitCode: 1, psStderr: 'Cannot connect: timeout'),
+        RuntimeAvailability.available,
+      );
+    });
+  });
+
+  group('installHint', () {
+    test('docker on ubuntu suggests get.docker.com', () {
+      final h = ContainerService.installHint('docker', 'Ubuntu 22.04');
+      expect(h, contains('get.docker.com'));
+    });
+    test('docker noPermission suggests usermod group', () {
+      final h = ContainerService.permissionHint('docker');
+      expect(h, contains('usermod -aG docker'));
+    });
+    test('kubectl hint is non-empty for unknown os', () {
+      expect(ContainerService.installHint('kubectl', null), isNotEmpty);
     });
   });
 }

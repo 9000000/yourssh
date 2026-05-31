@@ -94,4 +94,57 @@ class ContainerService {
     }
     return out;
   }
+
+  // ── Runtime detection ─────────────────────────────────
+  Future<RuntimeStatus> detectRuntimes(Host host) async {
+    return RuntimeStatus(
+      docker: await _detectOne(host, 'docker', 'docker ps'),
+      kubectl: await _detectOne(host, 'kubectl', 'kubectl version --client'),
+    );
+  }
+
+  Future<RuntimeAvailability> _detectOne(Host host, String cmd, String probe) async {
+    final exists = await ssh.exec(host, 'command -v $cmd');
+    if (exists.exitCode != 0) return RuntimeAvailability.notInstalled;
+    final p = await ssh.exec(host, probe);
+    return classifyRuntime(
+      commandExists: true,
+      psExitCode: p.exitCode,
+      psStderr: p.stderr,
+    );
+  }
+
+  static RuntimeAvailability classifyRuntime({
+    required bool commandExists,
+    required int psExitCode,
+    required String psStderr,
+  }) {
+    if (!commandExists) return RuntimeAvailability.notInstalled;
+    if (psExitCode == 0) return RuntimeAvailability.available;
+    if (psStderr.toLowerCase().contains('permission denied')) {
+      return RuntimeAvailability.noPermission;
+    }
+    return RuntimeAvailability.available;
+  }
+
+  // ── Install / fix hints ───────────────────────────────
+  static String installHint(String runtime, String? os) {
+    final isDebian = (os ?? '').toLowerCase().contains(RegExp(r'ubuntu|debian'));
+    if (runtime == 'docker') {
+      return isDebian
+          ? 'curl -fsSL https://get.docker.com | sh'
+          : 'See https://docs.docker.com/engine/install/';
+    }
+    // kubectl
+    return isDebian
+        ? 'sudo apt-get update && sudo apt-get install -y kubectl'
+        : r'curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && sudo install kubectl /usr/local/bin/';
+  }
+
+  static String permissionHint(String runtime) {
+    if (runtime == 'docker') {
+      return r'sudo usermod -aG docker $USER   # then log out and back in';
+    }
+    return 'Check your kubeconfig / RBAC permissions.';
+  }
 }
