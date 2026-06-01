@@ -1,7 +1,7 @@
 # YourSSH — Roadmap
 
 > Direction: **infra workstation for DevOps/SRE managing 10–100+ hosts**, not just an SSH client.
-> Current version: 0.1.13 · updated: 2026-06-01 (Terminal sharing/multiplayer shipped; Linux portable distribution fix)
+> Current version: 0.1.14 · updated: 2026-06-01 (Advanced tab management; SFTP code-editor crash fix)
 
 This document lists proposed features ordered by priority. Each item can be broken out into its own spec (`docs/superpowers/specs/`) when ready for implementation.
 

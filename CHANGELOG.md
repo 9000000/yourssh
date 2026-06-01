@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.1.14] — 2026-06-01
+
 ### Added
 - **Advanced tab management** — rename tabs (double-click or right-click → Rename), color tags (8 preset colors shown as a dot), pin tabs (moves to front, hides close button, persists across reconnects), drag reorder (horizontal drag with pinned/unpinned zone boundary). All metadata persists per host via SharedPreferences (`TabMetadataService`).
+
+### Fixed
+- **Code editor: crash when opening an unreadable remote file** — opening a directory, a virtual/special file, or a file that hits a permission/IO error in the Monaco editor threw an unhandled `SftpStatusError` (SSH_FX_FAILURE, code 4) from the SFTP read and crashed the editor. `_loadFile` now catches the failure, shows the error in a SnackBar, and closes the editor instead of hanging on the loading spinner.
 
 ---
 
@@ -210,7 +217,8 @@ Initial release of YourSSH — a cross-platform SSH client for macOS, Windows, a
 - **Host management** — CRUD for SSH host profiles with `StorageService`
 - **Known hosts** — TOFU dialog for host-key verification; `KnownHostsProvider`
 
-[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.13...HEAD
+[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.14...HEAD
+[0.1.14]: https://github.com/YoursshLabs/yourssh/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/YoursshLabs/yourssh/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/YoursshLabs/yourssh/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/YoursshLabs/yourssh/compare/v0.1.10...v0.1.11
