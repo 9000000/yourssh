@@ -25,6 +25,7 @@ import 'services/ssh_service.dart';
 import 'services/storage_service.dart';
 import 'services/sync_service.dart';
 import 'services/recording_service.dart';
+import 'services/tab_metadata_service.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/recording_provider.dart';
@@ -125,7 +126,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _hostProvider = HostProvider(_storage);
     _keyProvider = KeyProvider();
     _settingsProvider = SettingsProvider();
-    _sessionProvider = SessionProvider(_ssh);
+    _sessionProvider = SessionProvider(_ssh, TabMetadataService());
     _sessionProvider.keyLookup = (id) => _keyProvider.findById(id);
     _sessionProvider.jumpHostLookup = (id) =>
         _hostProvider.allHosts.where((h) => h.id == id).firstOrNull;

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,7 @@ import 'package:yourssh/models/ssh_session.dart';
 import 'package:yourssh/providers/session_provider.dart';
 import 'package:yourssh/services/ssh_service.dart';
 import 'package:yourssh/services/storage_service.dart';
+import 'package:yourssh/services/tab_metadata_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +30,7 @@ void main() {
     late SessionProvider provider;
 
     setUp(() {
-      provider = SessionProvider(SshService(StorageService()));
+      provider = SessionProvider(SshService(StorageService()), TabMetadataService());
     });
 
     tearDown(() => provider.dispose());
@@ -110,6 +112,32 @@ void main() {
       provider.dispose();
       // Connect should not throw out; it surfaces failure via session state.
       await expectLater(future, completes);
+    });
+
+    test('loadMetadata applied to session on connect (mocked via SharedPreferences)', () async {
+      SharedPreferences.setMockInitialValues({
+        'tab_meta_h-load': jsonEncode({
+          'label': 'saved-label',
+          'color': '#22c55e',
+          'pinned': true,
+        }),
+      });
+      final p = SessionProvider(SshService(StorageService()), TabMetadataService());
+      final host = Host(
+        id: 'h-load',
+        label: 'Test',
+        host: '127.0.0.1',
+        port: 1,
+        username: 'user',
+      );
+      // SSH will fail (no real server) but metadata is loaded before _doConnect.
+      // connect() catches all SSH exceptions internally, so await completes cleanly.
+      await p.connect(host);
+      final session = p.sessions.first;
+      expect(session.customLabel, 'saved-label');
+      expect(session.colorTag, '#22c55e');
+      expect(session.isPinned, isTrue);
+      p.dispose();
     });
   });
 }

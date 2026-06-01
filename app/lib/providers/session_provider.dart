@@ -4,9 +4,11 @@ import '../models/host.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
 import '../services/ssh_service.dart';
+import '../services/tab_metadata_service.dart';
 
 class SessionProvider extends ChangeNotifier {
   final SshService _ssh;
+  final TabMetadataService _tabMetadata;
   final List<SshSession> _sessions = [];
   final Map<String, Timer> _reconnectTimers = {};
   final Map<String, Timer> _countdownTimers = {};
@@ -21,7 +23,7 @@ class SessionProvider extends ChangeNotifier {
   Future<void> Function(String hostId, String os)? onOsDetected;
   Future<void> Function(SshSession session)? recordingStart;
 
-  SessionProvider(this._ssh);
+  SessionProvider(this._ssh, this._tabMetadata);
 
   @override
   void dispose() {
@@ -65,6 +67,16 @@ class SessionProvider extends ChangeNotifier {
     _sessions.add(session);
     _activeSessionId = session.id;
     _safeNotify();
+
+    // Load persisted tab metadata (label, color, pin) for this host.
+    final meta = await _tabMetadata.loadMetadata(host.id);
+    if (meta != null) {
+      session.customLabel = meta['label'] as String?;
+      session.colorTag = meta['color'] as String?;
+      session.isPinned = (meta['pinned'] as bool?) ?? false;
+      if (session.isPinned) _sortSessions();
+      _safeNotify();
+    }
 
     await _doConnect(session, host, attempt: 1);
   }
@@ -227,5 +239,14 @@ class SessionProvider extends ChangeNotifier {
     final prevIdx = (idx - 1 + _sessions.length) % _sessions.length;
     _activeSessionId = _sessions[prevIdx].id;
     _safeNotify();
+  }
+
+  void _sortSessions() {
+    final pinned = _sessions.where((s) => s.isPinned).toList();
+    final unpinned = _sessions.where((s) => !s.isPinned).toList();
+    _sessions
+      ..clear()
+      ..addAll(pinned)
+      ..addAll(unpinned);
   }
 }
