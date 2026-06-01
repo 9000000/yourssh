@@ -53,5 +53,16 @@ void main() {
       s.customLabel = 'renamed';
       expect(s.title, 'renamed');
     });
+
+    test('tabLabel falls back to host.label, not user@host', () {
+      final s = SshSession(host: _host());
+      expect(s.tabLabel, 'prod'); // host.label, not 'alice@prod.example.com'
+    });
+
+    test('tabLabel returns customLabel when set', () {
+      final s = SshSession(host: _host());
+      s.customLabel = 'my-tab';
+      expect(s.tabLabel, 'my-tab');
+    });
   });
 }

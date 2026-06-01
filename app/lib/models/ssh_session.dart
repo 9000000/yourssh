@@ -53,6 +53,10 @@ class SshSession {
       customLabel ??
       (isWatch ? '[WATCH] ${watchedTitle ?? host.host}' : '${host.username}@${host.host}');
 
+  /// Label shown on the session tab: the user's custom rename, falling back to
+  /// the host's display label (the watch factory stores '[WATCH] …' there).
+  String get tabLabel => customLabel ?? host.label;
+
   String get statusLabel => switch (status) {
         SessionStatus.connecting => 'Connecting...',
         SessionStatus.connected => isWatch ? 'Watching' : 'Connected',

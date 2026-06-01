@@ -70,6 +70,9 @@ class SessionProvider extends ChangeNotifier {
 
     // Load persisted tab metadata (label, color, pin) for this host.
     final meta = await _tabMetadata.loadMetadata(host.id);
+    // The user may have closed the tab during the async load — don't mutate,
+    // sort, or connect a session that's no longer tracked.
+    if (!_sessions.contains(session)) return;
     if (meta != null) {
       session.customLabel = meta['label'] as String?;
       session.colorTag = meta['color'] as String?;
@@ -241,31 +244,49 @@ class SessionProvider extends ChangeNotifier {
     _safeNotify();
   }
 
+  SshSession? _sessionById(String id) =>
+      _sessions.where((s) => s.id == id).firstOrNull;
+
+  /// Persists a session's tab metadata and mirrors it onto any other live
+  /// tabs of the same host. Tab metadata is keyed per host, so all tabs of a
+  /// host share one label/color/pin — keeping the live sessions in sync avoids
+  /// them silently diverging and then stomping each other's persisted record.
+  void _persistTabMetadata(SshSession session) {
+    _tabMetadata.saveMetadata(session.host.id,
+        label: session.customLabel,
+        color: session.colorTag,
+        pinned: session.isPinned);
+    for (final s in _sessions) {
+      if (!identical(s, session) && s.host.id == session.host.id) {
+        s.customLabel = session.customLabel;
+        s.colorTag = session.colorTag;
+        s.isPinned = session.isPinned;
+      }
+    }
+  }
+
   void renameSession(String sessionId, String? label) {
-    final session = _sessions.where((s) => s.id == sessionId).firstOrNull;
+    final session = _sessionById(sessionId);
     if (session == null) return;
     session.customLabel = label;
-    _tabMetadata.saveMetadata(session.host.id,
-        label: label, color: session.colorTag, pinned: session.isPinned);
+    _persistTabMetadata(session);
     _safeNotify();
   }
 
   void setSessionColor(String sessionId, String? colorHex) {
-    final session = _sessions.where((s) => s.id == sessionId).firstOrNull;
+    final session = _sessionById(sessionId);
     if (session == null) return;
     session.colorTag = colorHex;
-    _tabMetadata.saveMetadata(session.host.id,
-        label: session.customLabel, color: colorHex, pinned: session.isPinned);
+    _persistTabMetadata(session);
     _safeNotify();
   }
 
   void togglePin(String sessionId) {
-    final session = _sessions.where((s) => s.id == sessionId).firstOrNull;
+    final session = _sessionById(sessionId);
     if (session == null) return;
     session.isPinned = !session.isPinned;
+    _persistTabMetadata(session);
     _sortSessions();
-    _tabMetadata.saveMetadata(session.host.id,
-        label: session.customLabel, color: session.colorTag, pinned: session.isPinned);
     _safeNotify();
   }
 
@@ -279,10 +300,8 @@ class SessionProvider extends ChangeNotifier {
     } else {
       newIndex = newIndex.clamp(pinnedCount, _sessions.length - 1);
     }
-    if (newIndex == oldIndex) {
-      _safeNotify();
-      return;
-    }
+    // No movement — return without a spurious rebuild.
+    if (newIndex == oldIndex) return;
     _sessions.removeAt(oldIndex);
     _sessions.insert(newIndex, session);
     _safeNotify();

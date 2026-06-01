@@ -75,8 +75,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   kAppVersion = (await PackageInfo.fromPlatform()).version;
   await windowManager.ensureInitialized();
-  await windowManager.setTitle('YourSSH');
-  await windowManager.setMinimumSize(const Size(800, 600));
+  const windowOptions = WindowOptions(
+    size: Size(1280, 800),
+    minimumSize: Size(800, 600),
+    center: true,
+    title: 'YourSSH',
+  );
+  await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
   await hotKeyManager.unregisterAll();
   await NotificationService.init();
   runApp(const YourSSHApp());

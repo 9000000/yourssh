@@ -762,6 +762,13 @@ class _Sidebar extends StatelessWidget {
           const Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 8),
 
+          // Scrollable nav area so the sidebar never overflows when the
+          // window is short or many plugin/script panels are enabled.
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
           const _SectionLabel('CONNECTIONS'),
           _navItem(Icons.dns_outlined, 'Hosts', NavSection.hosts),
           _navItem(Icons.swap_horiz, 'Port Forwarding', NavSection.portForwarding),
@@ -787,7 +794,10 @@ class _Sidebar extends StatelessWidget {
           const _SectionLabel('SECURITY'),
           _navItem(Icons.vpn_key_outlined, 'Keychain', NavSection.keychain),
 
-          const Spacer(),
+                ],
+              ),
+            ),
+          ),
           const Divider(height: 1, color: AppColors.border),
           _navItem(Icons.extension_outlined, 'Plugins', NavSection.plugins),
           _navItem(Icons.settings_outlined, 'Settings', NavSection.settings),
@@ -1129,24 +1139,22 @@ class _SessionTabState extends State<_SessionTab> {
     super.dispose();
   }
 
-  static const _kTabColors = [
-    ('Red',    '#ef4444'),
-    ('Orange', '#f97316'),
-    ('Yellow', '#eab308'),
-    ('Green',  '#22c55e'),
-    ('Teal',   '#14b8a6'),
-    ('Blue',   '#3b82f6'),
-    ('Purple', '#a855f7'),
-    ('Pink',   '#ec4899'),
-  ];
-
   void _startRename() {
-    _renameController.text = widget.session.customLabel ?? widget.session.title;
+    _renameController.text = widget.session.tabLabel;
     _renameController.selection = TextSelection(
       baseOffset: 0,
       extentOffset: _renameController.text.length,
     );
     setState(() => _isRenaming = true);
+  }
+
+  void _commitRename() {
+    final text = _renameController.text.trim();
+    widget.provider.renameSession(
+      widget.session.id,
+      text.isEmpty ? null : text,
+    );
+    setState(() => _isRenaming = false);
   }
 
   Future<void> _showTabContextMenu(BuildContext context, Offset globalPos) async {
@@ -1241,13 +1249,13 @@ class _SessionTabState extends State<_SessionTab> {
             Text('None', style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)),
           ]),
         ),
-        ..._kTabColors.map((c) => PopupMenuItem(
+        ...AppColors.tabColors.map((c) => PopupMenuItem(
           value: c.$2,
           child: Row(children: [
             Container(
               width: 14, height: 14,
               decoration: BoxDecoration(
-                color: _hexColor(c.$2),
+                color: AppColors.fromHex(c.$2),
                 shape: BoxShape.circle,
               ),
             ),
@@ -1312,17 +1320,16 @@ class _SessionTabState extends State<_SessionTab> {
                     : const SizedBox.shrink(),
               ),
               // Color dot (shown when colorTag is set)
-              if (widget.session.colorTag != null) ...[
+              if (widget.session.colorTag != null)
                 Container(
                   width: 7,
                   height: 7,
                   margin: const EdgeInsets.only(right: 5),
                   decoration: BoxDecoration(
-                    color: _hexColor(widget.session.colorTag!),
+                    color: AppColors.fromHex(widget.session.colorTag!),
                     shape: BoxShape.circle,
                   ),
                 ),
-              ],
               // X close button — hidden when pinned
               if (!widget.session.isPinned)
                 GestureDetector(
@@ -1357,29 +1364,17 @@ class _SessionTabState extends State<_SessionTab> {
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
-                      onSubmitted: (value) {
-                        widget.provider.renameSession(
-                          widget.session.id,
-                          value.trim().isEmpty ? null : value.trim(),
-                        );
-                        setState(() => _isRenaming = false);
-                      },
-                      onTapOutside: (_) {
-                        widget.provider.renameSession(
-                          widget.session.id,
-                          _renameController.text.trim().isEmpty
-                              ? null
-                              : _renameController.text.trim(),
-                        );
-                        setState(() => _isRenaming = false);
-                      },
+                      onSubmitted: (_) => _commitRename(),
+                      onTapOutside: (_) => _commitRename(),
+                      // Suppress default focus-traversal on Enter; commit is
+                      // handled by onSubmitted/onTapOutside.
                       onEditingComplete: () {},
                     ),
                   ),
                 )
               else
                 Text(
-                  widget.session.title,
+                  widget.session.tabLabel,
                   style: TextStyle(
                     color: labelColor,
                     fontSize: 12,
@@ -1682,9 +1677,4 @@ class _ShareButton extends StatelessWidget {
       ),
     );
   }
-}
-
-Color _hexColor(String hex) {
-  final h = hex.replaceFirst('#', '');
-  return Color(int.parse('FF$h', radix: 16));
 }

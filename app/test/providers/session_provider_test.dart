@@ -221,5 +221,24 @@ void main() {
       expect(p.sessions[0].id, h1Id);
       expect(p.sessions[0].isPinned, isTrue);
     });
+
+    test('mutating one tab mirrors metadata onto sibling tabs of the same host',
+        () {
+      final p2 =
+          SessionProvider(SshService(StorageService()), TabMetadataService());
+      p2.addWatchSession(_makeSession('dup'));
+      p2.addWatchSession(_makeSession('dup'));
+      final a = p2.sessions[0];
+      final b = p2.sessions[1];
+      expect(a.host.id, b.host.id);
+
+      p2.renameSession(a.id, 'shared');
+      p2.setSessionColor(a.id, '#ef4444');
+      // Per-host metadata: the sibling tab reflects the same label and color
+      // instead of silently diverging and stomping the persisted record.
+      expect(b.customLabel, 'shared');
+      expect(b.colorTag, '#ef4444');
+      p2.dispose();
+    });
   });
 }

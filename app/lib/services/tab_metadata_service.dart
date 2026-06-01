@@ -11,11 +11,17 @@ class TabMetadataService {
     required String? color,
     required bool pinned,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _key(hostId),
-      jsonEncode({'label': label, 'color': color, 'pinned': pinned}),
-    );
+    // Callers fire-and-forget this write, so a failure would otherwise be
+    // swallowed silently — log it instead of dropping it without a trace.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _key(hostId),
+        jsonEncode({'label': label, 'color': color, 'pinned': pinned}),
+      );
+    } catch (e) {
+      debugPrint('[TabMetadataService] failed to save metadata for $hostId: $e');
+    }
   }
 
   Future<Map<String, dynamic>?> loadMetadata(String hostId) async {
@@ -31,7 +37,11 @@ class TabMetadataService {
   }
 
   Future<void> clearMetadata(String hostId) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key(hostId));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_key(hostId));
+    } catch (e) {
+      debugPrint('[TabMetadataService] failed to clear metadata for $hostId: $e');
+    }
   }
 }
