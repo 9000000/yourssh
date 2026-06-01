@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:xterm/xterm.dart';
@@ -108,7 +109,9 @@ class ShareSessionService {
     try {
       final event = ShareEvent.fromJson(payload);
       _events.add(event);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[ShareSessionService] host received unknown event: $e');
+    }
   }
 
   void _broadcastOutput(String text) {
@@ -214,7 +217,8 @@ class ShareSessionService {
     ShareEvent event;
     try {
       event = ShareEvent.fromJson(payload);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[ShareSessionService] guest received unknown event: $e');
       return;
     }
     switch (event.type) {
@@ -228,10 +232,14 @@ class ShareSessionService {
       case ShareEventType.snapshotChunk:
         final index = event.chunkIndex ?? 0;
         final total = event.chunkTotal ?? 1;
+        if (total <= 0 || index >= total) break;
         _expectedChunks = total;
         _chunkAccumulator[index] = event.data ?? '';
         if (_chunkAccumulator.length == _expectedChunks) {
-          final full = List.generate(_expectedChunks, (i) => _chunkAccumulator[i] ?? '').join();
+          // Verify all expected indices are present before reassembly
+          final allPresent = List.generate(_expectedChunks, (i) => _chunkAccumulator.containsKey(i)).every((v) => v);
+          if (!allPresent) break;
+          final full = List.generate(_expectedChunks, (i) => _chunkAccumulator[i]!).join();
           _guestTerminal?.write(full);
           _chunkAccumulator.clear();
           _events.add(ShareEvent.snapshot(full));
