@@ -288,25 +288,6 @@ class SessionProvider extends ChangeNotifier {
     _safeNotify();
   }
 
-  void reorderSession(int oldIndex, int newIndex) {
-    if (oldIndex < 0 || oldIndex >= _sessions.length) return;
-    if (newIndex > oldIndex) newIndex -= 1;
-    final session = _sessions[oldIndex];
-    final pinnedCount = _sessions.where((s) => s.isPinned).length;
-    if (session.isPinned) {
-      newIndex = newIndex.clamp(0, (pinnedCount - 1).clamp(0, _sessions.length - 1));
-    } else {
-      newIndex = newIndex.clamp(pinnedCount, _sessions.length - 1);
-    }
-    if (newIndex == oldIndex) {
-      _safeNotify();
-      return;
-    }
-    _sessions.removeAt(oldIndex);
-    _sessions.insert(newIndex, session);
-    _safeNotify();
-  }
-
   void _sortSessions() {
     final pinned = _sessions.where((s) => s.isPinned).toList();
     final unpinned = _sessions.where((s) => !s.isPinned).toList();

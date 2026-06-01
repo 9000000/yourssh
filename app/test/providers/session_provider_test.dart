@@ -196,27 +196,28 @@ void main() {
       expect(p.sessions.first.isPinned, isFalse);
     });
 
-    test('reorderSession moves unpinned tab', () {
+    test('reorderSessionItem moves unpinned tab', () {
       final h1Id = p.sessions[0].id;
-      p.reorderSession(0, 2);
-      // Flutter onReorder: newIndex > oldIndex → adjust by -1 inside method
-      // 0 → newIndex 2 → adjusted 1. Result: [h2, h1, h3]
+      // onReorderItem already subtracts 1 when moving forward: pass 1 directly.
+      // Result: [h2, h1, h3]
+      p.reorderSessionItem(0, 1);
       expect(p.sessions[1].id, h1Id);
     });
 
-    test('reorderSession: unpinned tab cannot be dragged into pinned zone', () {
+    test('reorderSessionItem: unpinned tab cannot be dragged into pinned zone', () {
       p.togglePin(p.sessions[0].id);
       // sessions: [h1(pinned), h2, h3]
-      p.reorderSession(1, 0);
+      p.reorderSessionItem(1, 0);
       expect(p.sessions[0].isPinned, isTrue);
       expect(p.sessions[1].isPinned, isFalse);
     });
 
-    test('reorderSession: pinned tab cannot be dragged into unpinned zone', () {
+    test('reorderSessionItem: pinned tab cannot be dragged into unpinned zone', () {
       p.togglePin(p.sessions[0].id);
       // sessions: [h1(pinned), h2, h3]
       final h1Id = p.sessions[0].id;
-      p.reorderSession(0, 3);
+      // onReorderItem subtracts 1 when moving forward: 3-1=2
+      p.reorderSessionItem(0, 2);
       expect(p.sessions[0].id, h1Id);
       expect(p.sessions[0].isPinned, isTrue);
     });
