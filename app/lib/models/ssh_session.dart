@@ -14,6 +14,9 @@ class SshSession {
   final String? initialCommand;
   final bool isWatch;
   final String? watchedTitle;
+  String? customLabel;
+  String? colorTag;
+  bool isPinned;
 
   SshSession({
     String? id,
@@ -24,6 +27,9 @@ class SshSession {
     this.initialCommand,
     this.isWatch = false,
     this.watchedTitle,
+    this.customLabel,
+    this.colorTag,
+    this.isPinned = false,
   })  : id = id ?? const Uuid().v4(),
         terminal = Terminal(maxLines: 10000),
         connectedAt = connectedAt ?? DateTime.now();
@@ -43,7 +49,9 @@ class SshSession {
     );
   }
 
-  String get title => isWatch ? '[WATCH] ${watchedTitle ?? host.host}' : '${host.username}@${host.host}';
+  String get title =>
+      customLabel ??
+      (isWatch ? '[WATCH] ${watchedTitle ?? host.host}' : '${host.username}@${host.host}');
 
   String get statusLabel => switch (status) {
         SessionStatus.connecting => 'Connecting...',
