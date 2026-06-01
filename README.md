@@ -72,6 +72,7 @@ sudo dpkg -r yourssh
 
 ### Terminal & Connectivity
 - **Multi-tab SSH sessions** with named tabs and per-tab connection state
+- **Terminal sharing (multiplayer)** — share a live SSH session with a session code; guests join via the Command Palette and watch or interact in real time; built on Supabase Realtime
 - **Split terminal view** — horizontal/vertical pane splitting within a session
 - **Search-in-scrollback (Cmd/Ctrl+F)** — regex-powered search across the full terminal buffer; highlights all matches, navigate with Enter / Shift+Enter
 - **Port forwarding** — local, remote, and dynamic SOCKS5 tunnels

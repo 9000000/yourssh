@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.13] — 2026-06-01
+
+### Added
+- **Terminal sharing (multiplayer)** — host shares a live SSH session via a session code; guests join through the Command Palette ("Join Shared Session") or the `JoinShareDialog` and watch (or interact with) the terminal in real time. Built on Supabase Realtime channels; the host controls who can type via `targetGuestId`. A watch banner is shown in split-terminal view for guest sessions. Backed by `ShareSessionService`, `ShareProvider`, `ShareEvent`, and `ShareSessionDialog` / `JoinShareDialog`
+
+### Fixed
+- **Linux: missing `libkeybinder-3.0` at launch** — Ubuntu users without `libkeybinder-3.0-0` installed would get a shared-library crash on start. `libkeybinder-3.0.so.0` is now copied into the app bundle's `lib/` directory during cmake install, so no system package is required
+
+---
+
 ## [0.1.12] — 2026-05-31
 
 ### Added
@@ -197,7 +207,8 @@ Initial release of YourSSH — a cross-platform SSH client for macOS, Windows, a
 - **Host management** — CRUD for SSH host profiles with `StorageService`
 - **Known hosts** — TOFU dialog for host-key verification; `KnownHostsProvider`
 
-[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.12...HEAD
+[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.13...HEAD
+[0.1.13]: https://github.com/YoursshLabs/yourssh/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/YoursshLabs/yourssh/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/YoursshLabs/yourssh/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/YoursshLabs/yourssh/compare/v0.1.9...v0.1.10
