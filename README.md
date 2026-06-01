@@ -151,7 +151,12 @@ sudo dpkg -r yourssh
     <td align="center"><b>Settings — Sync</b><br/><img src="screenshots/06-settings-sync.png"/></td>
   </tr>
   <tr>
-    <td align="center" colspan="2"><b>Settings — Terminal Themes</b><br/><img src="screenshots/07-settings-terminal-themes.png" width="50%"/></td>
+    <td align="center"><b>P2P QR Sync — Export via QR</b><br/><img src="screenshots/10-settings-sync-qr-code.png"/></td>
+    <td align="center"><b>Session Recording &amp; Playback</b><br/><img src="screenshots/11-recording.png"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Terminal Sharing (Multiplayer)</b><br/><img src="screenshots/12-multiple-player.png"/></td>
+    <td align="center"><b>Settings — Terminal Themes</b><br/><img src="screenshots/07-settings-terminal-themes.png"/></td>
   </tr>
 </table>
 
