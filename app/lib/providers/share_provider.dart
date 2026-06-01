@@ -59,6 +59,7 @@ class ShareProvider extends ChangeNotifier {
 
   Future<String> startSharing(String sessionId) async {
     assert(canShare, 'canShare must be true before calling startSharing');
+    assert(_hookBus != null, '_hookBus must be wired via wireDependencies() before calling startSharing');
     final service = ShareSessionService();
     service.onPresenceLeave = (guestId) {
       _guests.remove(guestId);
@@ -134,6 +135,9 @@ class ShareProvider extends ChangeNotifier {
     String supabaseUrl,
     String anonKey,
   ) async {
+    // Clean up any existing guest session first
+    if (_isGuest) await leaveSession();
+
     final watchSession = SshSession.watch(watchedTitle: shareCode);
     _viewingSessionId = watchSession.id;
     _isGuest = true;
