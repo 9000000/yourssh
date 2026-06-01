@@ -53,6 +53,7 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+pkg_check_modules(KEYBINDER QUIET keybinder-3.0)
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
@@ -125,4 +126,16 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
+endif()
+
+# Bundle libkeybinder-3.0 so users don't need it pre-installed.
+# hotkey_manager_linux links against it at runtime via soname libkeybinder-3.0.so.0.
+find_library(KEYBINDER_SOFILE NAMES keybinder-3.0 HINTS ${KEYBINDER_LIBRARY_DIRS})
+if(KEYBINDER_SOFILE)
+  get_filename_component(KEYBINDER_SOFILE_REAL "${KEYBINDER_SOFILE}" REALPATH)
+  install(FILES "${KEYBINDER_SOFILE_REAL}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime
+    RENAME "libkeybinder-3.0.so.0"
+  )
 endif()
