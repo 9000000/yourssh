@@ -1015,18 +1015,26 @@ class _TopTabBar extends StatelessWidget {
           // Divider
           Container(width: 1, height: 18, color: const Color(0xFF2A2A2A)),
           const SizedBox(width: 4),
-          // Session tabs (scrollable)
+          // Session tabs (scrollable, drag-reorderable)
           Expanded(
-            child: ListView(
+            child: ReorderableListView.builder(
               scrollDirection: Axis.horizontal,
-              children: sessions
-                  .map((s) => _SessionTab(
-                        session: s,
-                        isActive: s.id == active?.id && viewingTerminal,
-                        provider: provider,
-                        onTap: () => onSessionTap(s.id),
-                      ))
-                  .toList(),
+              buildDefaultDragHandles: false,
+              itemCount: sessions.length,
+              onReorderItem: provider.reorderSessionItem,
+              itemBuilder: (context, index) {
+                final s = sessions[index];
+                return ReorderableDragStartListener(
+                  key: ValueKey(s.id),
+                  index: index,
+                  child: _SessionTab(
+                    session: s,
+                    isActive: s.id == active?.id && viewingTerminal,
+                    provider: provider,
+                    onTap: () => onSessionTap(s.id),
+                  ),
+                );
+              },
             ),
           ),
           // "+" button
