@@ -28,6 +28,7 @@ import 'services/recording_service.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/recording_provider.dart';
+import 'providers/share_provider.dart';
 
 String kAppVersion = '';
 
@@ -103,6 +104,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
   late final HookBus _hookBus;
   late final PluginUiRegistry _uiRegistry;
   late final PluginEngineProvider _pluginEngineProvider;
+  late final ShareProvider _shareProvider;
 
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -190,6 +192,16 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
 
     _syncProvider = SyncProvider(storage: _storage);
     _syncService = SyncService(_syncProvider);
+    _shareProvider = ShareProvider(syncProvider: _syncProvider);
+    _shareProvider.wireDependencies(_sessionProvider, _hookBus);
+    _shareProvider.onGuestInput = (data) {
+      final sessionId = _shareProvider.sharingSessionId;
+      if (sessionId == null) return;
+      final session = _sessionProvider.sessions
+          .where((s) => s.id == sessionId && !s.isWatch)
+          .firstOrNull;
+      session?.terminal.textInput(data);
+    };
 
     _hostProvider.onMutation = () => _syncService.push(
           hosts: _hostProvider.allHosts,
@@ -264,6 +276,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
         ChangeNotifierProvider.value(value: _sessionProvider),
         ChangeNotifierProvider.value(value: _knownHostsProvider),
         ChangeNotifierProvider.value(value: _syncProvider),
+        ChangeNotifierProvider.value(value: _shareProvider),
         Provider.value(value: _syncService),
         ChangeNotifierProvider(create: (_) => PortForwardProvider()),
         ChangeNotifierProvider(create: (_) {
