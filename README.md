@@ -4,10 +4,10 @@
   <p align="center">
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
     <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.x-54C5F8?logo=flutter" alt="Flutter" /></a>
-    <a href="https://github.com/thangnm93/yourssh/releases"><img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?logo=apple" alt="Platform" /></a>
-    <a href="https://github.com/thangnm93/yourssh/releases"><img src="https://img.shields.io/github/v/release/thangnm93/yourssh?color=green" alt="Release" /></a>
-    <a href="https://github.com/thangnm93/yourssh/actions"><img src="https://img.shields.io/github/actions/workflow/status/thangnm93/yourssh/release.yml?label=build" alt="CI" /></a>
-    <a href="https://github.com/thangnm93/yourssh/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" /></a>
+    <a href="https://github.com/YoursshLabs/yourssh/releases"><img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?logo=apple" alt="Platform" /></a>
+    <a href="https://github.com/YoursshLabs/yourssh/releases"><img src="https://img.shields.io/github/v/release/YoursshLabs/yourssh?color=green" alt="Release" /></a>
+    <a href="https://github.com/YoursshLabs/yourssh/actions"><img src="https://img.shields.io/github/actions/workflow/status/YoursshLabs/yourssh/release.yml?label=build" alt="CI" /></a>
+    <a href="https://github.com/YoursshLabs/yourssh/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" /></a>
   </p>
 </p>
 
@@ -17,7 +17,7 @@ A professional, open-source SSH client for **macOS**, **Windows**, and **Linux**
 
 ## Download
 
-Get the latest release from the [Releases page](https://github.com/thangnm93/yourssh/releases).
+Get the latest release from the [Releases page](https://github.com/YoursshLabs/yourssh/releases).
 
 | Platform | File |
 |---|---|
