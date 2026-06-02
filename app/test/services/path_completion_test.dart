@@ -24,6 +24,9 @@ void main() {
     test('relative token but no cwd -> null', () {
       expect(planPathCompletion('cd sub/fo', null), isNull);
     });
+    test('tilde path -> null (remote home not resolvable)', () {
+      expect(planPathCompletion('cd ~/Doc', '/home/u'), isNull);
+    });
     test('still typing the command word -> null', () {
       expect(planPathCompletion('cd', '/home/u'), isNull);
     });

@@ -9,14 +9,15 @@ void main() {
 
     p.handleOsc('s1', '7', ['file://h/srv'], 0);
     p.handleOsc('s1', '133', ['A'], 7);
-    p.handleOsc('s1', '133', ['C'], 7);
+    p.handleOsc('s1', '133', ['C'], 7); // ignored — no exec tracking
     p.handleOsc('s1', '133', ['D', '0'], 7);
 
     expect(p.cwdFor('s1'), '/srv');
     final st = p.maybeStateFor('s1')!;
     expect(st.commands.single.promptLine, 7);
     expect(st.commands.single.succeeded, isTrue);
-    expect(notifications, 4);
+    expect(notifications, 3); // cwd + A + D (C ignored)
+    expect(p.revisionFor('s1'), 3);
   });
 
   test('ignored OSC does not create state or notify', () {

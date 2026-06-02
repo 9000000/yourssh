@@ -37,6 +37,7 @@ import '../providers/plugin_engine_provider.dart';
 import '../providers/plugin_provider.dart';
 import '../services/ssh_service.dart';
 import 'package:yourssh_plugin_api/yourssh_plugin_api.dart';
+import 'package:path/path.dart' as p;
 import '../providers/settings_provider.dart';
 import '../providers/shell_integration_provider.dart';
 import '../providers/terminal_layout_provider.dart';
@@ -1166,10 +1167,12 @@ class _SessionTabState extends State<_SessionTab> {
   String _composedLabel(BuildContext context) {
     final base = widget.session.tabLabel;
     if (widget.session.customLabel != null) return base;
-    final cwd = context.watch<ShellIntegrationProvider>().cwdFor(widget.session.id);
+    // select scopes the rebuild to this session's cwd (provider notifies globally).
+    final cwd = context.select<ShellIntegrationProvider, String?>(
+        (s) => s.cwdFor(widget.session.id));
     if (cwd == null || cwd.isEmpty) return base;
-    final parts = cwd.split('/').where((s) => s.isNotEmpty).toList();
-    return '$base · ${parts.isEmpty ? '/' : parts.last}';
+    final name = p.posix.basename(cwd);
+    return '$base · ${name.isEmpty ? '/' : name}';
   }
 
   Future<void> _showTabContextMenu(BuildContext context, Offset globalPos) async {

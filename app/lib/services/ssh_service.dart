@@ -567,9 +567,13 @@ class SshService {
       _shells.remove(id);
       _shellToHost.remove(id);
       NotificationService.instance.removeSession(id);
+      shellIntegration?.clear(id);
     }
     _clients[hostId]?.close();
     _clients.remove(hostId);
+    // The SFTP completion client rides the SSHClient just closed; drop it so a
+    // reconnect opens a fresh one instead of reusing the dead channel.
+    _completionSftp.remove(hostId);
     unawaited(_agentProxies[hostId]?.close() ?? Future.value());
     _agentProxies.remove(hostId);
 
@@ -586,6 +590,7 @@ class SshService {
     _shells.remove(sessionId);
     _shellToHost.remove(sessionId);
     NotificationService.instance.removeSession(sessionId);
+    shellIntegration?.clear(sessionId);
   }
 
   bool isConnected(String hostId) => _clients.containsKey(hostId);

@@ -10,6 +10,12 @@ typedef _Dot = ({int line, bool? ok});
 /// Positions use the caller-supplied [lineHeight] (the terminal's per-line
 /// pixel height, matching the scroll-offset unit). Repaints when the command
 /// set or any status changes, and as the view scrolls.
+///
+/// Known limitation: [promptLine] is an absolute buffer index captured at
+/// marker time. After the terminal's scrollback cap (maxLines) starts trimming
+/// old lines, those indices drift relative to the rendered content, so dots for
+/// very old commands in a >maxLines session may sit a few rows off. Off-screen
+/// dots are culled, so the impact is bounded.
 class CommandGutter extends StatelessWidget {
   const CommandGutter({
     super.key,
@@ -28,10 +34,11 @@ class CommandGutter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final commands = context
-        .watch<ShellIntegrationProvider>()
-        .maybeStateFor(sessionId)
-        ?.commands;
+    // Rebuild only when THIS session changes: the provider notifies globally,
+    // select scopes us to our own session's revision.
+    context.select<ShellIntegrationProvider, int>((p) => p.revisionFor(sessionId));
+    final commands =
+        context.read<ShellIntegrationProvider>().maybeStateFor(sessionId)?.commands;
     if (commands == null || commands.isEmpty) return const SizedBox.shrink();
     // Snapshot to immutable records each build. The provider mutates the same
     // List/ShellCommand instances in place, so the painter must compare against
@@ -60,7 +67,11 @@ class CommandGutter extends StatelessWidget {
                         best = dot;
                       }
                     }
-                    if (best != null) onJumpTo!(best.line);
+                    // Only jump when the tap is actually on/near a dot row, so
+                    // brushing the strip far from any command doesn't snap.
+                    if (best != null && (best.line - line).abs() <= 1) {
+                      onJumpTo!(best.line);
+                    }
                   },
             child: CustomPaint(
               painter: _GutterPainter(dots, offset, lineHeight),

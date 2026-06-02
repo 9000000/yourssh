@@ -11,16 +11,9 @@ class ShellSessionState {
   void setCwd(String path) => cwd = path;
 
   void onPromptStart(int promptLine) {
-    commands.add(ShellCommand(promptLine: promptLine, cwd: cwd));
+    commands.add(ShellCommand(promptLine));
     if (commands.length > _maxCommands) commands.removeAt(0);
   }
 
-  void onExec() => _pending?.startedAt = DateTime.now();
-
-  void onFinished(int? exitCode) {
-    final c = _pending;
-    if (c == null) return;
-    c.finishedAt = DateTime.now();
-    c.exitCode = exitCode;
-  }
+  void onFinished(int? exitCode) => _pending?.exitCode = exitCode;
 }

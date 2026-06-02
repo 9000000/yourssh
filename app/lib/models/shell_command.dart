@@ -1,16 +1,12 @@
 class ShellCommand {
-  final int promptLine; // absolute buffer line of the prompt (for gutter/jump)
-  final String? cwd;
-  String? text; // best-effort, optional
-  DateTime? startedAt; // set at exec (OSC 133;C)
-  DateTime? finishedAt; // set at finished (OSC 133;D)
+  /// Absolute buffer line of this command's prompt (used by the gutter + jump).
+  final int promptLine;
+
+  /// Exit code, set when the command finishes (OSC 133;D). Null while pending.
   int? exitCode;
 
-  ShellCommand({required this.promptLine, this.cwd});
+  ShellCommand(this.promptLine);
 
-  bool get isRunning => startedAt != null && finishedAt == null;
+  /// null = pending/unknown · true = exit 0 · false = non-zero.
   bool? get succeeded => exitCode == null ? null : exitCode == 0;
-  Duration? get duration => (startedAt != null && finishedAt != null)
-      ? finishedAt!.difference(startedAt!)
-      : null;
 }

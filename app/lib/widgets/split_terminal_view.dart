@@ -138,7 +138,8 @@ class SplitTerminalView extends StatelessWidget {
         if (showInput)
           TerminalInputBar(
             sessionId: session.id,
-            cwd: context.watch<ShellIntegrationProvider>().cwdFor(session.id),
+            cwd: context.select<ShellIntegrationProvider, String?>(
+                (p) => p.cwdFor(session.id)),
             listDir: (dir) =>
                 context.read<SshService>().listDirectory(session.host, dir),
             onSubmit: (cmd) {

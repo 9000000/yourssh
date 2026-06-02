@@ -391,6 +391,8 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final theme = terminalThemeByName(settings.terminalTheme);
+    final showGutter = settings.shellIntegrationEnabled &&
+        widget.session.host.shellIntegration;
 
     return Stack(
       children: [
@@ -403,21 +405,23 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
             fontSize: settings.fontSize,
             fontFamily: settings.terminalFont,
           ),
-          padding: EdgeInsets.zero,
+          // Leave room for the gutter so it never occludes column-0 text.
+          padding: showGutter ? const EdgeInsets.only(left: 10) : EdgeInsets.zero,
           autofocus: !_searchVisible,
           onKeyEvent: _handleKey,
         ),
-        Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          child: CommandGutter(
-            sessionId: widget.session.id,
-            scrollController: _scrollController,
-            lineHeight: settings.fontSize * 1.2,
-            onJumpTo: _scrollToLine,
+        if (showGutter)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: CommandGutter(
+              sessionId: widget.session.id,
+              scrollController: _scrollController,
+              lineHeight: settings.fontSize * 1.2,
+              onJumpTo: _scrollToLine,
+            ),
           ),
-        ),
         if (_searchVisible)
           Positioned(
             top: 0,

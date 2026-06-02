@@ -8,9 +8,13 @@ class ShellIntegrationProvider extends ChangeNotifier {
 
   final ShellIntegrationService _service;
   final Map<String, ShellSessionState> _states = {};
+  // Per-session change counter so consumers can `context.select` on their own
+  // session and avoid rebuilding when an unrelated session emits OSC.
+  final Map<String, int> _revisions = {};
 
   ShellSessionState? maybeStateFor(String id) => _states[id];
   String? cwdFor(String id) => _states[id]?.cwd;
+  int revisionFor(String id) => _revisions[id] ?? 0;
 
   String buildInjectionScript() => _service.buildInjectionScript();
 
@@ -26,15 +30,16 @@ class ShellIntegrationProvider extends ChangeNotifier {
         st.setCwd(ev.cwd!);
       case ShellOscKind.promptStart:
         st.onPromptStart(absoluteCursorY);
-      case ShellOscKind.exec:
-        st.onExec();
       case ShellOscKind.finished:
         st.onFinished(ev.exitCode);
     }
+    _revisions[sessionId] = revisionFor(sessionId) + 1;
     notifyListeners();
   }
 
   void clear(String sessionId) {
-    if (_states.remove(sessionId) != null) notifyListeners();
+    final had = _states.remove(sessionId) != null;
+    _revisions.remove(sessionId);
+    if (had) notifyListeners();
   }
 }

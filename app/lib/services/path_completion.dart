@@ -18,6 +18,9 @@ PathPlan? planPathCompletion(String input, String? cwd) {
   if (parts.length == 1) return null; // still typing the command word
   final first = parts.first;
   final token = parts.last; // arg token (may be '')
+  // '~' (home) can't be resolved without the remote $HOME; skip rather than
+  // listing a bogus '$cwd/~'. Falls back to history suggestions.
+  if (token.startsWith('~')) return null;
   final isPathCmd = _pathCommands.contains(first);
   final looksPath =
       token.contains('/') || token.startsWith('.') || token.startsWith('~');

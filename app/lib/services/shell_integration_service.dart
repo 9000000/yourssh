@@ -1,4 +1,4 @@
-enum ShellOscKind { cwd, promptStart, exec, finished }
+enum ShellOscKind { cwd, promptStart, finished }
 
 class ShellOscEvent {
   final ShellOscKind kind;
@@ -9,10 +9,6 @@ class ShellOscEvent {
         exitCode = null;
   const ShellOscEvent.promptStart()
       : kind = ShellOscKind.promptStart,
-        cwd = null,
-        exitCode = null;
-  const ShellOscEvent.exec()
-      : kind = ShellOscKind.exec,
         cwd = null,
         exitCode = null;
   const ShellOscEvent.finished(this.exitCode)
@@ -43,7 +39,9 @@ class ShellIntegrationService {
   ShellOscEvent? parseOsc(String code, List<String> args) {
     if (code == '7') {
       if (args.isEmpty) return null;
-      final path = parseOsc7Path(args.first);
+      // Rejoin on ';' — xterm splits the OSC payload on every ';', so a cwd
+      // containing a semicolon arrives as multiple args.
+      final path = parseOsc7Path(args.join(';'));
       return path == null ? null : ShellOscEvent.cwd(path);
     }
     if (code == '133') {
@@ -51,13 +49,11 @@ class ShellIntegrationService {
       switch (args.first) {
         case 'A':
           return const ShellOscEvent.promptStart();
-        case 'C':
-          return const ShellOscEvent.exec();
         case 'D':
           return ShellOscEvent.finished(
               args.length > 1 ? int.tryParse(args[1]) : null);
         default:
-          return null;
+          return null; // B, C and anything else are ignored
       }
     }
     return null;

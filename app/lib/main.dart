@@ -283,6 +283,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _hostProvider.dispose();
     _keyProvider.dispose();
     _settingsProvider.dispose();
+    _shellIntegrationProvider.dispose();
     super.dispose();
   }
 

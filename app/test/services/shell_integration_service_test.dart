@@ -23,11 +23,14 @@ void main() {
       expect(e.kind, ShellOscKind.cwd);
       expect(e.cwd, '/srv/app');
     });
+    test('OSC 7 with ";" in path is rejoined (xterm splits on ;)', () {
+      expect(s.parseOsc('7', ['file://h/srv/a', 'b'])!.cwd, '/srv/a;b');
+    });
     test('OSC 133;A -> promptStart', () {
       expect(s.parseOsc('133', ['A'])!.kind, ShellOscKind.promptStart);
     });
-    test('OSC 133;C -> exec', () {
-      expect(s.parseOsc('133', ['C'])!.kind, ShellOscKind.exec);
+    test('OSC 133;C is ignored (no exec tracking)', () {
+      expect(s.parseOsc('133', ['C']), isNull);
     });
     test('OSC 133;D;0 -> finished exit 0', () {
       final e = s.parseOsc('133', ['D', '0'])!;
