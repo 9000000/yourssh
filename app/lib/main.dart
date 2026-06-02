@@ -20,6 +20,7 @@ import 'providers/known_hosts_provider.dart';
 import 'providers/plugin_provider.dart';
 import 'plugins/plugin_registry.dart';
 import 'package:yourssh_snippets/yourssh_snippets.dart';
+import 'services/health_monitor_service.dart';
 import 'services/notification_service.dart';
 import 'services/ssh_service.dart';
 import 'services/storage_service.dart';
@@ -114,6 +115,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
   late final PluginUiRegistry _uiRegistry;
   late final PluginEngineProvider _pluginEngineProvider;
   late final ShareProvider _shareProvider;
+  late final HealthMonitorService _healthMonitor;
 
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -142,6 +144,11 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _sessionProvider.reconnectAttempts = () => _settingsProvider.reconnectAttempts;
     _sessionProvider.tmuxEnabled = () => _settingsProvider.tmuxEnabled;
     _sessionProvider.recordingStart = (s) => _recordingProvider.startRecording(s);
+    _healthMonitor = HealthMonitorService(
+      measure: _ssh.measureLatency,
+      connectedHostIds: () => _ssh.connectedHostIds,
+      pollSeconds: () => _settingsProvider.keepAliveInterval,
+    )..start();
     _knownHostsProvider = KnownHostsProvider(_storage);
     _knownHostsProvider.load();
     _sessionProvider.hostKeyVerifier = _knownHostsProvider.verifyHostKey;
@@ -262,6 +269,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _pluginEngineProvider.dispose();
     _pluginProvider.dispose();
     _recordingProvider.dispose();
+    _healthMonitor.dispose();
     _sessionProvider.dispose();
     _syncService.dispose();
     _syncProvider.dispose();
@@ -282,6 +290,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
         ChangeNotifierProvider.value(value: _keyProvider),
         ChangeNotifierProvider.value(value: _settingsProvider),
         ChangeNotifierProvider.value(value: _sessionProvider),
+        ChangeNotifierProvider.value(value: _healthMonitor),
         ChangeNotifierProvider.value(value: _knownHostsProvider),
         ChangeNotifierProvider.value(value: _syncProvider),
         ChangeNotifierProvider.value(value: _shareProvider),
