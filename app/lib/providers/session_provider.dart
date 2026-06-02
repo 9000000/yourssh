@@ -147,6 +147,7 @@ class SessionProvider extends ChangeNotifier {
   }
 
   void _scheduleReconnect(SshSession session, Host host, {required int attempt}) {
+    session.reconnectCount++;
     final delay = (attempt * 2).clamp(2, 60);
     session.status = SessionStatus.connecting;
     _safeNotify();
