@@ -46,5 +46,16 @@ void main() {
       );
       expect(out, ['cd documents/', 'cd downloads/']);
     });
+    test('no-slash token after an earlier arg containing "/" keeps full input',
+        () {
+      // Regression: head must be input-minus-prefix, not cut at the last "/"
+      // anywhere in the input (which would drop "hosts back").
+      final out = mergePathSuggestions(
+        'cp /etc/hosts back',
+        const PathPlan(dir: '/home/u', prefix: 'back'),
+        ['backup/', 'backups.txt', 'other'],
+      );
+      expect(out, ['cp /etc/hosts backup/', 'cp /etc/hosts backups.txt']);
+    });
   });
 }

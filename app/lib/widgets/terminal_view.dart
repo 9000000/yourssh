@@ -165,11 +165,18 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
   }
 
   void _scrollToMatch(int matchIdx) {
-    if (_matches.isEmpty || !_scrollController.hasClients) return;
-    final lineIdx = _matches[matchIdx].lineIdx;
-    final fontSize = context.read<SettingsProvider>().fontSize;
-    final estimatedLineHeight = fontSize * 1.35;
-    final offset = (lineIdx * estimatedLineHeight)
+    if (_matches.isEmpty) return;
+    _scrollToLine(_matches[matchIdx].lineIdx);
+  }
+
+  /// xterm forces TextStyle.height = 1.2, so each rendered line is
+  /// `fontSize * 1.2` pixels tall — the unit the scroll offset is measured in.
+  double get _lineHeightPx => context.read<SettingsProvider>().fontSize * 1.2;
+
+  /// Animate the viewport so [line] (an absolute buffer line) is at the top.
+  void _scrollToLine(int line) {
+    if (!_scrollController.hasClients) return;
+    final offset = (line * _lineHeightPx)
         .clamp(0.0, _scrollController.position.maxScrollExtent);
     _scrollController.animateTo(
       offset,
@@ -178,17 +185,17 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
     );
   }
 
-  /// Scroll to the previous (-1) or next (+1) command prompt line, reusing the
-  /// same line→pixel conversion as search-in-scrollback.
-  void _jumpToPrompt(int direction) {
+  /// Scroll to the previous (-1) or next (+1) command prompt line. Returns true
+  /// only if a jump actually occurred, so the key handler can let the key fall
+  /// through to the terminal when there is nothing to jump to.
+  bool _jumpToPrompt(int direction) {
     final st = context
         .read<ShellIntegrationProvider>()
         .maybeStateFor(widget.session.id);
     if (st == null || st.commands.isEmpty || !_scrollController.hasClients) {
-      return;
+      return false;
     }
-    final lineHeight = context.read<SettingsProvider>().fontSize * 1.35;
-    final currentLine = _scrollController.offset / lineHeight;
+    final currentLine = _scrollController.offset / _lineHeightPx;
     final lines = st.commands.map((c) => c.promptLine).toList()..sort();
     int? target;
     if (direction < 0) {
@@ -203,11 +210,9 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
         }
       }
     }
-    if (target == null) return;
-    final offset = (target * lineHeight)
-        .clamp(0.0, _scrollController.position.maxScrollExtent);
-    _scrollController.animateTo(offset,
-        duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+    if (target == null) return false;
+    _scrollToLine(target);
+    return true;
   }
 
   void _goNext() {
@@ -323,15 +328,15 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
       return KeyEventResult.ignored;
     }
 
-    // Jump-to-prompt (Cmd+↑/↓ on macOS, Ctrl+↑/↓ elsewhere).
+    // Jump-to-prompt (Cmd+↑/↓ on macOS, Ctrl+↑/↓ elsewhere). Only swallow the
+    // key when a jump actually happened — otherwise let it reach the terminal
+    // (e.g. Ctrl+↑/↓ word navigation), so non-integration sessions are unaffected.
     final jumpMod = Platform.isMacOS ? meta : ctrl;
     if (jumpMod && key == LogicalKeyboardKey.arrowUp) {
-      _jumpToPrompt(-1);
-      return KeyEventResult.handled;
+      if (_jumpToPrompt(-1)) return KeyEventResult.handled;
     }
     if (jumpMod && key == LogicalKeyboardKey.arrowDown) {
-      _jumpToPrompt(1);
-      return KeyEventResult.handled;
+      if (_jumpToPrompt(1)) return KeyEventResult.handled;
     }
 
     if (key == LogicalKeyboardKey.tab) {
@@ -409,15 +414,8 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
           child: CommandGutter(
             sessionId: widget.session.id,
             scrollController: _scrollController,
-            lineHeight: settings.fontSize * 1.35,
-            onJumpTo: (line) {
-              if (!_scrollController.hasClients) return;
-              final offset = (line * settings.fontSize * 1.35)
-                  .clamp(0.0, _scrollController.position.maxScrollExtent);
-              _scrollController.animateTo(offset,
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOut);
-            },
+            lineHeight: settings.fontSize * 1.2,
+            onJumpTo: _scrollToLine,
           ),
         ),
         if (_searchVisible)

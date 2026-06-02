@@ -44,10 +44,10 @@ String _trimSlash(String s) =>
 /// matching directory entry (entries may carry a trailing '/').
 List<String> mergePathSuggestions(
     String input, PathPlan plan, List<String> entries) {
-  final slash = input.lastIndexOf('/');
-  final head = slash < 0
-      ? input.substring(0, input.length - plan.prefix.length)
-      : input.substring(0, slash + 1);
+  // The prefix is always a suffix of the input (the trailing chars of the last
+  // token), so the head is simply the input minus that prefix — independent of
+  // any '/' in earlier arguments.
+  final head = input.substring(0, input.length - plan.prefix.length);
   return entries
       .where((e) => e.startsWith(plan.prefix))
       .map((e) => '$head$e')

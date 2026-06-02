@@ -1,11 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/shell_command.dart';
 import '../providers/shell_integration_provider.dart';
 
+/// One paintable marker: an absolute buffer line + its success state.
+typedef _Dot = ({int line, bool? ok});
+
 /// Thin left strip drawing a status dot next to each command's prompt line.
-/// Aligns to the same line→pixel math the terminal scroll uses
-/// (lineHeight = fontSize * 1.35) and repaints as the view scrolls.
+/// Positions use the caller-supplied [lineHeight] (the terminal's per-line
+/// pixel height, matching the scroll-offset unit). Repaints when the command
+/// set or any status changes, and as the view scrolls.
 class CommandGutter extends StatelessWidget {
   const CommandGutter({
     super.key,
@@ -25,11 +29,16 @@ class CommandGutter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final commands = context
-            .watch<ShellIntegrationProvider>()
-            .maybeStateFor(sessionId)
-            ?.commands ??
-        const <ShellCommand>[];
-    if (commands.isEmpty) return const SizedBox.shrink();
+        .watch<ShellIntegrationProvider>()
+        .maybeStateFor(sessionId)
+        ?.commands;
+    if (commands == null || commands.isEmpty) return const SizedBox.shrink();
+    // Snapshot to immutable records each build. The provider mutates the same
+    // List/ShellCommand instances in place, so the painter must compare against
+    // a fresh snapshot (not the shared list) to detect status/append changes.
+    final dots = <_Dot>[
+      for (final c in commands) (line: c.promptLine, ok: c.succeeded),
+    ];
     return SizedBox(
       width: width,
       child: AnimatedBuilder(
@@ -42,20 +51,19 @@ class CommandGutter extends StatelessWidget {
             onTapUp: onJumpTo == null
                 ? null
                 : (d) {
-                    final line = ((d.localPosition.dy + offset) / lineHeight)
-                        .round();
-                    ShellCommand? best;
-                    for (final c in commands) {
+                    final line =
+                        ((d.localPosition.dy + offset) / lineHeight).round();
+                    _Dot? best;
+                    for (final dot in dots) {
                       if (best == null ||
-                          (c.promptLine - line).abs() <
-                              (best.promptLine - line).abs()) {
-                        best = c;
+                          (dot.line - line).abs() < (best.line - line).abs()) {
+                        best = dot;
                       }
                     }
-                    if (best != null) onJumpTo!(best.promptLine);
+                    if (best != null) onJumpTo!(best.line);
                   },
             child: CustomPaint(
-              painter: _GutterPainter(commands, offset, lineHeight),
+              painter: _GutterPainter(dots, offset, lineHeight),
               size: Size(width, double.infinity),
             ),
           );
@@ -66,8 +74,8 @@ class CommandGutter extends StatelessWidget {
 }
 
 class _GutterPainter extends CustomPainter {
-  _GutterPainter(this.commands, this.scrollOffset, this.lineHeight);
-  final List<ShellCommand> commands;
+  _GutterPainter(this.dots, this.scrollOffset, this.lineHeight);
+  final List<_Dot> dots;
   final double scrollOffset;
   final double lineHeight;
 
@@ -78,10 +86,10 @@ class _GutterPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..style = PaintingStyle.fill;
-    for (final c in commands) {
-      final y = c.promptLine * lineHeight - scrollOffset + lineHeight / 2;
+    for (final dot in dots) {
+      final y = dot.line * lineHeight - scrollOffset + lineHeight / 2;
       if (y < -lineHeight || y > size.height + lineHeight) continue;
-      paint.color = switch (c.succeeded) {
+      paint.color = switch (dot.ok) {
         true => _green,
         false => _red,
         null => _grey,
@@ -93,6 +101,6 @@ class _GutterPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GutterPainter old) =>
       old.scrollOffset != scrollOffset ||
-      old.commands.length != commands.length ||
-      old.lineHeight != lineHeight;
+      old.lineHeight != lineHeight ||
+      !listEquals(old.dots, dots);
 }

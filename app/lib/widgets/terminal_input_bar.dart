@@ -52,6 +52,10 @@ class _TerminalInputBarState extends State<TerminalInputBar> {
     final history = context.read<CommandHistoryProvider>();
     final plan = planPathCompletion(text, widget.cwd);
     if (plan == null || widget.listDir == null) {
+      // Invalidate any in-flight path-completion timer so a late result can't
+      // overwrite these history suggestions.
+      _debounce?.cancel();
+      _completionSeq++;
       setState(() {
         _suggestions = history.suggestions(widget.sessionId, text);
         _selectedIndex = -1;
