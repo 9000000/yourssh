@@ -522,6 +522,28 @@ class SshService {
     return client.sftp();
   }
 
+  // Cached SFTP client per host, reused for path autocomplete listings.
+  final Map<String, SftpClient> _completionSftp = {};
+
+  /// List a remote directory for path autocomplete. Reuses a cached SFTP
+  /// client per host. Returns entry names (directories carry a trailing '/').
+  /// Never throws — returns an empty list on any failure and drops the cached
+  /// client so a later call can reopen it (self-heals after reconnect).
+  Future<List<String>> listDirectory(Host host, String path) async {
+    try {
+      final sftp = _completionSftp[host.id] ??= await openSftp(host);
+      final items = await sftp.listdir(path.isEmpty ? '.' : path);
+      return items
+          .map((e) => e.filename + (e.attr.isDirectory ? '/' : ''))
+          .where((n) => n != './' && n != '../')
+          .toList();
+    } catch (e) {
+      _completionSftp.remove(host.id);
+      debugPrint('[SshService] listDirectory failed for $path: $e');
+      return const [];
+    }
+  }
+
   // ── Send input to shell ────────────────────────────────
 
   /// Sends [text] directly to the shell of [sessionId].
