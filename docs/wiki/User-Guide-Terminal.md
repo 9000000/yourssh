@@ -10,13 +10,35 @@ Click any host card on the Hosts screen. A new tab opens and the connection star
 
 ## Tabs
 
-Each SSH session opens in its own tab in the top bar. The tab shows the host name and a colored status indicator.
+Each SSH session opens in its own tab in the top bar. The tab shows the host name and a **connection health badge** (a colored dot on the left).
 
-| Indicator | Meaning |
+### Connection health badge
+
+The badge is driven by a live latency ping sent over the SSH connection on the keep-alive interval (configurable in **Settings**). Its color reflects the current round-trip latency, or the session lifecycle when not connected:
+
+| Dot | Meaning |
 |---|---|
-| Green dot | Connected |
-| Yellow spinner | Connecting / reconnecting |
-| Red dot | Disconnected / error |
+| 🟢 Green | Healthy — latency under 150 ms |
+| 🟡 Amber | Degraded — latency 150–500 ms |
+| 🔴 Red | Unreachable — latency over 500 ms, ping timed out, or error |
+| ⚪ Grey | Disconnected, or no reading yet |
+| ✨ Pulsing amber | Connecting / reconnecting |
+
+Because the ping rides the live channel (rather than opening a new connection), a 5-second ping timeout also catches **half-open** drops — where the network is gone but the shell has not closed yet — and turns the dot red.
+
+Hover the dot for a tooltip showing latency, uptime, time since the last ping, and how many times the session has reconnected.
+
+### Managing tabs
+
+| Action | How |
+|---|---|
+| Rename | Double-click the tab, or right-click → **Rename** |
+| Color tag | Right-click → pick one of 8 colors (shown as a dot on the tab) |
+| Pin | Right-click → **Pin** — pinned tabs move to the front and hide their close button |
+| Reorder | Drag a tab left/right; pinned and unpinned tabs stay within their own zones |
+| Close | Hover and click ✕ (hidden while a tab is pinned) |
+
+Tab names, colors, and pin state persist per host across reconnects and app restarts.
 
 ## Split View
 

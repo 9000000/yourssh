@@ -6,12 +6,15 @@ import '../services/workspace_service.dart';
 import '../models/host.dart';
 import '../models/known_host.dart';
 import '../models/ssh_session.dart';
+import '../models/session_health.dart';
+import '../services/health_monitor_service.dart';
 import '../providers/host_provider.dart';
 import '../providers/known_hosts_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/recording_provider.dart';
 import '../main.dart' show kAppVersion;
 import '../theme/app_theme.dart';
+import '../widgets/health_dot.dart';
 import '../widgets/host_detail_panel.dart';
 import '../widgets/hosts_dashboard.dart';
 import '../widgets/keychain_screen.dart';
@@ -1305,6 +1308,21 @@ class _SessionTabState extends State<_SessionTab> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Connection health dot (hidden for watch sessions)
+              if (!widget.session.isWatch)
+                Builder(builder: (context) {
+                  final health = context
+                      .watch<HealthMonitorService>()
+                      .healthFor(widget.session.host.id);
+                  final tone = badgeToneFor(widget.session.status, health);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 5),
+                    child: Tooltip(
+                      message: _healthTooltip(widget.session, health),
+                      child: HealthDot(tone: tone),
+                    ),
+                  );
+                }),
               // Red recording indicator
               Consumer<RecordingProvider>(
                 builder: (context, rec, _) => rec.isRecording(widget.session.id)
@@ -1677,4 +1695,28 @@ class _ShareButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String _healthTooltip(SshSession session, SessionHealth health) {
+  final latency = health.latencyMs != null ? '${health.latencyMs}ms' : '—';
+  final word = switch (health.status) {
+    HealthStatus.healthy => 'healthy',
+    HealthStatus.degraded => 'degraded',
+    HealthStatus.down => 'down',
+    HealthStatus.offline => 'connecting…',
+  };
+  final uptime = _fmtDuration(DateTime.now().difference(session.connectedAt));
+  final ping = health.lastPingAt != null
+      ? '${DateTime.now().difference(health.lastPingAt!).inSeconds}s ago'
+      : '—';
+  return '${session.title}\n'
+      '$latency · $word\n'
+      'Uptime $uptime · last ping $ping\n'
+      'Reconnects this session: ${session.reconnectCount}';
+}
+
+String _fmtDuration(Duration d) {
+  if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes.remainder(60)}m';
+  if (d.inMinutes > 0) return '${d.inMinutes}m';
+  return '${d.inSeconds}s';
 }

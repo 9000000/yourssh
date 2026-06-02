@@ -18,6 +18,10 @@ class SshSession {
   String? colorTag;
   bool isPinned;
 
+  /// Number of reconnect attempts scheduled during this session's lifetime.
+  /// Shown in the tab health tooltip.
+  int reconnectCount = 0;
+
   SshSession({
     String? id,
     required this.host,

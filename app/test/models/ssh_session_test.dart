@@ -64,5 +64,12 @@ void main() {
       s.customLabel = 'my-tab';
       expect(s.tabLabel, 'my-tab');
     });
+
+    test('reconnectCount defaults to 0 and is mutable', () {
+      final s = SshSession(host: _host());
+      expect(s.reconnectCount, 0);
+      s.reconnectCount++;
+      expect(s.reconnectCount, 1);
+    });
   });
 }
