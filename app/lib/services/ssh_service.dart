@@ -828,11 +828,15 @@ class SshService {
   // ── Send input to shell ────────────────────────────────
 
   /// Sends [text] directly to the shell of [sessionId].
-  /// No-op if the session or shell is not found.
-  void sendInput(String sessionId, String text) {
+  ///
+  /// Returns false when the session has no live shell (e.g. it closed
+  /// mid-disconnect) so callers don't show success feedback for input that
+  /// never reached the server.
+  bool sendInput(String sessionId, String text) {
     final shell = _shells[sessionId];
-    if (shell == null) return;
+    if (shell == null) return false;
     shell.write(Uint8List.fromList(text.codeUnits));
+    return true;
   }
 
   // ── Disconnect ─────────────────────────────────────────
