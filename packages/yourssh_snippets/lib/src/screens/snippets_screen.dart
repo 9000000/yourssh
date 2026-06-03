@@ -22,14 +22,7 @@ class _SnippetsScreenState extends State<SnippetsScreen> {
   @override
   Widget build(BuildContext context) {
     final snippets = context.watch<SnippetProvider>().snippets;
-    final filtered = _search.isEmpty
-        ? snippets
-        : snippets
-            .where((s) =>
-                s.label.toLowerCase().contains(_search.toLowerCase()) ||
-                s.command.toLowerCase().contains(_search.toLowerCase()) ||
-                s.tag.toLowerCase().contains(_search.toLowerCase()))
-            .toList();
+    final filtered = filterSnippets(snippets, _search);
 
     return Row(
       children: [

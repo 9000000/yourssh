@@ -108,6 +108,8 @@ class InjectionGate {
   final StringBuffer _held = StringBuffer();
   bool _passthrough = false;
   bool _payloadSent = false;
+  int _readyScanFrom = 0;
+  int _doneScanFrom = 0;
 
   bool get isHolding => !_passthrough;
 
@@ -119,11 +121,16 @@ class InjectionGate {
     _held.write(text);
     final buf = _held.toString();
     var sendPayload = false;
-    if (!_payloadSent && buf.contains(readySentinel)) {
+    if (!_payloadSent && buf.contains(readySentinel, _readyScanFrom)) {
       _payloadSent = true;
       sendPayload = true;
     }
-    final idx = buf.indexOf(doneSentinel);
+    final idx = buf.indexOf(doneSentinel, _doneScanFrom);
+    // Resume the next scan one sentinel-length before this buffer's end so a
+    // sentinel split across chunks is still seen, without rescanning the
+    // whole held buffer on every chunk.
+    _readyScanFrom = _tailFrom(buf, readySentinel);
+    _doneScanFrom = _tailFrom(buf, doneSentinel);
     if (idx >= 0) {
       _passthrough = true;
       _held.clear();
@@ -145,4 +152,9 @@ class InjectionGate {
 
   String _strip(String s) =>
       s.replaceAll(readySentinel, '').replaceAll(doneSentinel, '');
+
+  static int _tailFrom(String buf, String sentinel) {
+    final from = buf.length - sentinel.length + 1;
+    return from < 0 ? 0 : from;
+  }
 }

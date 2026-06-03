@@ -25,16 +25,7 @@ class _TerminalSnippetsPanelState extends State<TerminalSnippetsPanel> {
   @override
   Widget build(BuildContext context) {
     final snippets = context.watch<SnippetProvider>().snippets;
-    final filtered = _query.isEmpty
-        ? snippets
-        : snippets
-            .where(
-              (snippet) =>
-                  snippet.label.toLowerCase().contains(_query.toLowerCase()) ||
-                  snippet.command.toLowerCase().contains(_query.toLowerCase()) ||
-                  snippet.tag.toLowerCase().contains(_query.toLowerCase()),
-            )
-            .toList();
+    final filtered = filterSnippets(snippets, _query);
 
     return Container(
       width: 340,

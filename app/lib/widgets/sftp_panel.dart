@@ -38,6 +38,25 @@ class _SftpPanelState extends State<SftpPanel> {
     if (widget.host != null) {
       _loadDirectory('/');
     }
+    // Wired once: the upload callbacks fire from the external-edit mtime
+    // watcher long after the triggering open, so resolve the messenger at
+    // fire time (and only while this panel is still mounted) instead of
+    // capturing one per open. Not cleared in dispose — the mounted guard
+    // makes stale closures inert, and clearing could clobber a newer panel's
+    // wiring.
+    final service = context.read<ExternalEditService>();
+    service.onUploaded = (name) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Uploaded $name to server'),
+          duration: const Duration(seconds: 2)));
+    };
+    service.onUploadError = (name, e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Upload of $name failed: $e'),
+          backgroundColor: const Color(0xFF2A1A1A)));
+    };
   }
 
   @override
@@ -154,7 +173,6 @@ class _SftpPanelState extends State<SftpPanel> {
   Future<void> _openExternal(SftpEntry entry) async {
     final messenger = ScaffoldMessenger.of(context);
     final service = context.read<ExternalEditService>();
-    _wireExternalCallbacks(service, messenger);
     try {
       await service.openExternal(widget.host!, entry);
       messenger.showSnackBar(SnackBar(
@@ -170,7 +188,6 @@ class _SftpPanelState extends State<SftpPanel> {
   Future<void> _openWithApp(SftpEntry entry, String appPath) async {
     final messenger = ScaffoldMessenger.of(context);
     final service = context.read<ExternalEditService>();
-    _wireExternalCallbacks(service, messenger);
     try {
       await service.openExternalWith(widget.host!, entry, appPath);
       messenger.showSnackBar(SnackBar(
@@ -200,16 +217,6 @@ class _SftpPanelState extends State<SftpPanel> {
     }
     final file = await openFile();
     return file?.path;
-  }
-
-  void _wireExternalCallbacks(
-      ExternalEditService service, ScaffoldMessengerState messenger) {
-    service.onUploaded = (name) => messenger.showSnackBar(SnackBar(
-        content: Text('Uploaded $name to server'),
-        duration: const Duration(seconds: 2)));
-    service.onUploadError = (name, e) => messenger.showSnackBar(SnackBar(
-        content: Text('Upload of $name failed: $e'),
-        backgroundColor: const Color(0xFF2A1A1A)));
   }
 
   @override

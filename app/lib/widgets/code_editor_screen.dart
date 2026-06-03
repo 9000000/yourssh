@@ -89,9 +89,6 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       if (_useWebView) {
         if (_ready) {
           _pushContentToEditor();
-          if (widget.readOnly) {
-            _controller!.runJavaScript('setReadOnly(true)');
-          }
         }
       } else {
         _textController.text = _content!;
@@ -171,9 +168,6 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       setState(() => _ready = true);
       if (_content != null) {
         _pushContentToEditor();
-        if (widget.readOnly) {
-          _controller!.runJavaScript('setReadOnly(true)');
-        }
       }
     } else if (type == 'change') {
       if (!_isDirty) setState(() => _isDirty = true);
@@ -187,6 +181,9 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
     final lang = _langMap[widget.entry.extension] ?? 'plaintext';
     final escaped = jsonEncode(_content);
     _controller!.runJavaScript('loadContent($escaped, "$lang")');
+    if (widget.readOnly) {
+      _controller!.runJavaScript('setReadOnly(true)');
+    }
   }
 
   /// Save entry point shared by the AppBar button and Ctrl/Cmd+S: pulls the
