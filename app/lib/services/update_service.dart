@@ -39,4 +39,59 @@ class UpdateService {
     }
     return out;
   }
+
+  /// Picks the best matching asset for [os] (`macos`/`windows`/`linux`) and
+  /// [arch] (`arm64`/`x64`/`amd64`). Returns null when no artifact matches
+  /// (e.g. macOS x64 — only arm64 is shipped); callers then fall back to the
+  /// browser. For each platform the candidate names are tried in preference
+  /// order and the first asset whose name matches is returned.
+  ReleaseAsset? assetForPlatform(
+    AppRelease release, {
+    required String os,
+    required String arch,
+  }) {
+    bool present(String fragment, ReleaseAsset a) => a.name.contains(fragment);
+
+    List<String> candidates() {
+      switch (os) {
+        case 'macos':
+          return arch == 'arm64' ? const ['macOS-arm64.dmg'] : const [];
+        case 'windows':
+          return arch == 'arm64'
+              ? const ['Setup.', 'arm64.exe'] // narrowed by the arch filter below
+              : const ['Setup.', 'x64.exe'];
+        case 'linux':
+          return arch == 'arm64'
+              ? const ['_arm64.deb', 'Linux-arm64.tar.gz']
+              : const ['_amd64.deb', 'Linux-x86_64.tar.gz'];
+        default:
+          return const [];
+      }
+    }
+
+    // Windows needs both an installer-vs-portable preference AND an arch match,
+    // so handle it explicitly; other platforms match a single fragment.
+    if (os == 'windows') {
+      final archFrag = arch == 'arm64' ? 'arm64' : 'x64';
+      // Preference: Setup (installer) first, then portable.
+      for (final wantSetup in const [true, false]) {
+        for (final a in release.assets) {
+          final isSetup = a.name.contains('Setup.');
+          if (a.name.contains(archFrag) &&
+              a.name.endsWith('.exe') &&
+              isSetup == wantSetup) {
+            return a;
+          }
+        }
+      }
+      return null;
+    }
+
+    for (final frag in candidates()) {
+      for (final a in release.assets) {
+        if (present(frag, a)) return a;
+      }
+    }
+    return null;
+  }
 }

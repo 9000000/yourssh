@@ -85,4 +85,44 @@ void main() {
       expect(svc.isNewerVersion('1.2', '1.2.0'), isFalse);
     });
   });
+
+  group('assetForPlatform', () {
+    final svc = UpdateService();
+    AppRelease release() => AppRelease.fromJson({
+          'tag_name': 'v0.2.0',
+          'assets': [
+            {'name': 'YourSSH-0.2.0-macOS-arm64.dmg', 'browser_download_url': 'u/mac', 'size': 1},
+            {'name': 'YourSSH.Setup.0.2.0-Windows-x64.exe', 'browser_download_url': 'u/winsetup', 'size': 1},
+            {'name': 'YourSSH-0.2.0-Windows-x64.exe', 'browser_download_url': 'u/winportable', 'size': 1},
+            {'name': 'YourSSH.Setup.0.2.0-Windows-arm64.exe', 'browser_download_url': 'u/winarmsetup', 'size': 1},
+            {'name': 'yourssh_0.2.0_amd64.deb', 'browser_download_url': 'u/deb64', 'size': 1},
+            {'name': 'YourSSH-0.2.0-Linux-x86_64.tar.gz', 'browser_download_url': 'u/tgz64', 'size': 1},
+            {'name': 'yourssh_0.2.0_arm64.deb', 'browser_download_url': 'u/debarm', 'size': 1},
+          ],
+        });
+
+    test('macOS arm64 -> dmg', () {
+      expect(svc.assetForPlatform(release(), os: 'macos', arch: 'arm64')!.name,
+          'YourSSH-0.2.0-macOS-arm64.dmg');
+    });
+    test('macOS x64 -> null (no Intel artifact)', () {
+      expect(svc.assetForPlatform(release(), os: 'macos', arch: 'x64'), isNull);
+    });
+    test('Windows x64 prefers Setup installer over portable', () {
+      expect(svc.assetForPlatform(release(), os: 'windows', arch: 'x64')!.name,
+          'YourSSH.Setup.0.2.0-Windows-x64.exe');
+    });
+    test('Windows arm64 -> arm64 Setup', () {
+      expect(svc.assetForPlatform(release(), os: 'windows', arch: 'arm64')!.name,
+          'YourSSH.Setup.0.2.0-Windows-arm64.exe');
+    });
+    test('Linux amd64 prefers .deb over tar.gz', () {
+      expect(svc.assetForPlatform(release(), os: 'linux', arch: 'amd64')!.name,
+          'yourssh_0.2.0_amd64.deb');
+    });
+    test('Linux arm64 -> arm64 .deb', () {
+      expect(svc.assetForPlatform(release(), os: 'linux', arch: 'arm64')!.name,
+          'yourssh_0.2.0_arm64.deb');
+    });
+  });
 }
