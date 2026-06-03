@@ -8,6 +8,8 @@ import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../models/host.dart';
 import '../models/sftp_entry.dart';
+import '../services/external_edit_service.dart';
+import '../services/sftp_file_inspector.dart';
 import '../services/sftp_transfer_service.dart';
 
 class CodeEditorScreen extends StatefulWidget {
@@ -76,6 +78,10 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       _tmpPath = tmpPath;
       final bytes = await File(tmpPath).readAsBytes();
       if (!mounted) return;
+      if (looksBinary(bytes)) {
+        await _offerExternalOpen();
+        return;
+      }
       setState(() => _content = utf8.decode(bytes, allowMalformed: true));
       if (_useWebView) {
         if (_ready) _pushContentToEditor();
@@ -98,6 +104,50 @@ class _CodeEditorScreenState extends State<CodeEditorScreen> {
       );
       Navigator.of(context).pop();
     }
+  }
+
+  /// Shown when downloaded content turns out to be binary: offer to hand the
+  /// file to the OS default app instead, then close the editor either way.
+  Future<void> _offerExternalOpen() async {
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Cannot edit in-app',
+            style: TextStyle(color: Color(0xFFD4D4D4), fontSize: 14)),
+        content: Text(
+          '"${widget.entry.name}" appears to be a binary file.\n'
+          'Open it with an external application instead? Changes saved '
+          'there are uploaded back automatically.',
+          style: const TextStyle(color: Color(0xFF888888), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xFF888888)))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Open externally',
+                  style: TextStyle(color: Color(0xFF22C55E)))),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (open == true) {
+      try {
+        await context
+            .read<ExternalEditService>()
+            .openExternal(widget.host, widget.entry);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Open externally failed: $e'),
+              backgroundColor: Colors.red));
+        }
+      }
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _onJsMessage(JavaScriptMessage msg) {

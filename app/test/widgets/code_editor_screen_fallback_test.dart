@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:yourssh/models/host.dart';
 import 'package:yourssh/models/sftp_entry.dart';
+import 'package:yourssh/services/external_edit_service.dart';
 import 'package:yourssh/services/sftp_transfer_service.dart';
 import 'package:yourssh/services/ssh_service.dart';
 import 'package:yourssh/services/storage_service.dart';
@@ -38,6 +39,17 @@ class FakeTransferService extends SftpTransferService {
       Host host, String localPath, String remotePath) async {
     uploadedRemotePath = remotePath;
     uploadedContent = await File(localPath).readAsString();
+  }
+}
+
+class FakeExternalEditService extends ExternalEditService {
+  FakeExternalEditService(super.transfer);
+
+  final opened = <SftpEntry>[];
+
+  @override
+  Future<void> openExternal(Host host, SftpEntry entry) async {
+    opened.add(entry);
   }
 }
 
@@ -111,5 +123,38 @@ void main() {
     await _pumpUntilFound(tester, find.text('Saved'));
 
     expect(service.uploadedContent, 'keyboard save');
+  });
+
+  testWidgets('binary content offers external open and closes the editor',
+      (tester) async {
+    final service = FakeTransferService(const [0x7f, 0x45, 0x4c, 0x46, 0x00]);
+    final external = FakeExternalEditService(service);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (ctx) => ElevatedButton(
+          onPressed: () => Navigator.push(
+            ctx,
+            MaterialPageRoute(
+              builder: (_) => MultiProvider(
+                providers: [
+                  Provider<SftpTransferService>.value(value: service),
+                  Provider<ExternalEditService>.value(value: external),
+                ],
+                child: CodeEditorScreen(host: _host, entry: _entry),
+              ),
+            ),
+          ),
+          child: const Text('go'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('go'));
+    await _pumpUntilFound(tester, find.text('Open externally'));
+
+    await tester.tap(find.text('Open externally'));
+    await _pumpUntilFound(tester, find.text('go'));
+
+    expect(external.opened, hasLength(1));
+    expect(find.byType(CodeEditorScreen), findsNothing);
   });
 }
