@@ -38,8 +38,22 @@ class PluginContextImpl implements YourSSHPluginContext {
             sessionId: s.id,
             hostLabel: '${s.host.username}@${s.host.host}',
             isConnected: s.status == SessionStatus.connected,
+            isActive: _sessions.activeSession?.id == s.id,
           ))
       .toList();
+
+  @override
+  SSHSessionProxy? get activeSession {
+    final session = _sessions.activeSession;
+    if (session == null) return null;
+
+    return SSHSessionProxy(
+      sessionId: session.id,
+      hostLabel: '${session.host.username}@${session.host.host}',
+      isConnected: session.status == SessionStatus.connected,
+      isActive: true,
+    );
+  }
 
   @override
   Future<String> execCommand(String sessionId, String command) async {
@@ -54,6 +68,19 @@ class PluginContextImpl implements YourSSHPluginContext {
       );
     }
     return result.stdout;
+  }
+
+  @override
+  Future<void> sendInput(String sessionId, String text) async {
+    final session = _sessions.sessions.where((s) => s.id == sessionId).firstOrNull;
+    if (session == null) {
+      throw PluginSSHException('Unknown session: $sessionId');
+    }
+    if (session.status != SessionStatus.connected) {
+      throw PluginSSHException('Session is not connected: $sessionId');
+    }
+
+    _ssh.sendInput(sessionId, text);
   }
 
   @override
