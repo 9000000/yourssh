@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Sudo SFTP (root file transfers)** — each host now has an **SFTP Mode** setting (Default / Sudo (root) / Custom command). In Sudo mode, yourssh starts the remote `sftp-server` through `sudo` over an exec channel (WinSCP-style) instead of the standard SFTP subsystem, so the entire SFTP session — browse, upload, download, rename, delete — runs as root. No more uploading to a temp dir and `sudo cp`-ing into place. It auto-detects the `sftp-server` path across distros (Debian/Ubuntu, RHEL/Fedora, Arch/SUSE), works with `NOPASSWD` sudoers entries, and otherwise prompts for the sudo password (validated separately via `sudo -S -v`, optionally remembered in the system keychain). Custom mode runs any server command verbatim (e.g. `sudo -u deploy …`). Failures surface a clear, actionable error (including a ready-to-paste `NOPASSWD` sudoers line) rather than silently falling back to a non-elevated session. A **root** badge marks elevated SFTP panels; terminal path autocomplete never triggers a sudo prompt.
+
 ---
 
 ## [0.1.19] — 2026-06-03
