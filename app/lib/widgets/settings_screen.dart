@@ -367,7 +367,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case UpdateStatus.downloading:
         return 'Downloading…';
       case UpdateStatus.readyToInstall:
-        return 'Opening installer…';
+        return 'Installer opened — complete it to finish updating';
       case UpdateStatus.error:
         return u.errorMessage ?? 'Could not check for updates';
       case UpdateStatus.idle:

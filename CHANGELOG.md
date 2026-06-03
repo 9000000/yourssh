@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **In-app updates (assisted download)** — yourssh now checks GitHub Releases for a newer stable version on launch (debounced to once per 24h) and on demand via a **Settings → Updates** button. When an update is available, a dismissible banner appears at the top of the app; choosing **Update** downloads the correct artifact for your OS/architecture and hands it to the OS installer (macOS strips the `com.apple.quarantine` flag and opens the DMG; Windows runs the installer `.exe`; Linux opens the `.deb`/`.tar.gz` with the desktop handler). If no artifact matches your platform (e.g. an Intel Mac) or a download/launch fails, it falls back to opening the Releases page in your browser. Because the app is not code-signed, this is an assisted flow — it never silently replaces itself.
+
 ---
 
 ## [0.1.18] — 2026-06-02

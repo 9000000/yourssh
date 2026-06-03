@@ -43,7 +43,11 @@ class UpdateProvider extends ChangeNotifier {
   /// Checks GitHub for a newer stable release. Auto checks (`manual == false`)
   /// are skipped if the last check was under 24h ago; manual checks always run.
   Future<void> checkForUpdates({bool manual = false}) async {
-    if (_status == UpdateStatus.checking) return;
+    if (_status == UpdateStatus.checking ||
+        _status == UpdateStatus.downloading ||
+        _status == UpdateStatus.readyToInstall) {
+      return;
+    }
 
     final prefs = await SharedPreferences.getInstance();
     _dismissedVersion ??= prefs.getString(_dismissedKey);
@@ -125,6 +129,7 @@ class UpdateProvider extends ChangeNotifier {
   }
 
   Future<void> _openReleasePage(AppRelease release) async {
+    if (release.htmlUrl.isEmpty) return;
     final uri = Uri.tryParse(release.htmlUrl);
     if (uri != null) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
