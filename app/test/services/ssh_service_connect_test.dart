@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +6,7 @@ import 'package:yourssh/models/host.dart';
 import 'package:yourssh/models/ssh_key.dart';
 import 'package:yourssh/services/ssh_service.dart';
 import 'package:yourssh/services/storage_service.dart';
+import 'package:yourssh/services/system_agent_proxy.dart';
 
 SshKeyEntry _keyEntry({String? certPath}) => SshKeyEntry(
       label: 'test-key',
@@ -95,6 +97,81 @@ void main() {
       expect(r.error, 'Host unreachable');
       expect(r.latencyMs, 0);
     });
+  });
+
+  // ── connect() — privateKey auth ─────────────────────────────────────────
+  // Unlike certificate, privateKey silently returns empty identities when the
+  // key is missing — identity resolution never throws, so connect() always
+  // reaches the TCP layer (and fails there on an unreachable host).
+
+  group('connect — privateKey auth', () {
+    test('null keyEntry silently skips key — reaches TCP, throws SocketException',
+        () async {
+      final svc = SshService(StorageService());
+      final host = Host(
+        label: 'x',
+        host: '127.0.0.1',
+        port: 1,
+        username: 'u',
+        authType: AuthType.privateKey,
+      );
+
+      // No keyEntry → _resolveIdentities returns empty list without throwing.
+      // connect() proceeds to SSHSocket.connect() → SocketException.
+      await expectLater(
+        svc.connect(host),
+        throwsA(isA<SocketException>()),
+      );
+    });
+
+    test('missing key file silently skips key — reaches TCP, throws SocketException',
+        () async {
+      final svc = SshService(StorageService());
+      final host = Host(
+        label: 'x',
+        host: '127.0.0.1',
+        port: 1,
+        username: 'u',
+        authType: AuthType.privateKey,
+      );
+
+      // File doesn't exist → _resolveIdentities returns empty list without throwing.
+      await expectLater(
+        svc.connect(host, keyEntry: _keyEntry()),
+        throwsA(isA<SocketException>()),
+      );
+    });
+  });
+
+  // ── connect() — agent auth ────────────────────────────────────────────────
+  // _resolveIdentities calls SystemAgentProxy.connect() BEFORE the TCP socket,
+  // so when no SSH agent is running the method throws SSHAgentUnavailableException
+  // before any network I/O.
+
+  group('connect — agent auth', () {
+    test(
+      'no SSH agent → throws SSHAgentUnavailableException before TCP',
+      () async {
+        final svc = SshService(StorageService());
+        final host = Host(
+          label: 'x',
+          host: '127.0.0.1',
+          port: 1,
+          username: 'u',
+          authType: AuthType.agent,
+        );
+
+        await expectLater(
+          svc.connect(host),
+          throwsA(isA<SSHAgentUnavailableException>()),
+        );
+      },
+      // Only run when SSH_AUTH_SOCK is not set; with a live agent the test
+      // would instead try TCP and throw SocketException.
+      skip: Platform.environment.containsKey('SSH_AUTH_SOCK')
+          ? 'SSH_AUTH_SOCK is set — agent is available in this environment'
+          : null,
+    );
   });
 
   // ── State queries and no-op safety ───────────────────────────────────────
