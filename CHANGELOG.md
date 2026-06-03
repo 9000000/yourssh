@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.1.22] — 2026-06-04
+
 ### Fixed
+- **Windows local terminal keyboard input** — typing into the local PowerShell terminal did nothing (the prompt rendered but no keystroke ever reached the shell). Root cause is an upstream `flutter_pty` bug ([TerminalStudio/flutter_pty#19](https://github.com/TerminalStudio/flutter_pty/issues/19)): the Dart side puts the executable at `argv[0]` (Unix convention) and the Windows C side appends *all* arguments to the `CreateProcessW` command line, so the app actually spawned `powershell.exe powershell.exe` — PowerShell parsed the duplicate as `-Command` and ran a nested shell that never received ConPTY input. `flutter_pty` is now vendored as a local fork (`packages/flutter_pty`, `0.4.2+yourssh.1`) with `build_command` fixed to skip `argv[0]`.
+- **Local terminal focus** — the local terminal now autofocuses when opened (matching SSH session tabs) instead of requiring a click before keystrokes register.
 - **SFTP downloads of zero-size / growing files** — the size-bounded download loop exited immediately for files whose stat reports size 0 (procfs, FIFOs), producing empty files, and silently truncated files that grew mid-transfer. Downloads now read to EOF after the stat'd size is consumed, while still bounding in-size reads so servers that answer past-EOF reads with `SSH_FX_FAILURE` finish cleanly (a `FAILURE` after the stat'd size is treated as EOF).
 - **Recursive download of symlinked directories** — `downloadDirectory` used raw lstat attrs while the panel listing resolves symlink targets, so a symlink-to-directory shown as a folder was downloaded as a file (failing with `SSH_FX_FAILURE`). Both paths now share the same symlink resolution.
 - **Windows "Open with" discovery** — the OpenWithList registry query passed `-Ext` after a `-Command` script string, which PowerShell never binds to `param()`; the non-PATH exe scan used the `HKCR:` PSDrive, which does not exist by default in `powershell.exe`. The extension is now validated against a conservative charset (remote filenames are untrusted) and interpolated directly, the registry scan uses the provider-qualified `Registry::HKEY_CLASSES_ROOT` path, single quotes in exe paths are doubled for PS literals, and per-app description lookups run concurrently instead of one PowerShell spawn at a time.
@@ -294,7 +300,8 @@ Initial release of YourSSH — a cross-platform SSH client for macOS, Windows, a
 - **Host management** — CRUD for SSH host profiles with `StorageService`
 - **Known hosts** — TOFU dialog for host-key verification; `KnownHostsProvider`
 
-[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.21...HEAD
+[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.22...HEAD
+[0.1.22]: https://github.com/YoursshLabs/yourssh/compare/v0.1.21...v0.1.22
 [0.1.21]: https://github.com/YoursshLabs/yourssh/compare/v0.1.20...v0.1.21
 [0.1.20]: https://github.com/YoursshLabs/yourssh/compare/v0.1.19...v0.1.20
 [0.1.19]: https://github.com/YoursshLabs/yourssh/compare/v0.1.18...v0.1.19
