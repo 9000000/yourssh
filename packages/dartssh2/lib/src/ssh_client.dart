@@ -577,6 +577,39 @@ class SSHClient {
     );
   }
 
+  /// Like [sftp], but starts the remote SFTP server by executing [command]
+  /// on an exec channel instead of requesting the `sftp` subsystem. This
+  /// allows running the server elevated, e.g.
+  /// `sudo /usr/lib/openssh/sftp-server`.
+  ///
+  /// [stdinPreamble] is written to the channel before the SFTP handshake
+  /// starts — used to feed a password to `sudo -S` style commands. The bytes
+  /// must be fully consumed by [command] before it execs the SFTP server,
+  /// otherwise they will corrupt the protocol stream.
+  Future<SftpClient> sftpOnExec(
+    String command, {
+    Uint8List? stdinPreamble,
+  }) async {
+    await _authenticated.future;
+
+    final channelController = await _openSessionChannel();
+    final success = await channelController.sendExec(command);
+    if (!success) {
+      channelController.close();
+      throw SSHChannelRequestError('Failed to execute sftp server command');
+    }
+
+    if (stdinPreamble != null) {
+      channelController.channel.addData(stdinPreamble);
+    }
+
+    return SftpClient(
+      channelController.channel,
+      printDebug: printDebug,
+      printTrace: printTrace,
+    );
+  }
+
   /// Create a new [SSHHttpClient] that can be used to make HTTP requests
   /// that are tunneled over the SSH connection. The returned [SSHHttpClient]
   /// is a very basic implementation, only intended for making simple requests.
