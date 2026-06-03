@@ -14,17 +14,17 @@ final _file = SftpEntry(
 );
 
 void main() {
-  testWidgets('context menu shows "Open with external app" for files',
-      (tester) async {
-    var externalOpened = false;
+  testWidgets('context menu shows View and Edit for files', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: SftpEntryContextMenu(
           entry: _file,
           onOpen: () {},
+          onView: () {},
+          onEdit: () {},
+          onOpenWith: (_) {},
           onRename: () {},
           onDelete: () {},
-          onOpenExternal: () => externalOpened = true,
           child: const Text('notes.txt'),
         ),
       ),
@@ -33,9 +33,80 @@ void main() {
     await tester.tap(find.text('notes.txt'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Open with external app'), findsOneWidget);
-    await tester.tap(find.text('Open with external app'));
+    expect(find.text('View'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+  });
+
+  testWidgets('context menu shows "Open with" for files', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SftpEntryContextMenu(
+          entry: _file,
+          onOpen: () {},
+          onView: () {},
+          onEdit: () {},
+          onOpenWith: (_) {},
+          onRename: () {},
+          onDelete: () {},
+          child: const Text('notes.txt'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('notes.txt'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
-    expect(externalOpened, isTrue);
+
+    expect(find.text('Open with'), findsOneWidget);
+  });
+
+  testWidgets('tapping View calls onView', (tester) async {
+    var called = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SftpEntryContextMenu(
+          entry: _file,
+          onOpen: () {},
+          onView: () => called = true,
+          onEdit: () {},
+          onOpenWith: (_) {},
+          onRename: () {},
+          onDelete: () {},
+          child: const Text('notes.txt'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('notes.txt'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View'));
+    await tester.pumpAndSettle();
+
+    expect(called, isTrue);
+  });
+
+  testWidgets('tapping "Open with" calls onOpenWith with an Offset',
+      (tester) async {
+    Offset? receivedOffset;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SftpEntryContextMenu(
+          entry: _file,
+          onOpen: () {},
+          onView: () {},
+          onEdit: () {},
+          onOpenWith: (offset) => receivedOffset = offset,
+          onRename: () {},
+          onDelete: () {},
+          child: const Text('notes.txt'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('notes.txt'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open with'));
+    await tester.pumpAndSettle();
+
+    expect(receivedOffset, isNotNull);
   });
 }
