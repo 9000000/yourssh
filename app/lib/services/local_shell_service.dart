@@ -32,11 +32,22 @@ class LocalShellService {
         Pty.start(shell, columns: columns, rows: rows, environment: environment),
       );
 
+  /// Picks the shell executable for the current platform. On Windows `SHELL`
+  /// is never set by the OS (and may point to a unix path under git-bash), so
+  /// ConPTY needs a Windows executable — PowerShell ships with every
+  /// Win10/11 and aliases ls/cat/rm, so it beats cmd.exe as the default.
+  @visibleForTesting
+  static String resolveShell(Map<String, String> env, {required bool isWindows}) {
+    if (isWindows) return 'powershell.exe';
+    return env['SHELL'] ?? '/bin/zsh';
+  }
+
   Future<LocalSession> openShell() async {
     final terminal = Terminal(maxLines: 10000);
     final session = LocalSession(terminal: terminal);
 
-    final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
+    final shell =
+        resolveShell(Platform.environment, isWindows: Platform.isWindows);
 
     try {
       final pty = _ptyFactory(

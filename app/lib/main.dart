@@ -30,6 +30,7 @@ import 'services/recording_service.dart';
 import 'services/tab_metadata_service.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/sudo_password_dialog.dart';
 import 'providers/recording_provider.dart';
 import 'providers/share_provider.dart';
 import 'services/update_service.dart';
@@ -124,6 +125,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
   late final UpdateProvider _updateProvider;
 
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  final _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
@@ -163,6 +165,16 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _knownHostsProvider.load();
     _sessionProvider.hostKeyVerifier = _knownHostsProvider.verifyHostKey;
     _ssh.defaultHostKeyVerifier = _knownHostsProvider.verifyHostKey;
+    // Returns (password, remember); SshService persists it only after it
+    // validates, so a wrong "remembered" password is never stored.
+    _ssh.sudoPasswordPrompt = (host) async {
+      final ctx = _navigatorKey.currentContext;
+      if (ctx == null) return null;
+      return showDialog<({String password, bool remember})>(
+        context: ctx,
+        builder: (_) => SudoPasswordDialog(host: host),
+      );
+    };
     _sessionProvider.onOsDetected = (hostId, os) =>
         _hostProvider.updateDetectedOs(hostId, os);
     _pluginProvider = PluginProvider(plugins: kRegisteredPlugins);
@@ -333,6 +345,7 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
         title: 'YourSSH',
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: _messengerKey,
+        navigatorKey: _navigatorKey,
         theme: buildAppTheme(),
         darkTheme: buildAppTheme(),
         themeMode: ThemeMode.dark,

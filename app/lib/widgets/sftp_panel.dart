@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/host.dart';
 import '../models/sftp_entry.dart';
 import '../providers/sftp_panel_provider.dart';
+import '../services/external_edit_service.dart';
+import '../services/sftp_file_inspector.dart';
 import '../services/sftp_transfer_service.dart';
 import '../services/sftp_file_ops_service.dart';
 import 'code_editor_screen.dart';
@@ -65,17 +67,87 @@ class _SftpPanelState extends State<SftpPanel> {
   void _onEntryTap(SftpEntry entry) {
     if (entry.isDirectory) {
       _loadDirectory(entry.path);
+      return;
+    }
+    final reason = editBlockReason(entry);
+    if (reason != EditBlockReason.none) {
+      _confirmOpenExternal(entry, reason);
     } else {
-      final service = context.read<SftpTransferService>();
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => Provider<SftpTransferService>.value(
-            value: service,
-            child: CodeEditorScreen(host: widget.host!, entry: entry),
-          ),
+      _openEditor(entry);
+    }
+  }
+
+  Future<void> _openEditor(SftpEntry entry) {
+    final service = context.read<SftpTransferService>();
+    final externalEdit = context.read<ExternalEditService>();
+    return Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MultiProvider(
+          providers: [
+            Provider<SftpTransferService>.value(value: service),
+            Provider<ExternalEditService>.value(value: externalEdit),
+          ],
+          child: CodeEditorScreen(host: widget.host!, entry: entry),
         ),
-      );
+      ),
+    );
+  }
+
+  /// File failed the pre-download check (binary extension / too large):
+  /// offer to open it with the OS default application instead.
+  Future<void> _confirmOpenExternal(
+      SftpEntry entry, EditBlockReason reason) async {
+    final why = switch (reason) {
+      EditBlockReason.binaryExtension => 'This looks like a binary file.',
+      EditBlockReason.tooLarge =>
+        'This file is too large for the in-app editor.',
+      EditBlockReason.none => '',
+    };
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Cannot edit in-app',
+            style: TextStyle(color: Color(0xFFD4D4D4), fontSize: 14)),
+        content: Text(
+          '$why\nOpen "${entry.name}" with an external application instead? '
+          'Changes saved there are uploaded back automatically.',
+          style: const TextStyle(color: Color(0xFF888888), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xFF888888)))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Open externally',
+                  style: TextStyle(color: Color(0xFF22C55E)))),
+        ],
+      ),
+    );
+    if (open == true && mounted) await _openExternal(entry);
+  }
+
+  Future<void> _openExternal(SftpEntry entry) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final service = context.read<ExternalEditService>();
+    service.onUploaded = (name) => messenger.showSnackBar(SnackBar(
+        content: Text('Uploaded $name to server'),
+        duration: const Duration(seconds: 2)));
+    service.onUploadError = (name, e) => messenger.showSnackBar(SnackBar(
+        content: Text('Upload of $name failed: $e'),
+        backgroundColor: const Color(0xFF2A1A1A)));
+    try {
+      await service.openExternal(widget.host!, entry);
+      messenger.showSnackBar(SnackBar(
+          content: Text('Opened ${entry.name} — watching for changes'),
+          duration: const Duration(seconds: 2)));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+          content: Text('Open externally failed: $e'),
+          backgroundColor: const Color(0xFF2A1A1A)));
     }
   }
 
@@ -185,6 +257,26 @@ class _SftpPanelState extends State<SftpPanel> {
               ),
             ),
           ),
+          if (widget.host!.sftpMode != SftpMode.normal) ...[
+            const SizedBox(width: 4),
+            Tooltip(
+              message: 'SFTP runs elevated on this host',
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: const Text('root',
+                    style: TextStyle(
+                        color: Color(0xFFEF4444),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace')),
+              ),
+            ),
+          ],
           const SizedBox(width: 4),
           Expanded(
             child: Text(prov.currentPath,
@@ -267,6 +359,7 @@ class _SftpPanelState extends State<SftpPanel> {
       entry: entry,
       onOpen: () => _onEntryTap(entry),
       onEdit: entry.isDirectory ? null : () => _onEntryTap(entry),
+      onOpenExternal: entry.isDirectory ? null : () => _openExternal(entry),
       onRename: () => _showRenameDialog(prov, entry),
       onDelete: () => _showDeleteConfirm(prov, [entry]),
       child: Draggable<SftpEntry>(
@@ -407,16 +500,7 @@ class _SftpPanelState extends State<SftpPanel> {
         modifiedAt: DateTime.now(),
       );
       if (!mounted) return;
-      final service = context.read<SftpTransferService>();
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => Provider<SftpTransferService>.value(
-            value: service,
-            child: CodeEditorScreen(host: widget.host!, entry: entry),
-          ),
-        ),
-      );
+      await _openEditor(entry);
       if (mounted) _loadDirectory(prov.currentPath);
     } catch (e) {
       if (mounted) {

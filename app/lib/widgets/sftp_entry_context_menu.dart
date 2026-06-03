@@ -8,6 +8,7 @@ class SftpEntryContextMenu extends StatelessWidget {
   final Widget child;
   final VoidCallback onOpen;
   final VoidCallback? onEdit;
+  final VoidCallback? onOpenExternal;
   final VoidCallback onRename;
   final VoidCallback onDelete;
 
@@ -17,6 +18,7 @@ class SftpEntryContextMenu extends StatelessWidget {
     required this.child,
     required this.onOpen,
     this.onEdit,
+    this.onOpenExternal,
     required this.onRename,
     required this.onDelete,
   });
@@ -49,6 +51,9 @@ class SftpEntryContextMenu extends StatelessWidget {
         if (!entry.isDirectory && onEdit != null)
           const PopupMenuItem(value: _Action.edit, height: 34,
               child: _Item(icon: Icons.edit_outlined, label: 'Edit')),
+        if (!entry.isDirectory && onOpenExternal != null)
+          const PopupMenuItem(value: _Action.openExternal, height: 34,
+              child: _Item(icon: Icons.launch, label: 'Open with external app')),
         const PopupMenuDivider(height: 1),
         const PopupMenuItem(value: _Action.rename, height: 34,
             child: _Item(icon: Icons.drive_file_rename_outline, label: 'Rename')),
@@ -63,6 +68,7 @@ class SftpEntryContextMenu extends StatelessWidget {
       switch (a) {
         case _Action.open: onOpen();
         case _Action.edit: onEdit?.call();
+        case _Action.openExternal: onOpenExternal?.call();
         case _Action.rename: onRename();
         case _Action.delete: onDelete();
         case _Action.copyPath: Clipboard.setData(ClipboardData(text: entry.path));
@@ -71,7 +77,7 @@ class SftpEntryContextMenu extends StatelessWidget {
   }
 }
 
-enum _Action { open, edit, rename, delete, copyPath }
+enum _Action { open, edit, openExternal, rename, delete, copyPath }
 
 class _Item extends StatelessWidget {
   final IconData icon;
@@ -85,7 +91,11 @@ class _Item extends StatelessWidget {
     return Row(children: [
       Icon(icon, size: 14, color: color),
       const SizedBox(width: 8),
-      Text(label, style: TextStyle(color: color, fontSize: 13)),
+      Flexible(
+        child: Text(label,
+            style: TextStyle(color: color, fontSize: 13),
+            overflow: TextOverflow.ellipsis),
+      ),
     ]);
   }
 }

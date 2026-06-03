@@ -12,6 +12,7 @@ import 'certificate_key_pair.dart';
 import 'notification_service.dart';
 import 'recording_service.dart';
 import 'storage_service.dart';
+import 'sudo_sftp.dart';
 import 'system_agent_proxy.dart';
 
 class SshService {
@@ -38,6 +39,13 @@ class SshService {
   /// without this, auto-connect throws to prevent silent TOFU bypass.
   Future<bool> Function(String host, int port, String keyType, Uint8List fp)?
       defaultHostKeyVerifier;
+
+  /// Prompts the user for a sudo password (elevated SFTP). Set from
+  /// main.dart; returning null cancels the elevated SFTP attempt. The
+  /// password is persisted (when `remember` is set) only after it validates —
+  /// see [_openElevatedSftp].
+  Future<({String password, bool remember})?> Function(Host host)?
+      sudoPasswordPrompt;
 
   SshService(this._storage, {this.hookBus, this.shellIntegration});
 
@@ -518,13 +526,146 @@ class SshService {
 
   // ── SFTP ───────────────────────────────────────────────
 
-  Future<SftpClient> openSftp(Host host) async {
+  Future<SftpClient> openSftp(Host host, {bool interactive = true}) async {
     final client = await _ensureClient(host);
-    return client.sftp();
+    if (host.sftpMode == SftpMode.normal) return client.sftp();
+    return _openElevatedSftp(client, host, interactive: interactive);
+  }
+
+  /// Elevated SFTP (sudo / custom command). Probe and validation execs talk
+  /// to the SSHClient directly — they intentionally bypass the plugin
+  /// HookBus, and the sudo password only ever travels via stdin.
+  Future<SftpClient> _openElevatedSftp(
+    SSHClient client,
+    Host host, {
+    required bool interactive,
+  }) async {
+    // Persisted only after the orchestrator confirms the password validated.
+    String? validatedToPersist;
+    final probeCommand = buildPathProbeCommand();
+    final orchestrator = SudoSftpOrchestrator<SftpClient>(
+      runExec: (cmd) async {
+        // The sftp-server path is static for a host; cache the probe result so
+        // every file op / transfer doesn't pay an extra round-trip for it.
+        if (cmd == probeCommand) {
+          final cached = _sudoServerPath[host.id];
+          if (cached != null) {
+            return (stdout: cached, stderr: '', exitCode: 0);
+          }
+        }
+        try {
+          final r = await client
+              .runWithResult(cmd)
+              .timeout(const Duration(seconds: 15));
+          final out = utf8.decode(r.stdout, allowMalformed: true);
+          final result = (
+            stdout: out,
+            stderr: utf8.decode(r.stderr, allowMalformed: true),
+            exitCode: r.exitCode ?? -1,
+          );
+          if (cmd == probeCommand && result.exitCode == 0) {
+            final p = out.trim();
+            if (p.isNotEmpty) _sudoServerPath[host.id] = p;
+          }
+          return result;
+        } on TimeoutException {
+          throw SudoSftpException(SudoSftpFailureReason.handshakeFailed,
+              detail: 'Timed out running: $cmd');
+        }
+      },
+      runExecWithStdin: (cmd, stdinData) async {
+        final session = await client.execute(cmd);
+        final stderrBuf = StringBuffer();
+        final stdoutDone = Completer<void>();
+        final stderrDone = Completer<void>();
+        session.stdout.listen((_) {},
+            onDone: stdoutDone.complete,
+            onError: (_) => stdoutDone.complete());
+        session.stderr.cast<List<int>>().listen(
+            (d) => stderrBuf.write(utf8.decode(d, allowMalformed: true)),
+            onDone: stderrDone.complete,
+            onError: (_) => stderrDone.complete());
+        session.stdin.add(Uint8List.fromList(stdinData));
+        await session.stdin.close(); // EOF: a wrong password fails fast
+        try {
+          await Future.wait(
+                  [stdoutDone.future, stderrDone.future, session.done])
+              .timeout(const Duration(seconds: 15));
+        } on TimeoutException {
+          session.close();
+          throw SudoSftpException(SudoSftpFailureReason.handshakeFailed,
+              detail:
+                  'sudo validation timed out (check requiretty / PAM): $cmd');
+        }
+        return (stderr: stderrBuf.toString(), exitCode: session.exitCode ?? -1);
+      },
+      openSftpExec: (cmd, {stdinPreamble}) async {
+        final sftp = await client.sftpOnExec(cmd, stdinPreamble: stdinPreamble);
+        try {
+          await sftp.handshake.timeout(const Duration(seconds: 15));
+        } catch (_) {
+          sftp.close();
+          rethrow;
+        }
+        return sftp;
+      },
+    );
+    final sftp = await orchestrator.openForHost(
+      host,
+      interactive: interactive,
+      getPassword: ({required bool interactive, required int attempt}) async {
+        final r = await _sudoPasswordFor(host,
+            interactive: interactive, attempt: attempt);
+        if (r == null) return null;
+        // A prompted password with "remember" is only persisted below, after
+        // openForHost confirms it validated — never speculatively.
+        if (r.persist) validatedToPersist = r.password;
+        return r.password;
+      },
+    );
+    if (validatedToPersist != null) {
+      try {
+        await _storage.saveSudoPassword(host.id, validatedToPersist!);
+      } catch (_) {
+        // Keychain unavailable — the password still works for this session.
+      }
+    }
+    return sftp;
+  }
+
+  /// Candidate chain: stored sudopw secret → login password (password auth)
+  /// → interactive prompt. The explicitly-saved sudo password wins over the
+  /// login-password heuristic. `persist` is true only for a prompted password
+  /// the user asked to remember; the caller persists it after it validates.
+  /// attempt 1 (wrong password) skips straight to the prompt so the bad stored
+  /// candidate isn't reused.
+  Future<({String password, bool persist})?> _sudoPasswordFor(
+    Host host, {
+    required bool interactive,
+    required int attempt,
+  }) async {
+    if (attempt == 0) {
+      final stored = await _storage.loadSudoPassword(host.id);
+      if (stored != null && stored.isNotEmpty) {
+        return (password: stored, persist: false);
+      }
+      if (host.authType == AuthType.password) {
+        final pw = await _storage.loadPassword(host.id);
+        if (pw != null && pw.isNotEmpty) return (password: pw, persist: false);
+      }
+    }
+    if (!interactive) return null;
+    final prompted = await sudoPasswordPrompt?.call(host);
+    if (prompted == null) return null;
+    return (password: prompted.password, persist: prompted.remember);
   }
 
   // Cached SFTP client per host, reused for path autocomplete listings.
   final Map<String, SftpClient> _completionSftp = {};
+
+  // Cached sftp-server path per host (elevated SFTP), so each operation skips
+  // re-probing. Cleared on disconnect.
+  final Map<String, String> _sudoServerPath = {};
 
   /// List a remote directory for path autocomplete. Reuses a cached SFTP
   /// client per host. Returns entry names (directories carry a trailing '/').
@@ -532,7 +673,8 @@ class SshService {
   /// client so a later call can reopen it (self-heals after reconnect).
   Future<List<String>> listDirectory(Host host, String path) async {
     try {
-      final sftp = _completionSftp[host.id] ??= await openSftp(host);
+      final sftp =
+          _completionSftp[host.id] ??= await openSftp(host, interactive: false);
       final items = await sftp.listdir(path.isEmpty ? '.' : path);
       return items
           .map((e) => e.filename + (e.attr.isDirectory ? '/' : ''))
@@ -575,6 +717,7 @@ class SshService {
     // The SFTP completion client rides the SSHClient just closed; drop it so a
     // reconnect opens a fresh one instead of reusing the dead channel.
     _completionSftp.remove(hostId);
+    _sudoServerPath.remove(hostId);
     unawaited(_agentProxies[hostId]?.close() ?? Future.value());
     _agentProxies.remove(hostId);
 

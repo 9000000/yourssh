@@ -45,6 +45,25 @@ void main() {
     });
   });
 
+  group('SSHClient.sftpOnExec', () {
+    test('speaks sftp over an exec channel', skip:
+        'Needs an OpenSSH server with a shell to exec sftp-server; the '
+        'configured integration host is subsystem-only. Covered offline by '
+        'sftp_client_protocol_test.dart "SftpClient on exec channel".',
+        () async {
+      // Shell fallback chain covers Debian/RHEL/Arch binary locations.
+      final sftp = await client.sftpOnExec(
+        '/usr/lib/openssh/sftp-server'
+        ' || /usr/libexec/openssh/sftp-server'
+        ' || /usr/lib/ssh/sftp-server',
+      );
+
+      final items = await sftp.listdir('/');
+
+      expect(items, isNotEmpty);
+    });
+  });
+
   group('SftpClient.download', () {
     test('downloads a remote file to local sink', () async {
       final sftp = await client.sftp();

@@ -9,6 +9,7 @@ import '../providers/host_provider.dart';
 import '../providers/local_file_panel_provider.dart';
 import '../providers/sftp_panel_provider.dart';
 import '../providers/sftp_transfer_provider.dart';
+import '../services/external_edit_service.dart';
 import '../services/sftp_file_ops_service.dart';
 import '../services/sftp_transfer_service.dart';
 import '../services/ssh_service.dart';
@@ -281,6 +282,11 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
       providers: [
         Provider(create: (ctx) => SftpTransferService(ctx.read<SshService>())),
         Provider(create: (ctx) => SftpFileOpsService(ctx.read<SshService>())),
+        Provider(
+          create: (ctx) =>
+              ExternalEditService(ctx.read<SftpTransferService>()),
+          dispose: (_, ExternalEditService s) => s.dispose(),
+        ),
         ChangeNotifierProvider.value(value: _transferProvider),
       ],
       child: ListenableBuilder(

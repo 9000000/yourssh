@@ -106,4 +106,37 @@ void main() {
       expect(session.errorMessage, contains('pty unavailable'));
     });
   });
+
+  group('resolveShell', () {
+    test('windows: defaults to powershell.exe, never a unix shell', () {
+      expect(
+        LocalShellService.resolveShell({}, isWindows: true),
+        'powershell.exe',
+      );
+    });
+
+    test('windows: ignores SHELL even if set (e.g. by git-bash)', () {
+      expect(
+        LocalShellService.resolveShell(
+          {'SHELL': '/usr/bin/bash'},
+          isWindows: true,
+        ),
+        'powershell.exe',
+      );
+    });
+
+    test('unix: uses SHELL when set', () {
+      expect(
+        LocalShellService.resolveShell({'SHELL': '/bin/bash'}, isWindows: false),
+        '/bin/bash',
+      );
+    });
+
+    test('unix: falls back to /bin/zsh', () {
+      expect(
+        LocalShellService.resolveShell({}, isWindows: false),
+        '/bin/zsh',
+      );
+    });
+  });
 }

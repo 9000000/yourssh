@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -32,7 +33,20 @@ class SftpClient {
 
   SftpClient(this._channel, {this.printDebug, this.printTrace}) {
     _startHandshake();
-    _channel.stream.listen(_handleData);
+    _channel.stream.listen(
+      _handleData,
+      onDone: () {
+        if (!_handshake.isCompleted) {
+          _handshake.completeError(
+            SftpError('Channel closed before SFTP handshake'),
+            StackTrace.current,
+          );
+          // Don't surface as an unhandled async error when nobody awaits
+          // [handshake] — real awaiters still receive the error.
+          _handshake.future.ignore();
+        }
+      },
+    );
   }
 
   final _buffer = ChunkBuffer();
@@ -210,7 +224,11 @@ class SftpClient {
       waiter.completeError(SftpAbortError("Connection closed"));
     }
     _replyWaiters.clear();
-    _done.complete();
+    if (!_done.isCompleted) _done.complete();
+    // Release the underlying channel — otherwise it lingers until the whole
+    // SSHClient disconnects. Fire-and-forget; ignore errors from an already
+    // torn-down channel (e.g. close() called after the peer closed it).
+    _channel.close().ignore();
   }
 
   void _closeError(Object error, [StackTrace? stackTrace]) {
@@ -452,6 +470,14 @@ class SftpClient {
   }
 
   void _handleData(SSHChannelData data) {
+    if (data.isExtendedData) {
+      // Stderr from an exec-started server (e.g. sudo diagnostics) is not
+      // SFTP protocol data — buffering it would corrupt packet framing.
+      printDebug?.call(
+        'SftpClient: stderr: ${utf8.decode(data.bytes, allowMalformed: true)}',
+      );
+      return;
+    }
     _buffer.add(data.bytes);
     _handlePackets();
   }
