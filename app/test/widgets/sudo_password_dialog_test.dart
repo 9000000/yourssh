@@ -1,0 +1,70 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:yourssh/models/host.dart';
+import 'package:yourssh/widgets/sudo_password_dialog.dart';
+
+/// Holder so tests can observe the dialog result after it pops.
+class _Result {
+  ({String password, bool remember})? value;
+  bool popped = false;
+}
+
+void main() {
+  final host = Host(label: 'srv', host: '1.2.3.4', username: 'deploy');
+
+  Future<_Result> pumpAndOpen(WidgetTester tester) async {
+    final result = _Result();
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () async {
+            result.value =
+                await showDialog<({String password, bool remember})>(
+              context: context,
+              builder: (_) => SudoPasswordDialog(host: host),
+            );
+            result.popped = true;
+          },
+          child: const Text('open'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(result.popped, isFalse); // dialog is showing
+    return result;
+  }
+
+  testWidgets('submits password and remember flag', (tester) async {
+    final result = await pumpAndOpen(tester);
+
+    await tester.enterText(find.byType(TextField), 's3cret');
+    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(result.popped, isTrue);
+    expect(result.value, (password: 's3cret', remember: true));
+  });
+
+  testWidgets('OK with empty password does not pop', (tester) async {
+    final result = await pumpAndOpen(tester);
+
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(result.popped, isFalse);
+    expect(find.byType(SudoPasswordDialog), findsOneWidget);
+  });
+
+  testWidgets('cancel returns null', (tester) async {
+    final result = await pumpAndOpen(tester);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(result.popped, isTrue);
+    expect(result.value, isNull);
+    expect(find.byType(SudoPasswordDialog), findsNothing);
+  });
+}
