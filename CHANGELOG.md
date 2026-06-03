@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **SFTP downloads of zero-size / growing files** — the size-bounded download loop exited immediately for files whose stat reports size 0 (procfs, FIFOs), producing empty files, and silently truncated files that grew mid-transfer. Downloads now read to EOF after the stat'd size is consumed, while still bounding in-size reads so servers that answer past-EOF reads with `SSH_FX_FAILURE` finish cleanly (a `FAILURE` after the stat'd size is treated as EOF).
+- **Recursive download of symlinked directories** — `downloadDirectory` used raw lstat attrs while the panel listing resolves symlink targets, so a symlink-to-directory shown as a folder was downloaded as a file (failing with `SSH_FX_FAILURE`). Both paths now share the same symlink resolution.
+- **Windows "Open with" discovery** — the OpenWithList registry query passed `-Ext` after a `-Command` script string, which PowerShell never binds to `param()`; the non-PATH exe scan used the `HKCR:` PSDrive, which does not exist by default in `powershell.exe`. The extension is now validated against a conservative charset (remote filenames are untrusted) and interpolated directly, the registry scan uses the provider-qualified `Registry::HKEY_CLASSES_ROOT` path, single quotes in exe paths are doubled for PS literals, and per-app description lookups run concurrently instead of one PowerShell spawn at a time.
+- **Snippet "Sent" feedback for dead shells** — `SshService.sendInput` silently no-op'd when the session's shell was already gone, so snippets and plugins showed success for input that never reached the server. It now reports the failure (`PluginSSHException: Session has no open shell`).
+
+### Changed
+- **Linux app discovery** — `.desktop` files are read with async I/O instead of `readAsLinesSync` on the UI isolate.
+- **Snippet search** — the label/command/tag filter is now a single shared helper (`filterSnippets`) used by both the Snippets screen and the terminal snippets panel.
+- **External-edit upload toasts (SFTP)** — upload callbacks are wired once per panel and resolve the messenger at fire time, instead of capturing it per open (the mtime watcher fires long after the triggering open).
+- **Injection gate** — sentinel scans resume from the previous buffer tail instead of rescanning the whole held buffer on every output chunk.
+
 ---
 
 ## [0.1.21] — 2026-06-03
