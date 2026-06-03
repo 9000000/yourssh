@@ -223,7 +223,11 @@ class SftpClient {
       waiter.completeError(SftpAbortError("Connection closed"));
     }
     _replyWaiters.clear();
-    _done.complete();
+    if (!_done.isCompleted) _done.complete();
+    // Release the underlying channel — otherwise it lingers until the whole
+    // SSHClient disconnects. Fire-and-forget; ignore errors from an already
+    // torn-down channel (e.g. close() called after the peer closed it).
+    _channel.close().ignore();
   }
 
   void _closeError(Object error, [StackTrace? stackTrace]) {
