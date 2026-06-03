@@ -535,6 +535,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               _nav = NavSection.settings;
               _viewingTerminal = false;
               _showAiChat = false;
+              _sftpConnectionNotifier.value = false;
             }),
           ),
 
