@@ -19,7 +19,8 @@ void main() {
     );
     expect(apps.map((a) => a.name), contains('Text Editor'));
     expect(apps.map((a) => a.name), isNot(contains('Image Viewer')));
-    expect(apps.first.isDefault, isTrue);
+    final gedit = apps.firstWhere((a) => a.name == 'Text Editor');
+    expect(gedit.isDefault, isTrue);
   });
 
   test('parseDesktopFiles strips Exec placeholders', () {
@@ -40,6 +41,17 @@ void main() {
       defaultDesktopFile: '',
     );
     expect(apps, isEmpty);
+  });
+
+  test('%% in Exec is preserved as literal % and does not strip app name', () {
+    final apps = AppDiscoveryService.parseDesktopFiles(
+      files: fixtureDir.listSync().whereType<File>().toList(),
+      mimeType: 'text/plain',
+      defaultDesktopFile: '',
+    );
+    final vim = apps.firstWhere((a) => a.name.contains('Vim'));
+    expect(vim.executablePath, 'vim');
+    expect(vim.executablePath, isNot(contains('%')));
   });
 
   test('parseDesktopFiles ignores malformed desktop files gracefully', () {

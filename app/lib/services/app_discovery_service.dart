@@ -119,9 +119,14 @@ class AppDiscoveryService {
           continue;
         }
 
-        // Strip Exec placeholders (%f, %F, %u, %U, %i, %c, %k)
-        final cleanExec =
-            exec.replaceAll(RegExp(r'\s*%[fFuUick]\s*'), '').trim();
+        // Strip all XDG Exec field code placeholders (%f, %F, %u, %U, %d,
+        // %D, %n, %N, %i, %c, %k, %v, %m) per the Desktop Entry spec.
+        // Replace %% with a literal percent sign.
+        final cleanExec = exec
+            .replaceAll('%%', '\x00') // protect literal % temporarily
+            .replaceAll(RegExp(r'\s*%[a-zA-Z]\s*'), '')
+            .replaceAll('\x00', '%')
+            .trim();
         final execBin = cleanExec.split(' ').first;
 
         result.add(AppOption(
@@ -139,17 +144,24 @@ class AppDiscoveryService {
   // ── Windows ───────────────────────────────────────────────────────────────
 
   static Future<List<AppOption>> _queryWindows(String filePath) async {
-    final ext = p.extension(filePath); // e.g. ".txt"
-    final psScript = '''
-\$ext = '$ext';
-\$key = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\\$ext\\OpenWithList";
-\$props = Get-ItemProperty \$key -ErrorAction SilentlyContinue;
-if (\$props -eq \$null) { exit 0 }
-\$props.PSObject.Properties | Where-Object { \$_.Name -match '^[a-zA-Z]\$' } | ForEach-Object { \$_.Value }
+    final ext = p.extension(filePath).toLowerCase(); // e.g. ".txt"
+    if (ext.isEmpty) return [];
+
+    // Query user OpenWithList (single-letter keys a, b, c… hold exe names)
+    // then resolve each exe name to a full path via the ftype command.
+    // This two-step approach handles apps not in PATH (most GUI apps).
+    final psScript = r'''
+param([string]$Ext)
+$key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$Ext\OpenWithList"
+$props = Get-ItemProperty $key -ErrorAction SilentlyContinue
+if ($props -eq $null) { exit 0 }
+$props.PSObject.Properties |
+  Where-Object { $_.Name -match '^[a-zA-Z]$' } |
+  ForEach-Object { $_.Value }
 ''';
     final result = await Process.run(
       'powershell',
-      ['-NoProfile', '-NonInteractive', '-Command', psScript],
+      ['-NoProfile', '-NonInteractive', '-Command', psScript, '-Ext', ext],
     );
     if (result.exitCode != 0) return _queryWindowsFallback(ext);
 
@@ -157,30 +169,56 @@ if (\$props -eq \$null) { exit 0 }
         .split('\n')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty && s.toLowerCase().endsWith('.exe'))
+        .toSet() // dedup
         .toList();
 
     if (exeNames.isEmpty) return _queryWindowsFallback(ext);
 
     final apps = <AppOption>[];
     for (final exeName in exeNames) {
-      final whereResult =
-          await Process.run('where', [exeName], runInShell: true);
-      final path =
-          (whereResult.stdout as String).split('\n').first.trim();
-      if (path.isEmpty || !File(path).existsSync()) continue;
+      // Try PATH first, then HKCR ftype for apps not in PATH.
+      String? exePath = await _resolveWindowsExe(exeName);
+      if (exePath == null) continue;
 
       final descScript =
-          '[System.Diagnostics.FileVersionInfo]::GetVersionInfo("$path").FileDescription';
+          '[System.Diagnostics.FileVersionInfo]::GetVersionInfo(\'$exePath\').FileDescription';
       final descResult = await Process.run(
           'powershell', ['-NoProfile', '-Command', descScript]);
       final desc = (descResult.stdout as String).trim();
       apps.add(AppOption(
-        name: desc.isNotEmpty ? desc : exeName.replaceAll('.exe', ''),
-        executablePath: path,
+        name: desc.isNotEmpty ? desc : exeName.replaceFirst('.exe', ''),
+        executablePath: exePath,
         isDefault: false,
       ));
     }
     return apps;
+  }
+
+  /// Resolves an exe filename (e.g. "notepad.exe") to a full path.
+  /// Tries PATH lookup first, then scans HKCR for a matching open command.
+  static Future<String?> _resolveWindowsExe(String exeName) async {
+    // 1. Try where.exe (finds apps in PATH)
+    final whereResult =
+        await Process.run('where', [exeName], runInShell: true);
+    if (whereResult.exitCode == 0) {
+      final path = (whereResult.stdout as String).split('\n').first.trim();
+      if (path.isNotEmpty && File(path).existsSync()) return path;
+    }
+    // 2. Scan HKCR open commands for matching exe name
+    final psScript =
+        r'Get-ChildItem "HKCR:\*\shell\open\command" -ErrorAction SilentlyContinue | ' +
+        'ForEach-Object { (Get-ItemProperty \$_.PsPath)."(default)" } | ' +
+        'Where-Object { \$_ -like "*${exeName.replaceAll(r'\', r'\\')}*" } | ' +
+        'Select-Object -First 1';
+    final regResult = await Process.run(
+        'powershell', ['-NoProfile', '-Command', psScript]);
+    if (regResult.exitCode != 0) return null;
+    final cmd = (regResult.stdout as String).trim();
+    // Extract quoted path from e.g. '"C:\Program Files\Notepad++\notepad++.exe" "%1"'
+    final match = RegExp(r'"([^"]+\.exe)"').firstMatch(cmd);
+    final path = match?.group(1);
+    if (path != null && File(path).existsSync()) return path;
+    return null;
   }
 
   // Fallback: read the default handler via `assoc` + `ftype`
