@@ -12,6 +12,7 @@ import 'certificate_key_pair.dart';
 import 'notification_service.dart';
 import 'recording_service.dart';
 import 'storage_service.dart';
+import 'sudo_sftp.dart';
 import 'system_agent_proxy.dart';
 
 class SshService {
@@ -38,6 +39,10 @@ class SshService {
   /// without this, auto-connect throws to prevent silent TOFU bypass.
   Future<bool> Function(String host, int port, String keyType, Uint8List fp)?
       defaultHostKeyVerifier;
+
+  /// Prompts the user for a sudo password (elevated SFTP). Set from
+  /// main.dart; returning null cancels the elevated SFTP attempt.
+  Future<String?> Function(Host host)? sudoPasswordPrompt;
 
   SshService(this._storage, {this.hookBus, this.shellIntegration});
 
@@ -518,9 +523,77 @@ class SshService {
 
   // ── SFTP ───────────────────────────────────────────────
 
-  Future<SftpClient> openSftp(Host host) async {
+  Future<SftpClient> openSftp(Host host, {bool interactive = true}) async {
     final client = await _ensureClient(host);
-    return client.sftp();
+    if (host.sftpMode == SftpMode.normal) return client.sftp();
+    return _openElevatedSftp(client, host, interactive: interactive);
+  }
+
+  /// Elevated SFTP (sudo / custom command). Probe and validation execs talk
+  /// to the SSHClient directly — they intentionally bypass the plugin
+  /// HookBus, and the sudo password only ever travels via stdin.
+  Future<SftpClient> _openElevatedSftp(
+    SSHClient client,
+    Host host, {
+    required bool interactive,
+  }) {
+    final orchestrator = SudoSftpOrchestrator<SftpClient>(
+      runExec: (cmd) async {
+        final r = await client.runWithResult(cmd);
+        return (
+          stdout: String.fromCharCodes(r.stdout),
+          stderr: String.fromCharCodes(r.stderr),
+          exitCode: r.exitCode ?? -1,
+        );
+      },
+      runExecWithStdin: (cmd, stdinData) async {
+        final session = await client.execute(cmd);
+        final stderrBuf = StringBuffer();
+        session.stderr.cast<List<int>>().listen(
+            (d) => stderrBuf.write(utf8.decode(d, allowMalformed: true)));
+        session.stdout.listen((_) {}); // drain
+        session.stdin.add(Uint8List.fromList(stdinData));
+        await session.stdin.close(); // EOF: a wrong password fails fast
+        await session.done;
+        return (stderr: stderrBuf.toString(), exitCode: session.exitCode ?? -1);
+      },
+      openSftpExec: (cmd, {stdinPreamble}) async {
+        final sftp = await client.sftpOnExec(cmd, stdinPreamble: stdinPreamble);
+        try {
+          await sftp.handshake.timeout(const Duration(seconds: 15));
+        } catch (_) {
+          sftp.close();
+          rethrow;
+        }
+        return sftp;
+      },
+    );
+    return orchestrator.openForHost(
+      host,
+      interactive: interactive,
+      getPassword: ({required bool interactive, required int attempt}) =>
+          _sudoPasswordFor(host, interactive: interactive, attempt: attempt),
+    );
+  }
+
+  /// Candidate chain: login password (password auth) → stored sudopw secret
+  /// → interactive prompt. attempt 1 (wrong password) skips straight to the
+  /// prompt so the bad stored candidate isn't reused.
+  Future<String?> _sudoPasswordFor(
+    Host host, {
+    required bool interactive,
+    required int attempt,
+  }) async {
+    if (attempt == 0) {
+      if (host.authType == AuthType.password) {
+        final pw = await _storage.loadPassword(host.id);
+        if (pw != null && pw.isNotEmpty) return pw;
+      }
+      final stored = await _storage.loadSudoPassword(host.id);
+      if (stored != null && stored.isNotEmpty) return stored;
+    }
+    if (!interactive) return null;
+    return sudoPasswordPrompt?.call(host);
   }
 
   // Cached SFTP client per host, reused for path autocomplete listings.
@@ -532,7 +605,8 @@ class SshService {
   /// client so a later call can reopen it (self-heals after reconnect).
   Future<List<String>> listDirectory(Host host, String path) async {
     try {
-      final sftp = _completionSftp[host.id] ??= await openSftp(host);
+      final sftp =
+          _completionSftp[host.id] ??= await openSftp(host, interactive: false);
       final items = await sftp.listdir(path.isEmpty ? '.' : path);
       return items
           .map((e) => e.filename + (e.attr.isDirectory ? '/' : ''))
