@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:yourssh/models/app_release.dart';
@@ -15,10 +16,15 @@ class UpdateException implements Exception {
 
 /// Network + platform glue for the in-app update flow.
 class UpdateService {
-  UpdateService({http.Client? client, this.repo = 'YoursshLabs/yourssh'})
-      : _client = client ?? http.Client();
+  UpdateService({
+    http.Client? client,
+    this.repo = 'YoursshLabs/yourssh',
+    Directory? downloadDir,
+  })  : _client = client ?? http.Client(),
+        _downloadDir = downloadDir;
 
   final http.Client _client;
+  final Directory? _downloadDir;
   final String repo;
 
   static final RegExp _versionSuffix = RegExp(r'[-+]');
@@ -171,12 +177,12 @@ class UpdateService {
     ReleaseAsset asset, {
     required void Function(double) onProgress,
   }) async {
-    // Enforce HTTPS to prevent URL-downgrade / MITM attacks.
+    // Enforce HTTPS: check the parsed scheme, not a string prefix.
     final rawUrl = asset.downloadUrl;
-    if (!rawUrl.startsWith('https://')) {
+    if (Uri.parse(rawUrl).scheme != 'https') {
       throw UpdateException('Download URL must use HTTPS: $rawUrl');
     }
-    final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
+    final dir = _downloadDir ?? await getDownloadsDirectory() ?? await getTemporaryDirectory();
     final file = File('${dir.path}/${asset.name}');
     final req = http.Request('GET', Uri.parse(rawUrl));
     final res = await _client.send(req);
@@ -186,10 +192,13 @@ class UpdateService {
     final total = res.contentLength ?? asset.size;
     var received = 0;
     final sink = file.openWrite();
+    final digestOutput = AccumulatorSink<Digest>();
+    final digestInput = sha256.startChunkedConversion(digestOutput);
     try {
       await for (final chunk in res.stream) {
         received += chunk.length;
         sink.add(chunk);
+        digestInput.add(chunk);
         if (total > 0) onProgress((received / total).clamp(0.0, 1.0));
       }
       await sink.flush();
@@ -206,6 +215,24 @@ class UpdateService {
       throw UpdateException('Download failed: $e');
     }
     await sink.close();
+    digestInput.close();
+
+    // Verify SHA-256 digest when the GitHub API provided one.
+    final assetDigest = asset.digest;
+    if (assetDigest != null && assetDigest.isNotEmpty) {
+      final expected = assetDigest.startsWith('sha256:')
+          ? assetDigest.substring(7)
+          : assetDigest;
+      final computed = digestOutput.events.single.toString();
+      if (computed != expected) {
+        try {
+          await file.delete();
+        } catch (_) {}
+        throw UpdateException(
+            'Digest mismatch: expected $expected, got $computed');
+      }
+    }
+
     onProgress(1.0);
     return file;
   }
