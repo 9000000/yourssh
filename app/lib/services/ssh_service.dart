@@ -539,22 +539,44 @@ class SshService {
   }) {
     final orchestrator = SudoSftpOrchestrator<SftpClient>(
       runExec: (cmd) async {
-        final r = await client.runWithResult(cmd);
-        return (
-          stdout: String.fromCharCodes(r.stdout),
-          stderr: String.fromCharCodes(r.stderr),
-          exitCode: r.exitCode ?? -1,
-        );
+        try {
+          final r = await client
+              .runWithResult(cmd)
+              .timeout(const Duration(seconds: 15));
+          return (
+            stdout: String.fromCharCodes(r.stdout),
+            stderr: String.fromCharCodes(r.stderr),
+            exitCode: r.exitCode ?? -1,
+          );
+        } on TimeoutException {
+          throw SudoSftpException(SudoSftpFailureReason.handshakeFailed,
+              detail: 'Timed out running: $cmd');
+        }
       },
       runExecWithStdin: (cmd, stdinData) async {
         final session = await client.execute(cmd);
         final stderrBuf = StringBuffer();
+        final stdoutDone = Completer<void>();
+        final stderrDone = Completer<void>();
+        session.stdout.listen((_) {},
+            onDone: stdoutDone.complete,
+            onError: (_) => stdoutDone.complete());
         session.stderr.cast<List<int>>().listen(
-            (d) => stderrBuf.write(utf8.decode(d, allowMalformed: true)));
-        session.stdout.listen((_) {}); // drain
+            (d) => stderrBuf.write(utf8.decode(d, allowMalformed: true)),
+            onDone: stderrDone.complete,
+            onError: (_) => stderrDone.complete());
         session.stdin.add(Uint8List.fromList(stdinData));
         await session.stdin.close(); // EOF: a wrong password fails fast
-        await session.done;
+        try {
+          await Future.wait(
+                  [stdoutDone.future, stderrDone.future, session.done])
+              .timeout(const Duration(seconds: 15));
+        } on TimeoutException {
+          session.close();
+          throw SudoSftpException(SudoSftpFailureReason.handshakeFailed,
+              detail:
+                  'sudo validation timed out (check requiretty / PAM): $cmd');
+        }
         return (stderr: stderrBuf.toString(), exitCode: session.exitCode ?? -1);
       },
       openSftpExec: (cmd, {stdinPreamble}) async {
