@@ -36,8 +36,9 @@ void main() {
     );
     await p.checkForUpdates(manual: true);
     await pump(tester, p);
-    expect(find.byType(UpdateBanner), findsOneWidget);
+    // UpdateBanner is always mounted but renders SizedBox.shrink when hidden.
     expect(find.textContaining('available'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
   });
 
   testWidgets('shows version when an update is available', (tester) async {
@@ -48,5 +49,18 @@ void main() {
     await p.checkForUpdates(manual: true);
     await pump(tester, p);
     expect(find.textContaining('0.2.0'), findsOneWidget);
+  });
+
+  testWidgets('tapping dismiss hides the banner', (tester) async {
+    final p = UpdateProvider(
+      _StubService(AppRelease.fromJson({'tag_name': 'v0.2.0', 'assets': []})),
+      currentVersion: '0.1.18',
+    );
+    await p.checkForUpdates(manual: true);
+    await pump(tester, p);
+    expect(find.textContaining('0.2.0'), findsOneWidget);
+    await tester.tap(find.byTooltip('Dismiss'));
+    await tester.pump();
+    expect(find.textContaining('0.2.0'), findsNothing);
   });
 }

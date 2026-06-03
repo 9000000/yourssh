@@ -14,7 +14,7 @@ class UpdateBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<UpdateProvider>();
     if (!provider.showBanner) return const SizedBox.shrink();
-    final version = provider.latestRelease!.version;
+    final version = provider.latestRelease?.version ?? '';
 
     return Material(
       color: AppColors.accent.withValues(alpha: 0.12),
@@ -35,14 +35,18 @@ class UpdateBanner extends StatelessWidget {
             ),
             TextButton(
               onPressed: onShowDetails,
+              style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
               child: const Text('Details'),
             ),
             const SizedBox(width: 4),
             FilledButton(
               onPressed: () => context.read<UpdateProvider>().downloadAndInstall(),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.black,
+              ),
               child: const Text('Update'),
             ),
-            const SizedBox(width: 4),
             IconButton(
               tooltip: 'Dismiss',
               icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
