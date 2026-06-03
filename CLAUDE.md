@@ -93,6 +93,7 @@ Flutter UI (widgets/screens)
 - `HotkeyService` — global hotkey registration via `hotkey_manager`; hotkey names (`new_session`, `close_session`, `next_session`, `prev_session`, `toggle_input_bar`, `split_horizontal`, `split_vertical`) configured in `SettingsProvider`
 - `SftpFileOpsService` — SFTP file operations (rename, delete, mkdir, permissions)
 - `SftpTransferService` — chunked upload/download with progress callbacks
+- `ExternalEditService` — "open with external app" for SFTP files: downloads to a per-session temp dir, launches the OS default app (`url_launcher`), polls mtime every 2 s and auto-uploads changes back to the server; `sftp_file_inspector.dart` (pure) decides which files the in-app editor refuses (binary extension, > 5 MB, null byte in first 8 KB)
 - `McpGatewayService` — starts a remote MCP server over SSH exec and forwards a local port to it
 - `CloudflareTunnelService` — manages `cloudflared` tunnel process lifecycle
 - `MailCatcherService` — connects to a remote MailCatcher SMTP instance via port forward
