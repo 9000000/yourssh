@@ -174,7 +174,12 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
       );
       if (result == null) return null;
       if (result.remember) {
-        await _storage.saveSudoPassword(host.id, result.password);
+        try {
+          await _storage.saveSudoPassword(host.id, result.password);
+        } catch (_) {
+          // Keychain unavailable (e.g. locked screen) — skip persisting;
+          // the password still works for this session.
+        }
       }
       return result.password;
     };

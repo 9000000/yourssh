@@ -46,6 +46,7 @@ class _SudoPasswordDialogState extends State<SudoPasswordDialog> {
             controller: _controller,
             obscureText: true,
             autofocus: true,
+            autofillHints: const [AutofillHints.password],
             onSubmitted: (_) => _submit(),
             decoration: const InputDecoration(
               labelText: 'Password',
