@@ -71,7 +71,9 @@ void main() {
       expect(boot, isNot(contains(ShellIntegrationService.kReadySentinel)));
       expect(boot, isNot(contains(ShellIntegrationService.kDoneSentinel)));
       expect(boot, contains("printf '__YS_%s__' RDY"));
-      expect(boot, contains("printf '__YS_%s__' DONE")); // non-bash/zsh branch
+      // Non-bash/zsh branch; the \n lands both sides on a fresh line (col 0)
+      // so the next prompt renders consistently after the head is discarded.
+      expect(boot, contains(r"printf '__YS_%s__\n' DONE"));
     });
   });
 
@@ -79,25 +81,13 @@ void main() {
     final payload = s.buildPayloadLine();
     test('is the hook installer terminated by the DONE printf', () {
       expect('\n'.allMatches(payload).length, 1);
-      expect(payload.endsWith("printf '__YS_%s__' DONE\n"), isTrue);
+      expect(payload.endsWith("printf '__YS_%s__\\n' DONE\n"), isTrue);
       // Hook-installer body is unchanged.
       final body = s.buildInjectionScript();
       expect(payload, startsWith(body.substring(0, body.length - 1)));
     });
     test('sentinel literal never appears in the payload source', () {
       expect(payload, isNot(contains(ShellIntegrationService.kDoneSentinel)));
-    });
-  });
-
-  group('buildEraseSequence', () {
-    test('zero rows: return to col 0 and clear below', () {
-      expect(ShellIntegrationService.buildEraseSequence(0), '\r\x1b[0J');
-    });
-    test('n rows: cursor up n then clear below', () {
-      expect(ShellIntegrationService.buildEraseSequence(3), '\r\x1b[3A\x1b[0J');
-    });
-    test('negative clamps to zero', () {
-      expect(ShellIntegrationService.buildEraseSequence(-2), '\r\x1b[0J');
     });
   });
 

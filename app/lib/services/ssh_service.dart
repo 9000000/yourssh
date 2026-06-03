@@ -388,31 +388,31 @@ class SshService {
     // Invisible shell-integration injection (two-phase handshake; see
     // docs/superpowers/specs/2026-06-03-invisible-shell-integration-design.md).
     // Quiescence wait → bootstrap → RDY → payload (never echoed via read -rs)
-    // → DONE → flush withheld output + erase the bootstrap echo in one frame.
+    // → DONE → discard the withheld bootstrap echo. The held head is never
+    // written: erasing it after the fact desyncs the app cursor from the
+    // remote's and fancy prompts then paint over the wrong rows.
     InjectionGate? gate;
     Timer? quiesceTimer;
     Timer? capTimer;
     Timer? doneTimer;
-    var injectionStartRow = 0;
-    var eraseArmed = false;
 
     void launchInjection() {
       if (!siOn || gate != null) return;
       quiesceTimer?.cancel();
       capTimer?.cancel();
+      final bootstrap = shellIntegration!.buildBootstrapLine();
       gate = InjectionGate(
         readySentinel: ShellIntegrationService.kReadySentinel,
         doneSentinel: ShellIntegrationService.kDoneSentinel,
+        // Echo ≈ bootstrap + zle redraw overhead; anything much larger is
+        // real server output that must be shown, not discarded.
+        maxHold: bootstrap.length * 4,
       );
-      injectionStartRow = session.terminal.buffer.absoluteCursorY;
-      eraseArmed = true;
-      shell.write(Uint8List.fromList(
-          shellIntegration!.buildBootstrapLine().codeUnits));
+      shell.write(Uint8List.fromList(bootstrap.codeUnits));
       doneTimer = Timer(const Duration(seconds: 2), () {
         final g = gate;
         if (g == null || !g.isHolding) return;
-        eraseArmed = false; // degrade: show as-is, never mis-erase
-        final out = g.flush();
+        final out = g.flush(); // degrade: show as-is
         if (out.isNotEmpty) session.terminal.write(out);
       });
     }
@@ -436,11 +436,17 @@ class SshService {
               'terminal.output', TransformEvent(sessionId: session.id, data: text));
         }
 
-        // Quiescence detection: first output seen + 300 ms of silence →
-        // the prompt has rendered, safe to inject.
+        // Quiescence detection: only arm the injection timer when the chunk
+        // looks prompt-like (no trailing newline — cursor resting mid-line).
+        // A chunk ending in \n means the server is still printing (banner,
+        // late "Last login:" MOTD) — keep waiting; the cap timer is the
+        // backstop for hosts that never settle.
         if (siOn && gate == null) {
           quiesceTimer?.cancel();
-          quiesceTimer = Timer(const Duration(milliseconds: 300), launchInjection);
+          if (!text.endsWith('\n')) {
+            quiesceTimer =
+                Timer(const Duration(milliseconds: 300), launchInjection);
+          }
         }
 
         final g = gate;
@@ -452,31 +458,11 @@ class SshService {
                 shellIntegration!.buildPayloadLine().codeUnits));
           }
           if (r.emit == null) return; // withheld until DONE / timeout
+          if (wasHolding && !g.isHolding) doneTimer?.cancel();
           text = r.emit!;
-          if (wasHolding && !g.isHolding) {
-            // DONE just arrived: write held text + erase in the same frame so
-            // the bootstrap echo is never painted. Over-hold guard: a huge
-            // held buffer means real output (late MOTD) landed inside the
-            // window — show it rather than erase it.
-            doneTimer?.cancel();
-            final oversized = text.length >
-                shellIntegration!.buildBootstrapLine().length * 4;
-            if (eraseArmed && !oversized) {
-              session.terminal.write(text);
-              final rows =
-                  session.terminal.buffer.absoluteCursorY - injectionStartRow;
-              final erase = ShellIntegrationService.buildEraseSequence(rows);
-              session.terminal.write(erase);
-              text = text + erase; // recording replays the same clean view
-            } else {
-              session.terminal.write(text);
-            }
-          } else {
-            session.terminal.write(text);
-          }
-        } else {
-          session.terminal.write(text);
+          if (text.isEmpty) return; // echo head discarded, nothing to show
         }
+        session.terminal.write(text);
         _recording?.writeOutput(session.id, text);
         try {
           NotificationService.instance.onTerminalData(

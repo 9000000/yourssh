@@ -10,13 +10,26 @@ class GateResult {
 }
 
 /// Withholds shell output between the shell-integration bootstrap write and
-/// the done sentinel, so the echoed bootstrap line can be erased before it is
-/// ever painted. Pure (no IO/timers) — the caller owns the timeout.
+/// the done sentinel, then discards it: the held head is just the echoed
+/// bootstrap line plus sentinels. Discarding (rather than writing it and
+/// erasing afterwards) keeps the app-side cursor in sync with where the
+/// remote shell believes it is — erase-by-cursor-math desyncs the two and
+/// fancy prompts then paint over the wrong rows.
+/// Pure (no IO/timers) — the caller owns the timeout.
 class InjectionGate {
-  InjectionGate({required this.readySentinel, required this.doneSentinel});
+  InjectionGate({
+    required this.readySentinel,
+    required this.doneSentinel,
+    this.maxHold = 2048,
+  });
 
   final String readySentinel;
   final String doneSentinel;
+
+  /// Largest head that can plausibly be bootstrap echo. A bigger head means
+  /// real server output (late MOTD) landed inside the hold window — it is
+  /// emitted instead of discarded, rendered exactly as if never held.
+  final int maxHold;
 
   final StringBuffer _held = StringBuffer();
   bool _passthrough = false;
@@ -24,7 +37,7 @@ class InjectionGate {
 
   bool get isHolding => !_passthrough;
 
-  /// Size of the withheld buffer — used by the caller's over-hold guard.
+  /// Size of the withheld buffer.
   int get heldLength => _held.length;
 
   GateResult feed(String text) {
@@ -36,10 +49,14 @@ class InjectionGate {
       _payloadSent = true;
       sendPayload = true;
     }
-    if (buf.contains(doneSentinel)) {
+    final idx = buf.indexOf(doneSentinel);
+    if (idx >= 0) {
       _passthrough = true;
       _held.clear();
-      return GateResult(emit: _strip(buf), sendPayload: sendPayload);
+      final head = buf.substring(0, idx);
+      final tail = buf.substring(idx + doneSentinel.length);
+      final emit = head.length > maxHold ? _strip(head) + tail : tail;
+      return GateResult(emit: emit, sendPayload: sendPayload);
     }
     return GateResult(sendPayload: sendPayload);
   }

@@ -77,22 +77,19 @@ class ShellIntegrationService {
       r"{ stty -echo 2>/dev/null; printf '__YS_%s__' RDY; "
       r'IFS= read -rs __ys; eval "$__ys"; unset __ys; '
       r'stty echo 2>/dev/null; } '
-      r"|| printf '__YS_%s__' DONE"
+      r"|| printf '__YS_%s__\n' DONE"
       '\n';
 
   /// Second-phase line: the hook installer plus the DONE sentinel. Sent only
   /// after RDY is seen, while `read -rs` is consuming stdin — never echoed.
+  /// DONE carries a trailing newline so both the remote shell and the app
+  /// land on a fresh line (col 0) once the client discards everything up to
+  /// and including the sentinel — the next prompt then renders in sync.
   String buildPayloadLine() {
     final body = buildInjectionScript(); // ends with '\n'
     return '${body.substring(0, body.length - 1)}; '
-        "printf '__YS_%s__' DONE\n";
+        "printf '__YS_%s__\\n' DONE\n";
   }
-
-  /// ANSI sequence erasing the bootstrap echo region: col 0, up [rows],
-  /// clear to end of screen. Written by the client in the same frame as the
-  /// withheld output, so the echo is never painted.
-  static String buildEraseSequence(int rows) =>
-      rows > 0 ? '\r\x1b[${rows}A\x1b[0J' : '\r\x1b[0J';
 
   /// Single-line bash/zsh setup written to the shell on connect. Guarded
   /// (`__yourssh_si`) so a re-source is a no-op; appends to PROMPT_COMMAND /
