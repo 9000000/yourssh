@@ -20,6 +20,10 @@ class _Fake {
   /// Passwords returned per getPassword call (null = cancelled/missing).
   List<String?> passwords = [];
 
+  /// stderr returned by runExec when the command is NOT the path probe
+  /// (used by the custom-mode diagnostic re-exec).
+  String diagStderr = '';
+
   final execLog = <String>[];
   final startLog = <({String command, Uint8List? preamble})>[];
   final validateStdin = <String>[];
@@ -28,7 +32,10 @@ class _Fake {
   SudoSftpOrchestrator<String> orchestrator() => SudoSftpOrchestrator<String>(
         runExec: (cmd) async {
           execLog.add(cmd);
-          return (stdout: probeStdout, stderr: '', exitCode: 0);
+          if (cmd == buildPathProbeCommand()) {
+            return (stdout: probeStdout, stderr: '', exitCode: 0);
+          }
+          return (stdout: '', stderr: diagStderr, exitCode: 1);
         },
         runExecWithStdin: (cmd, stdinData) async {
           execLog.add(cmd);
@@ -267,6 +274,24 @@ void main() {
           );
       expect(fake.startLog.map((s) => s.command).toList(),
           ['sudo -u deploy /x', 'sudo -u deploy /x']);
+    });
+
+    test('sudo command: validate ok but retry fails → classifies diagnostic',
+        () async {
+      final fake = _Fake()
+        ..startOutcomes = [false, false]
+        ..passwords = ['pw']
+        ..validateOutcomes = [(stderr: '', exitCode: 0)]
+        ..diagStderr = 'user is not in the sudoers file.';
+      await expectLater(
+        fake.orchestrator().openForHost(
+            _host(SftpMode.custom, command: 'sudo -u deploy /x'),
+            getPassword: fake.getPassword,
+            interactive: true),
+        throwsA(isA<SudoSftpException>().having((e) => e.reason, 'reason',
+            SudoSftpFailureReason.notInSudoers)),
+      );
+      expect(fake.execLog, contains('sudo -u deploy /x </dev/null'));
     });
   });
 

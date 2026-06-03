@@ -29,10 +29,12 @@ String buildPathProbeCommand() =>
 /// instead of hanging on sudo's re-prompt.
 const kSudoValidateCommand = "sudo -S -p '' -v";
 
+// [path] is always one of kSftpServerPaths (echoed back by the probe), never free-form input.
 String buildSudoRunCommand(String path) => 'sudo -n $path';
 
 /// Last-resort start when sudo timestamp caching is disabled
 /// (timestamp_timeout=0): the validated password is fed as a stdin preamble.
+// [path] is always one of kSftpServerPaths (echoed back by the probe), never free-form input.
 String buildInlineSudoCommand(String path) => "sudo -S -p '' $path";
 
 enum SudoSftpFailureReason {
@@ -49,6 +51,7 @@ enum SudoSftpFailureReason {
 
 /// Best-effort classification of sudo stderr. Returns null when the output
 /// matches no known pattern — callers pick a context-appropriate fallback.
+// Matches sudo stderr (English locale); unknown/localized output falls through to null → caller's generic fallback.
 SudoSftpFailureReason? classifySudoFailure(String stderr) {
   final s = stderr.toLowerCase();
   if (s.contains('not in the sudoers') ||
@@ -177,8 +180,7 @@ class SudoSftpOrchestrator<TClient> {
     try {
       return await _start(buildSudoRunCommand(path));
     } on SudoSftpException {
-      // timestamp_timeout=0 — feed the already-validated password inline.
-      // Safe: validation proved sudo will consume exactly one stdin line.
+      // timestamp_timeout=0 — feed the already-validated password inline. Safe: validation proved the password+sudo work and path ∈ kSftpServerPaths, so the password only ever reaches sudo.
     }
     return _start(
       buildInlineSudoCommand(path),
