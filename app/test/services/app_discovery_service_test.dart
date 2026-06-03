@@ -11,19 +11,20 @@ void main() {
       () async {
     // macOS Launch Services and Linux xdg-mime both return nothing for
     // nonexistent paths, so the service must materialize a probe file.
-    String? receivedPath;
-    var existedDuringQuery = false;
+    // (The empty result triggers the .txt fallback, hence two queries.)
+    final receivedPaths = <String>[];
+    var allExistedDuringQuery = true;
     final service = AppDiscoveryService.withQuerier((path) async {
-      receivedPath = path;
-      existedDuringQuery = File(path).existsSync();
+      receivedPaths.add(path);
+      if (!File(path).existsSync()) allExistedDuringQuery = false;
       return [];
     });
 
     await service.getAppsFor('/nonexistent/dir/foo.xyz');
 
-    expect(receivedPath, isNotNull);
-    expect(p.extension(receivedPath!), '.xyz');
-    expect(existedDuringQuery, isTrue,
+    expect(receivedPaths, isNotEmpty);
+    expect(p.extension(receivedPaths.first), '.xyz');
+    expect(allExistedDuringQuery, isTrue,
         reason: 'probe file must exist while the platform query runs');
     service.dispose();
   });
@@ -41,6 +42,33 @@ void main() {
     await service.getAppsFor(real.path);
 
     expect(receivedPath, real.path);
+    service.dispose();
+  });
+
+  test('falls back to .txt apps when the extension has no handlers', () async {
+    // macOS/Linux register no handler for extensions like .conf or .service,
+    // but in an SSH context those are plain text — text editors must show up.
+    final queriedExts = <String>[];
+    final service = AppDiscoveryService.withQuerier((path) async {
+      final ext = p.extension(path);
+      queriedExts.add(ext);
+      if (ext == '.txt') {
+        return [
+          const AppOption(
+              name: 'Editor', executablePath: '/e', isDefault: false),
+        ];
+      }
+      return [];
+    });
+
+    final apps = await service.getAppsFor('/etc/nginx/nginx.conf');
+
+    expect(apps.map((a) => a.name), ['Editor']);
+    expect(queriedExts, ['.conf', '.txt']);
+
+    // Second lookup for the same extension is served from the cache.
+    await service.getAppsFor('/etc/other.conf');
+    expect(queriedExts, ['.conf', '.txt']);
     service.dispose();
   });
 

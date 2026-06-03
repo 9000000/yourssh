@@ -23,23 +23,34 @@ class AppDiscoveryService {
     final ext = p.extension(filePath).toLowerCase(); // e.g. ".txt"
     if (_cache.containsKey(ext)) return _cache[ext]!;
     try {
-      // macOS Launch Services and Linux xdg-mime return nothing for paths
-      // that do not exist, so materialize an empty probe file with the same
-      // extension when callers pass a synthetic path.
-      var queryPath = filePath;
-      File? probe;
-      if (!File(filePath).existsSync()) {
-        probe = File('${Directory.systemTemp.path}/yourssh_probe$ext')
-          ..createSync();
-        queryPath = probe.path;
+      var apps = await _probeAndQuery(filePath, ext);
+      // No OS-registered handler for this extension (.conf, .service, …).
+      // In an SSH context such files are almost always plain text, so fall
+      // back to the text-editor list registered for .txt.
+      if (apps.isEmpty && ext != '.txt') {
+        apps = await getAppsFor('fallback.txt');
       }
-      final apps = await _querier(queryPath);
-      if (probe != null && probe.existsSync()) probe.deleteSync();
       _cache[ext] = apps;
       return apps;
     } catch (_) {
       return [];
     }
+  }
+
+  /// Runs the platform querier; materializes an empty probe file first when
+  /// [filePath] does not exist — macOS Launch Services and Linux xdg-mime
+  /// return nothing for nonexistent paths.
+  Future<List<AppOption>> _probeAndQuery(String filePath, String ext) async {
+    var queryPath = filePath;
+    File? probe;
+    if (!File(filePath).existsSync()) {
+      probe = File('${Directory.systemTemp.path}/yourssh_probe$ext')
+        ..createSync();
+      queryPath = probe.path;
+    }
+    final apps = await _querier(queryPath);
+    if (probe != null && probe.existsSync()) probe.deleteSync();
+    return apps;
   }
 
   void dispose() => _cache.clear();
