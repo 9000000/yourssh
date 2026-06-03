@@ -7,12 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.1.21] — 2026-06-03
+
 ### Changed
 - **Invisible shell-integration setup** — the OSC 7/133 hook-installer script is no longer visible in the terminal when a session connects. The app now waits until the shell's line editor is actually reading input (bracketed-paste signal, with a gentle Enter-probe fallback for older bash) before delivering the script through a silent two-phase handshake: a short bootstrap line blocks in `read -rs` (tty echo disabled), the real script is consumed without ever being echoed, and the bootstrap's own echo is discarded client-side before it is ever painted — connecting just looks like an extra Enter press. If readiness can't be confirmed (exotic shells, full-screen apps, the user already typing) the injection is skipped entirely. Session recordings no longer capture the setup script either.
 
 ### Added
+- **Terminal snippets panel** — a collapsible right-side panel inside the terminal workspace (toggled from the terminal toolbar) to browse, search, copy, and run saved snippets against the currently active pane without leaving the terminal screen.
+- **Insert snippet into terminal** — the Snippets screen can now type a snippet directly into the focused session via the new plugin `sendInput` API (`YourSSHPluginContext.activeSession` + `sendInput`).
 - **SFTP View mode** — right-clicking (or double-clicking) a file in the SFTP panel now shows separate **View** (read-only preview, lock icon in the AppBar, no save) and **Edit** (existing editable mode) actions so you can open log files and config files without risking accidental edits.
 - **Open with… (SFTP)** — replaces "Open with external app" with an **Open with ▶** submenu that **opens on hover** (native cascading menu) and lists every application installed on your machine that can open the file's type (macOS via `NSWorkspace`/`LSCopyApplicationURLsForURL`, Linux via XDG MIME + `.desktop` files, Windows via registry). A **Choose…** option lets you pick any application with the OS file picker. The selected app is launched with the downloaded file and yourssh watches for saves and uploads changes back automatically.
+
+### Fixed
+- **SFTP symlinked directories** — directory listings now `stat` symlinks (listdir attrs have lstat semantics), so symlinked directories like `/bin → usr/bin` navigate correctly instead of being treated as files; downloads no longer read past EOF (some servers answer past-EOF reads with `SSH_FX_FAILURE` instead of `SSH_FX_EOF`); SFTP read errors show an actionable message instead of a raw exception.
 
 ### Security
 - **Update binary integrity** — `downloadAsset()` now verifies the SHA-256 digest from the GitHub Releases API `digest` field before handing the file to the OS installer; a mismatch deletes the downloaded file and aborts the update. The HTTPS scheme check was tightened to use `Uri.tryParse` rather than a string prefix, so a malformed URL is caught as an `UpdateException` rather than a raw `FormatException`.
@@ -273,7 +282,9 @@ Initial release of YourSSH — a cross-platform SSH client for macOS, Windows, a
 - **Host management** — CRUD for SSH host profiles with `StorageService`
 - **Known hosts** — TOFU dialog for host-key verification; `KnownHostsProvider`
 
-[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.19...HEAD
+[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.21...HEAD
+[0.1.21]: https://github.com/YoursshLabs/yourssh/compare/v0.1.20...v0.1.21
+[0.1.20]: https://github.com/YoursshLabs/yourssh/compare/v0.1.19...v0.1.20
 [0.1.19]: https://github.com/YoursshLabs/yourssh/compare/v0.1.18...v0.1.19
 [0.1.18]: https://github.com/YoursshLabs/yourssh/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/YoursshLabs/yourssh/compare/v0.1.16...v0.1.17
