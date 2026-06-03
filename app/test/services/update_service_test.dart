@@ -124,5 +124,28 @@ void main() {
       expect(svc.assetForPlatform(release(), os: 'linux', arch: 'arm64')!.name,
           'yourssh_0.2.0_arm64.deb');
     });
+    test('Windows x64 falls back to portable when no Setup present', () {
+      final noSetup = AppRelease.fromJson({
+        'tag_name': 'v0.2.0',
+        'assets': [
+          {'name': 'YourSSH-0.2.0-Windows-x64.exe', 'browser_download_url': 'u/portable', 'size': 1},
+        ],
+      });
+      expect(svc.assetForPlatform(noSetup, os: 'windows', arch: 'x64')!.name,
+          'YourSSH-0.2.0-Windows-x64.exe');
+    });
+    test('Linux amd64 falls back to tar.gz when no deb present', () {
+      final noDeb = AppRelease.fromJson({
+        'tag_name': 'v0.2.0',
+        'assets': [
+          {'name': 'YourSSH-0.2.0-Linux-x86_64.tar.gz', 'browser_download_url': 'u/tgz', 'size': 1},
+        ],
+      });
+      expect(svc.assetForPlatform(noDeb, os: 'linux', arch: 'amd64')!.name,
+          'YourSSH-0.2.0-Linux-x86_64.tar.gz');
+    });
+    test('unknown os -> null', () {
+      expect(svc.assetForPlatform(release(), os: 'freebsd', arch: 'x64'), isNull);
+    });
   });
 }

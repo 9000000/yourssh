@@ -50,16 +50,10 @@ class UpdateService {
     required String os,
     required String arch,
   }) {
-    bool present(String fragment, ReleaseAsset a) => a.name.contains(fragment);
-
     List<String> candidates() {
       switch (os) {
         case 'macos':
           return arch == 'arm64' ? const ['macOS-arm64.dmg'] : const [];
-        case 'windows':
-          return arch == 'arm64'
-              ? const ['Setup.', 'arm64.exe'] // narrowed by the arch filter below
-              : const ['Setup.', 'x64.exe'];
         case 'linux':
           return arch == 'arm64'
               ? const ['_arm64.deb', 'Linux-arm64.tar.gz']
@@ -89,7 +83,7 @@ class UpdateService {
 
     for (final frag in candidates()) {
       for (final a in release.assets) {
-        if (present(frag, a)) return a;
+        if (a.name.contains(frag)) return a;
       }
     }
     return null;
