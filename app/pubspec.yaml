@@ -1,7 +1,7 @@
 name: yourssh
 description: YourSSH - A professional SSH client for macOS, Windows, and Linux with advanced features like SFTP, port forwarding, and a built-in code editor.
 publish_to: 'none'
-version: 0.1.22+1
+version: 0.1.23+1
 
 environment:
   sdk: ^3.12.0
@@ -117,6 +117,11 @@ dependency_overrides:
   # broke keyboard input in the local PowerShell terminal.
   flutter_pty:
     path: ../packages/flutter_pty
+  # Local fork: passes the hosting viewId to TextInputConfiguration (upstream
+  # xterm.dart #207) — without it the Windows engine rejects the text-input
+  # client and printable keys never reach any TerminalView.
+  xterm:
+    path: ../packages/xterm
   yourssh_script_engine:
     path: ../packages/yourssh_script_engine
 
