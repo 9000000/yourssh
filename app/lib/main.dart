@@ -246,6 +246,8 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     });
     _notificationCenter = NotificationCenterProvider();
     _updateProvider.addListener(_pushUpdateNotification);
+    // Informational by design: the disconnect item stays in the bell until
+    // the user clears it, even if the session later reconnects (spec v1).
     _sessionProvider.onSessionDropped = (session, reason) {
       _notificationCenter.add(AppNotification(
         type: AppNotificationType.sessionDisconnect,
@@ -324,6 +326,9 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
   void dispose() {
     _settingsProvider.removeListener(_syncNotificationSetting);
     _updateProvider.removeListener(_pushUpdateNotification);
+    // A queued reconnect timer may still fire onSessionDropped during
+    // teardown — detach it before disposing the notification center.
+    _sessionProvider.onSessionDropped = null;
     _notificationCenter.dispose();
     windowManager.removeListener(this);
     // Tear down in reverse-dependency order: consumers first (sessions, plugins,
