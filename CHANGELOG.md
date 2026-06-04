@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Notification bell in the top tab bar with unread badge and popover panel: update-available and session-disconnect notifications, mark-read on open, clear all.
+
 ---
 
 ## [0.1.24] — 2026-06-04
