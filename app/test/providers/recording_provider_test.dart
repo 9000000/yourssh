@@ -64,7 +64,9 @@ void main() {
     final provider = RecordingProvider(RecordingService(), getPath: () => tmpDir.path);
     await provider.refreshLibrary();
     expect(provider.recordings.length, 1);
-    await provider.deleteRecording(f.path);
+    // Delete via the entry's own path (what the UI passes) — on Windows the
+    // listed path uses '\' while f.path was built with '/'.
+    await provider.deleteRecording(provider.recordings.first.filePath);
     expect(provider.recordings.isEmpty, isTrue);
     expect(f.existsSync(), isFalse);
   });
