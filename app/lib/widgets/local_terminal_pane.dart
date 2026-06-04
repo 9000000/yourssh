@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:xterm/xterm.dart';
 import '../models/local_session.dart';
 import '../providers/settings_provider.dart';
+import '../services/hotkey_service.dart';
 import 'record_button.dart';
 import 'terminal_context_menu.dart';
 
@@ -57,6 +58,12 @@ class _LocalTerminalPaneState extends State<LocalTerminalPane> {
             fontSize: settings.fontSize,
             fontFamily: settings.terminalFont,
           ),
+          // App hotkeys (in-app scope) already fired at the HardwareKeyboard
+          // layer; swallow the combo so it never reaches the shell (#46).
+          onKeyEvent: (node, event) =>
+              HotkeyService().shouldSwallowKeyEvent(event)
+                  ? KeyEventResult.handled
+                  : KeyEventResult.ignored,
           onSecondaryTapUp: (details, _) => showTerminalContextMenu(
             context: context,
             globalPosition: details.globalPosition,

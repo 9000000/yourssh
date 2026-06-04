@@ -7,6 +7,7 @@ import '../models/ssh_session.dart';
 import '../providers/command_history_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/shell_integration_provider.dart';
+import '../services/hotkey_service.dart';
 import '../theme/terminal_themes.dart';
 import 'command_gutter.dart';
 import 'record_button.dart';
@@ -299,6 +300,11 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    // App hotkeys (in-app scope) already fired at the HardwareKeyboard layer;
+    // swallow the combo here so it never reaches the shell (issue #46).
+    if (HotkeyService().shouldSwallowKeyEvent(event)) {
+      return KeyEventResult.handled;
+    }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     final key = event.logicalKey;

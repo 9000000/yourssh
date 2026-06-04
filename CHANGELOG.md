@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Hotkeys on Linux** — app hotkeys (new/close/next/prev session, splits, input bar, command palette) are now registered in-app instead of as system-wide global hotkeys (#46). They work on Wayland, where keybinder/`XGrabKey` could never grab (startup logged `Binding '<Primary>t' failed!` and the keys silently did nothing), and they no longer steal their combos from every other application on X11/macOS/Windows while the app is running. Terminal views swallow a matching combo so a hotkey no longer also types its control sequence into the shell (e.g. Ctrl+T sending `^T`).
+- **`split_vertical` default rebound** from `ctrl+shift+v` to `ctrl+shift+e` so it no longer shadows terminal paste on Windows/Linux (#43); saved settings still on the old default are migrated on load.
+
 ---
 
 ## [0.1.24] — 2026-06-04
