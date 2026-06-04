@@ -70,7 +70,7 @@ void main() {
     await pump(tester, center);
     expect(find.text('1'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.notifications_none));
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
     await tester.pump();
     expect(find.text('Notifications'), findsOneWidget);
     expect(find.text('dropped'), findsOneWidget);
@@ -82,7 +82,7 @@ void main() {
       (tester) async {
     final center = NotificationCenterProvider();
     await pump(tester, center);
-    await tester.tap(find.byIcon(Icons.notifications_none));
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
     await tester.pump();
     expect(find.text('No notifications'), findsOneWidget);
     expect(find.text('Clear all'), findsNothing);
@@ -98,12 +98,40 @@ void main() {
     ));
     var details = 0;
     await pump(tester, center, onShowUpdateDetails: () => details++);
-    await tester.tap(find.byIcon(Icons.notifications_none));
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
     await tester.pump();
     expect(find.text('Update'), findsOneWidget);
     await tester.tap(find.text('Details'));
     await tester.pump();
     expect(details, 1);
+    expect(find.text('Notifications'), findsNothing);
+  });
+
+  testWidgets('update item: Update button closes the panel', (tester) async {
+    final center = NotificationCenterProvider();
+    center.add(AppNotification(
+      type: AppNotificationType.update,
+      title: 'New version v9.9.9 available',
+      dedupeKey: 'update:v9.9.9',
+    ));
+    await pump(tester, center);
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
+    await tester.pump();
+    // downloadAndInstall() no-ops here (no release fetched), so this only
+    // verifies the panel-close behavior of the button.
+    await tester.tap(find.text('Update'));
+    await tester.pump();
+    expect(find.text('Notifications'), findsNothing);
+  });
+
+  testWidgets('tapping the bell again closes the panel', (tester) async {
+    final center = NotificationCenterProvider();
+    await pump(tester, center);
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
+    await tester.pump();
+    expect(find.text('Notifications'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
+    await tester.pump();
     expect(find.text('Notifications'), findsNothing);
   });
 
@@ -118,7 +146,7 @@ void main() {
     ));
     String? opened;
     await pump(tester, center, onOpenSession: (id) => opened = id);
-    await tester.tap(find.byIcon(Icons.notifications_none));
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
     await tester.pump();
     await tester.tap(find.text('Session disconnected: web-1'));
     await tester.pump();
@@ -129,11 +157,21 @@ void main() {
     final center = NotificationCenterProvider();
     center.add(AppNotification(type: AppNotificationType.update, title: 'one'));
     await pump(tester, center);
-    await tester.tap(find.byIcon(Icons.notifications_none));
+    await tester.tap(find.byIcon(Icons.notifications_none), warnIfMissed: false);
     await tester.pump();
     await tester.tap(find.text('Clear all'));
     await tester.pump();
     expect(find.text('No notifications'), findsOneWidget);
     expect(center.notifications, isEmpty);
+  });
+
+  group('relativeTime', () {
+    test('formats each bucket', () {
+      final now = DateTime.now();
+      expect(relativeTime(now), 'just now');
+      expect(relativeTime(now.subtract(const Duration(minutes: 5))), '5m ago');
+      expect(relativeTime(now.subtract(const Duration(hours: 3))), '3h ago');
+      expect(relativeTime(now.subtract(const Duration(days: 2))), '2d ago');
+    });
   });
 }
