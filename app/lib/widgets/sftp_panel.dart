@@ -37,7 +37,12 @@ class _SftpPanelState extends State<SftpPanel> {
   void initState() {
     super.initState();
     if (widget.host != null) {
-      _loadDirectory('/');
+      // Deferred: initState runs inside the parent ListenableBuilder's build
+      // (slot source switch recreates this panel mid-build), and provider
+      // notifications during build are dropped by the framework.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadDirectory('/');
+      });
     }
     // Wired once: the upload callbacks fire from the external-edit mtime
     // watcher long after the triggering open, so resolve the messenger at
@@ -64,10 +69,15 @@ class _SftpPanelState extends State<SftpPanel> {
   void didUpdateWidget(SftpPanel old) {
     super.didUpdateWidget(old);
     if (old.host?.id != widget.host?.id && widget.host != null) {
-      widget.provider
-        ..setLoadState(SftpPanelLoadState.idle)
-        ..setPath('/');
-      _loadDirectory('/');
+      // Deferred for the same reason as initState: didUpdateWidget runs
+      // during build and must not trigger provider notifications.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.provider
+          ..setLoadState(SftpPanelLoadState.idle)
+          ..setPath('/');
+        _loadDirectory('/');
+      });
     }
   }
 
@@ -291,11 +301,13 @@ class _SftpPanelState extends State<SftpPanel> {
   Widget _buildPathBar(SftpPanelProvider prov) {
     final canRename = prov.selectedEntries.length == 1;
     final canDelete = prov.selectedEntries.isNotEmpty;
-    return Container(
-      height: 36,
-      color: const Color(0xFF141414),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
+    return Column(
+      children: [
+        Container(
+          height: 36,
+          color: const Color(0xFF141414),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_upward, size: 14, color: Color(0xFF888888)),
@@ -304,25 +316,32 @@ class _SftpPanelState extends State<SftpPanel> {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
-          GestureDetector(
-            onTap: widget.onChangeHost,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: const Color(0xFF2A2A2A)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.dns, size: 11, color: Color(0xFF22C55E)),
-                  const SizedBox(width: 4),
-                  Text('${widget.host!.username}@${widget.host!.host}',
-                      style: const TextStyle(color: Color(0xFF22C55E), fontSize: 11, fontFamily: 'monospace')),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.unfold_more, size: 11, color: Color(0xFF555555)),
-                ],
+          // Flexible + ellipsis: long user@host must never squeeze the
+          // toolbar out of the row (the panel can be half the window).
+          Flexible(
+            child: GestureDetector(
+              onTap: widget.onChangeHost,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: const Color(0xFF2A2A2A)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dns, size: 11, color: Color(0xFF22C55E)),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text('${widget.host!.username}@${widget.host!.host}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Color(0xFF22C55E), fontSize: 11, fontFamily: 'monospace')),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.unfold_more, size: 11, color: Color(0xFF555555)),
+                  ],
+                ),
               ),
             ),
           ),
@@ -346,13 +365,7 @@ class _SftpPanelState extends State<SftpPanel> {
               ),
             ),
           ],
-          const SizedBox(width: 4),
-          Expanded(
-            child: PathBreadcrumb(
-              crumbs: posixCrumbs(prov.currentPath),
-              onNavigate: _loadDirectory,
-            ),
-          ),
+          const Spacer(),
           _ToolbarBtn(icon: Icons.note_add_outlined, tooltip: 'New file',
               enabled: true, onTap: () => _showNewFileDialog(prov)),
           _ToolbarBtn(icon: Icons.create_new_folder_outlined, tooltip: 'New folder',
@@ -368,8 +381,24 @@ class _SftpPanelState extends State<SftpPanel> {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
-        ],
-      ),
+          ],
+          ),
+        ),
+        // Breadcrumb on its own row so it always gets the full panel width
+        // (in the crowded toolbar row it was squeezed to zero — issue #41
+        // follow-up).
+        Container(
+          height: 28,
+          width: double.infinity,
+          color: const Color(0xFF141414),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.centerLeft,
+          child: PathBreadcrumb(
+            crumbs: posixCrumbs(prov.currentPath),
+            onNavigate: _loadDirectory,
+          ),
+        ),
+      ],
     );
   }
 
