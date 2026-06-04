@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../models/local_entry.dart';
 import '../providers/local_file_panel_provider.dart';
+import 'path_breadcrumb.dart';
 
 class LocalFilePanel extends StatefulWidget {
   final LocalFilePanelProvider provider;
@@ -270,35 +271,9 @@ class _LocalFilePanelState extends State<LocalFilePanel> {
           ),
           const SizedBox(width: 2),
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (int i = 0; i < crumbs.length; i++) ...[
-                    if (i > 0)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 2),
-                        child: Icon(Icons.chevron_right,
-                            size: 13, color: Color(0xFF444444)),
-                      ),
-                    GestureDetector(
-                      onTap: () => prov.loadDirectory(crumbs[i].path),
-                      child: Text(
-                        crumbs[i].label,
-                        style: TextStyle(
-                          color: i == crumbs.length - 1
-                              ? const Color(0xFFD4D4D4)
-                              : const Color(0xFF666666),
-                          fontSize: 12,
-                          fontWeight: i == crumbs.length - 1
-                              ? FontWeight.w500
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+            child: PathBreadcrumb(
+              crumbs: crumbs,
+              onNavigate: prov.loadDirectory,
             ),
           ),
           IconButton(

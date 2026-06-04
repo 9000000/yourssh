@@ -11,6 +11,7 @@ import '../services/sftp_file_inspector.dart';
 import '../services/sftp_transfer_service.dart';
 import '../services/sftp_file_ops_service.dart';
 import 'code_editor_screen.dart';
+import 'path_breadcrumb.dart';
 import 'sftp_entry_context_menu.dart';
 
 class SftpPanel extends StatefulWidget {
@@ -347,9 +348,10 @@ class _SftpPanelState extends State<SftpPanel> {
           ],
           const SizedBox(width: 4),
           Expanded(
-            child: Text(prov.currentPath,
-                style: const TextStyle(color: Color(0xFF888888), fontFamily: 'monospace', fontSize: 12),
-                overflow: TextOverflow.ellipsis),
+            child: PathBreadcrumb(
+              crumbs: posixCrumbs(prov.currentPath),
+              onNavigate: _loadDirectory,
+            ),
           ),
           _ToolbarBtn(icon: Icons.note_add_outlined, tooltip: 'New file',
               enabled: true, onTap: () => _showNewFileDialog(prov)),
