@@ -141,6 +141,25 @@ void main() {
       expect(reason, isNotNull);
     });
 
+    test('onSessionDropped does not fire when the user closes the tab mid-connect', () async {
+      final host = Host(
+        label: 'unreachable',
+        host: '127.0.0.1',
+        port: 1,
+        username: 'x',
+      );
+      var fired = false;
+      provider.onSessionDropped = (s, r) => fired = true;
+
+      final future = provider.connect(host);
+      await Future<void>.delayed(Duration.zero);
+      // User closes the tab before the connect failure lands.
+      provider.closeSession(provider.sessions.first.id);
+      await expectLater(future, completes);
+
+      expect(fired, isFalse);
+    });
+
     test('loadMetadata applied to session on connect (mocked via SharedPreferences)', () async {
       SharedPreferences.setMockInitialValues({
         'tab_meta_h-load': jsonEncode({
