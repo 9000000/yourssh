@@ -84,11 +84,16 @@ class _TerminalAppearanceControlsState
         SizedBox(
           width: _isRows ? 200 : double.infinity,
           child: Slider(
-            value: settings.fontSize,
+            // Clamp: prefs may hold an out-of-range value (Slider asserts).
+            value: settings.fontSize.clamp(10, 24).toDouble(),
             min: 10,
             max: 24,
             divisions: 14,
+            // Preview while dragging (no prefs write per tick); persist once
+            // when the drag ends.
             onChanged: (v) =>
+                context.read<SettingsProvider>().previewFontSize(v),
+            onChangeEnd: (v) =>
                 context.read<SettingsProvider>().save(fontSize: v),
           ),
         ),
