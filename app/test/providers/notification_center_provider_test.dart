@@ -12,6 +12,7 @@ void main() {
   group('NotificationCenterProvider', () {
     late NotificationCenterProvider p;
     setUp(() => p = NotificationCenterProvider());
+    tearDown(() => p.dispose());
 
     test('starts empty with zero unread', () {
       expect(p.notifications, isEmpty);

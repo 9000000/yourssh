@@ -32,6 +32,7 @@ class NotificationCenterProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Marks every item read; notifies only when something changed.
   void markAllRead() {
     var changed = false;
     for (final n in _items) {
@@ -43,12 +44,14 @@ class NotificationCenterProvider extends ChangeNotifier {
     if (changed) notifyListeners();
   }
 
+  /// Removes all items.
   void clearAll() {
     if (_items.isEmpty) return;
     _items.clear();
     notifyListeners();
   }
 
+  /// Removes the item with [id]; no-op for unknown ids.
   void remove(String id) {
     final lengthBefore = _items.length;
     _items.removeWhere((n) => n.id == id);
