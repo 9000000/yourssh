@@ -59,7 +59,7 @@ class _LocalFilePanelState extends State<LocalFilePanel> {
     final newPath = p.join(widget.provider.currentPath, name.trim());
     try {
       await Directory(newPath).create();
-      await widget.provider.reload();
+      if (mounted) await widget.provider.reload();
     } catch (e) {
       if (mounted) _showError('Failed to create folder: $e');
     }
@@ -90,7 +90,7 @@ class _LocalFilePanelState extends State<LocalFilePanel> {
       } else {
         await File(entry.path).rename(newPath);
       }
-      await widget.provider.reload();
+      if (mounted) await widget.provider.reload();
     } catch (e) {
       if (mounted) _showError('Rename failed: $e');
     }
@@ -134,7 +134,7 @@ class _LocalFilePanelState extends State<LocalFilePanel> {
           await File(entry.path).delete();
         }
       }
-      await widget.provider.reload();
+      if (mounted) await widget.provider.reload();
     } catch (e) {
       if (mounted) _showError('Delete failed: $e');
     }
@@ -169,7 +169,7 @@ class _LocalFilePanelState extends State<LocalFilePanel> {
     if (result == null || !mounted) return;
     try {
       await chmodLocal(entry.path, result.mode, recursive: result.recursive);
-      await widget.provider.reload();
+      if (mounted) await widget.provider.reload();
     } catch (e) {
       if (mounted) _showError('chmod failed: $e');
     }

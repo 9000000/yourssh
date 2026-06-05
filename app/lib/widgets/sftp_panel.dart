@@ -716,7 +716,7 @@ class _SftpPanelState extends State<SftpPanel> {
     try {
       final newPath = prov.currentPath == '/' ? '/$name' : '${prov.currentPath}/$name';
       await context.read<SftpFileOpsService>().mkdir(widget.host!, newPath);
-      _loadDirectory(prov.currentPath);
+      if (mounted) _loadDirectory(prov.currentPath);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -798,7 +798,7 @@ class _SftpPanelState extends State<SftpPanel> {
     try {
       await context.read<SftpFileOpsService>().rename(widget.host!, entry.path, '$parent/$newName');
       prov.clearSelection();
-      _loadDirectory(prov.currentPath);
+      if (mounted) _loadDirectory(prov.currentPath);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -867,7 +867,7 @@ class _SftpPanelState extends State<SftpPanel> {
       final ops = context.read<SftpFileOpsService>();
       for (final e in entries) { await ops.delete(widget.host!, e.path, isDirectory: e.isDirectory); }
       prov.clearSelection();
-      _loadDirectory(prov.currentPath);
+      if (mounted) _loadDirectory(prov.currentPath);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
