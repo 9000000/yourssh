@@ -147,182 +147,189 @@ class _BulkPushDialogState extends State<BulkPushDialog> {
     final failed = _controller.countOf(BulkHostStatus.failed);
     final cancelled = _controller.countOf(BulkHostStatus.cancelled);
 
-    return Dialog(
-      backgroundColor: AppColors.bg,
-      insetPadding: const EdgeInsets.all(40),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: 760,
-          height: 600,
-          child: Column(
-            children: [
-              Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: const BoxDecoration(
-                  color: AppColors.sidebar,
-                  border:
-                      Border(bottom: BorderSide(color: AppColors.border)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.upload_file,
-                        size: 15, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    Text('Push files to ${widget.hosts.length} hosts',
-                        style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close,
-                          size: 16, color: AppColors.textSecondary),
-                      onPressed: _close,
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: running ? null : _addFiles,
-                          icon: const Icon(Icons.insert_drive_file_outlined,
-                              size: 14),
-                          label: const Text('ADD FILES',
-                              style: TextStyle(fontSize: 11)),
-                        ),
-                        const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: running ? null : _addFolder,
-                          icon:
-                              const Icon(Icons.folder_outlined, size: 14),
-                          label: const Text('ADD FOLDER',
-                              style: TextStyle(fontSize: 11)),
-                        ),
-                      ],
-                    ),
-                    if (_sources.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (final s in _sources)
-                            Chip(
-                              backgroundColor: AppColors.card,
-                              side:
-                                  const BorderSide(color: AppColors.border),
-                              label: Text(
-                                  '${s.isDirectory ? '📁 ' : ''}${s.name} · ${_fmtBytes(s.bytes)}',
-                                  style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 11)),
-                              deleteIcon: const Icon(Icons.close, size: 12),
-                              onDeleted: running
-                                  ? null
-                                  : () =>
-                                      setState(() => _sources.remove(s)),
-                            ),
-                        ],
+    return PopScope(
+      canPop: !_controller.isRunning,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _close();
+      },
+      child: Dialog(
+        backgroundColor: AppColors.bg,
+        insetPadding: const EdgeInsets.all(40),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 760,
+            height: 600,
+            child: Column(
+              children: [
+                Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: const BoxDecoration(
+                    color: AppColors.sidebar,
+                    border:
+                        Border(bottom: BorderSide(color: AppColors.border)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.upload_file,
+                          size: 15, color: AppColors.textSecondary),
+                      const SizedBox(width: 8),
+                      Text('Push files to ${widget.hosts.length} hosts',
+                          style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            size: 16, color: AppColors.textSecondary),
+                        onPressed: _close,
                       ),
                     ],
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Text('Destination',
-                            style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            key: const Key('bulk-dest-field'),
-                            controller: _destController,
-                            enabled: !running,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontFamily: 'monospace'),
-                            decoration: InputDecoration(
-                              hintText: '/absolute/remote/path',
-                              hintStyle: const TextStyle(
-                                  color: AppColors.textTertiary,
-                                  fontSize: 12),
-                              errorText: _destValid
-                                  ? null
-                                  : 'Must be an absolute path',
-                              isDense: true,
-                              filled: true,
-                              fillColor: AppColors.card,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: running ? null : _addFiles,
+                            icon: const Icon(Icons.insert_drive_file_outlined,
+                                size: 14),
+                            label: const Text('ADD FILES',
+                                style: TextStyle(fontSize: 11)),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: running ? null : _addFolder,
+                            icon:
+                                const Icon(Icons.folder_outlined, size: 14),
+                            label: const Text('ADD FOLDER',
+                                style: TextStyle(fontSize: 11)),
+                          ),
+                        ],
+                      ),
+                      if (_sources.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final s in _sources)
+                              Chip(
+                                backgroundColor: AppColors.card,
+                                side: const BorderSide(
                                     color: AppColors.border),
+                                label: Text(
+                                    '${s.isDirectory ? '📁 ' : ''}${s.name} · ${_fmtBytes(s.bytes)}',
+                                    style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 11)),
+                                deleteIcon:
+                                    const Icon(Icons.close, size: 12),
+                                onDeleted: running
+                                    ? null
+                                    : () =>
+                                        setState(() => _sources.remove(s)),
+                              ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Text('Destination',
+                              style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              key: const Key('bulk-dest-field'),
+                              controller: _destController,
+                              enabled: !running,
+                              onChanged: (_) => setState(() {}),
+                              style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontFamily: 'monospace'),
+                              decoration: InputDecoration(
+                                hintText: '/absolute/remote/path',
+                                hintStyle: const TextStyle(
+                                    color: AppColors.textTertiary,
+                                    fontSize: 12),
+                                errorText: _destValid
+                                    ? null
+                                    : 'Must be an absolute path',
+                                isDense: true,
+                                filled: true,
+                                fillColor: AppColors.card,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                      color: AppColors.border),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                running ? AppColors.red : AppColors.accent,
-                            foregroundColor: Colors.black,
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  running ? AppColors.red : AppColors.accent,
+                              foregroundColor: Colors.black,
+                            ),
+                            onPressed: running
+                                ? _controller.cancel
+                                : (_canPush ? _push : null),
+                            child: Text(running ? 'CANCEL' : 'PUSH',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
                           ),
-                          onPressed: running
-                              ? _controller.cancel
-                              : (_canPush ? _push : null),
-                          child: Text(running ? 'CANCEL' : 'PUSH',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    const Text('Existing remote files will be overwritten.',
-                        style: TextStyle(
-                            color: AppColors.orange, fontSize: 11)),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: AppColors.border),
-              Expanded(
-                  child:
-                      BulkHostStatusList(results: _controller.results)),
-              Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: const BoxDecoration(
-                  color: AppColors.sidebar,
-                  border: Border(top: BorderSide(color: AppColors.border)),
-                ),
-                child: Row(
-                  children: [
-                    if (_controller.hasRun)
-                      Text(
-                          '$ok ok · $failed failed${cancelled > 0 ? ' · $cancelled cancelled' : ''}',
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 11)),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: _close,
-                      child: const Text('CLOSE',
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text('Existing remote files will be overwritten.',
                           style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 11)),
-                    ),
-                  ],
+                              color: AppColors.orange, fontSize: 11)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const Divider(height: 1, color: AppColors.border),
+                Expanded(
+                    child:
+                        BulkHostStatusList(results: _controller.results)),
+                Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: const BoxDecoration(
+                    color: AppColors.sidebar,
+                    border: Border(top: BorderSide(color: AppColors.border)),
+                  ),
+                  child: Row(
+                    children: [
+                      if (_controller.hasRun)
+                        Text(
+                            '$ok ok · $failed failed${cancelled > 0 ? ' · $cancelled cancelled' : ''}',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary, fontSize: 11)),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: _close,
+                        child: const Text('CLOSE',
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 11)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
