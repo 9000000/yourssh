@@ -12,6 +12,7 @@ import '../../services/sftp_file_ops_service.dart';
 import '../../services/sftp_transfer_service.dart';
 import '../../services/ssh_service.dart';
 import '../../theme/app_theme.dart';
+import '../../util/bulk_format.dart';
 import 'bulk_host_status_list.dart';
 import 'bulk_run_controller.dart';
 
@@ -146,14 +147,6 @@ class _BulkPushDialogState extends State<BulkPushDialog> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  String _fmtBytes(int b) {
-    if (b >= 1024 * 1024) {
-      return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    if (b >= 1024) return '${(b / 1024).toStringAsFixed(1)} KB';
-    return '$b B';
-  }
-
   @override
   Widget build(BuildContext context) {
     final running = _controller.isRunning;
@@ -242,7 +235,7 @@ class _BulkPushDialogState extends State<BulkPushDialog> {
                                     side: const BorderSide(
                                         color: AppColors.border),
                                     label: Text(
-                                        '${s.isDirectory ? '📁 ' : ''}${s.name} · ${_fmtBytes(s.bytes)}',
+                                        '${s.isDirectory ? '📁 ' : ''}${s.name} · ${formatByteSize(s.bytes)}',
                                         style: const TextStyle(
                                             color: AppColors.textPrimary,
                                             fontSize: 11)),

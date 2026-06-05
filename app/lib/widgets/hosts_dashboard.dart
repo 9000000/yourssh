@@ -62,8 +62,10 @@ class _HostsDashboardState extends State<HostsDashboard> {
   }
 
   bool _onSelectionKey(KeyEvent event) {
+    if (!mounted) return false;
     if (event is KeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.escape) {
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        (ModalRoute.of(context)?.isCurrent ?? true)) {
       _exitSelectionMode();
       return true;
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/bulk_result.dart';
 import '../../theme/app_theme.dart';
+import '../../util/bulk_format.dart';
 
 /// Per-host rows shared by the Run-command and Push-files dialogs:
 /// status icon, label, error/exit info, transfer progress; tap to expand
@@ -69,14 +70,6 @@ class _ResultRowState extends State<_ResultRow> {
   String _elapsed(Duration d) =>
       '${(d.inMilliseconds / 1000).toStringAsFixed(1)}s';
 
-  String _bytes(int b) {
-    if (b >= 1024 * 1024) {
-      return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    if (b >= 1024) return '${(b / 1024).toStringAsFixed(1)} KB';
-    return '$b B';
-  }
-
   @override
   Widget build(BuildContext context) {
     final r = widget.result;
@@ -133,7 +126,7 @@ class _ResultRowState extends State<_ResultRow> {
                 ],
                 if (transferring) ...[
                   const SizedBox(width: 8),
-                  Text('${_bytes(r.bytesTransferred)} / ${_bytes(r.totalBytes)}',
+                  Text('${formatByteSize(r.bytesTransferred)} / ${formatByteSize(r.totalBytes)}',
                       style: const TextStyle(
                           color: AppColors.textSecondary, fontSize: 11)),
                 ],
