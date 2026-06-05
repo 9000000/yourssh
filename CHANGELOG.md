@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was closed
 - Local file listings carry the file mode from scan time — the permissions
   dialog no longer blocks the UI thread with a synchronous stat
+- The terminal's AI chat toggle (and any open chat panel) is hidden until
+  an AI provider API key is configured
 
 ### Changed
 - Displayed branding strings now use yoursshlabs.com
