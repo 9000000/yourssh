@@ -13,6 +13,7 @@ import 'injection_gate.dart';
 import 'notification_service.dart';
 import 'shell_integration_service.dart';
 import 'recording_service.dart';
+import 'agent_forwarding_handler.dart';
 import 'storage_service.dart';
 import 'sudo_sftp.dart';
 import 'system_agent_proxy.dart';
@@ -45,6 +46,11 @@ class SshService {
   /// Optional Host.keyId → key entry resolver for auto-connect paths
   /// (exec, tunnels) — mirrors SessionProvider.keyLookup for shells.
   SshKeyEntry? Function(String keyId)? defaultKeyLookup;
+
+  /// Loads app-Keychain keys served through a forwarded agent when no system
+  /// agent is available. Set from main.dart (KeyProvider + stored
+  /// passphrases); null means the fallback serves an empty identity list.
+  Future<List<SSHKeyPair>> Function()? keychainIdentitiesLoader;
 
   /// Prompts the user for a sudo password (elevated SFTP). Set from
   /// main.dart; returning null cancels the elevated SFTP attempt. The
@@ -165,6 +171,12 @@ class SshService {
         username: host.username,
         onPasswordRequest: () => password ?? '',
         identities: resolution.identities.isNotEmpty ? resolution.identities : null,
+        agentHandler: host.agentForwarding
+            ? AgentForwardingHandler(
+                loadKeychainIdentities:
+                    keychainIdentitiesLoader ?? () async => const <SSHKeyPair>[],
+              )
+            : null,
         onVerifyHostKey: (type, fp) async {
           if (verifyHostKey != null) return verifyHostKey(type.toString(), fp);
           return true;

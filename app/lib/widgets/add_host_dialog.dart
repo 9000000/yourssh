@@ -62,6 +62,7 @@ class _AddHostDialogState extends State<AddHostDialog> {
       sftpMode: _sftpMode,
       sftpServerCommand:
           _sftpMode == SftpMode.custom ? _sftpCommand.text.trim() : null,
+      agentForwarding: widget.existing?.agentForwarding ?? false,
     );
     Navigator.of(context).pop((host: host, password: _password.text));
   }
