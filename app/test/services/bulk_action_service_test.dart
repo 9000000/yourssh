@@ -36,10 +36,12 @@ void main() {
 
     test('caps concurrency', () async {
       var inFlight = 0, maxInFlight = 0;
+      final allThreeIn = Completer<void>();
       final service = BulkActionService(exec: (host, cmd) async {
         inFlight++;
         maxInFlight = max(maxInFlight, inFlight);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        if (inFlight == 3 && !allThreeIn.isCompleted) allThreeIn.complete();
+        await allThreeIn.future;
         inFlight--;
         return _okResult();
       });
@@ -225,6 +227,26 @@ void main() {
           maxConcurrent: 1);
       expect(byLabel['h1'], BulkHostStatus.cancelled);
       expect(byLabel['h2'], BulkHostStatus.cancelled);
+    });
+
+    test('cancel during ensureRemoteDir with no sources reports cancelled',
+        () async {
+      final token = BulkCancelToken();
+      final service = BulkActionService(
+        uploadFile: (host, local, remote, {onProgress}) async {},
+        uploadDirectory: ({
+          required host,
+          required localDir,
+          required remoteDir,
+          required onProgress,
+          required isCancelled,
+        }) async {},
+        mkdir: (host, path) async => token.cancel(),
+      );
+      final statuses = <BulkHostStatus>[];
+      await service.pushFiles(_hosts(1), const [], '/etc',
+          onUpdate: (r) => statuses.add(r.status), token: token);
+      expect(statuses.last, BulkHostStatus.cancelled);
     });
 
     test('throws StateError when upload fns are not wired', () {

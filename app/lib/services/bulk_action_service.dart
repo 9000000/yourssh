@@ -31,6 +31,9 @@ typedef BulkExecFn = Future<({String stdout, String stderr, int exitCode})>
 typedef BulkUploadFileFn = Future<void> Function(
     Host host, String localPath, String remotePath,
     {void Function(int sent, int total)? onProgress});
+/// Callers wrapping `SftpTransferService.uploadDirectory` must adapt the
+/// signature (rename `remoteHost` → `host`, supply a no-op `onFileSkipped`,
+/// pass `overwrite: true`).
 typedef BulkUploadDirFn = Future<void> Function({
   required Host host,
   required String localDir,
@@ -56,10 +59,10 @@ class BulkActionService {
     BulkUploadFileFn? uploadFile,
     BulkUploadDirFn? uploadDirectory,
     BulkMkdirFn? mkdir,
-  })  : _exec = exec,        // ignore: prefer_initializing_formals
-        _uploadFile = uploadFile,        // ignore: prefer_initializing_formals
-        _uploadDirectory = uploadDirectory,        // ignore: prefer_initializing_formals
-        _mkdir = mkdir;        // ignore: prefer_initializing_formals
+  })  : _exec = exec, // ignore: prefer_initializing_formals
+        _uploadFile = uploadFile, // ignore: prefer_initializing_formals
+        _uploadDirectory = uploadDirectory, // ignore: prefer_initializing_formals
+        _mkdir = mkdir; // ignore: prefer_initializing_formals
 
   /// Runs [command] on every host, at most [maxConcurrent] in flight.
   /// Emits a `running` update when a host is picked up and exactly one
@@ -171,7 +174,7 @@ class BulkActionService {
           }
           done += src.bytes;
         }
-        final cancelled = token.isCancelled && done < total;
+        final cancelled = token.isCancelled && (done < total || sources.isEmpty);
         onUpdate(BulkHostResult(
           host: host,
           status:
@@ -214,6 +217,8 @@ class BulkActionService {
 
   /// Resolves picked paths into [BulkPushSource]s with pre-computed sizes
   /// (the denominator for progress). Directories are walked recursively.
+  /// Sizes are snapshotted at resolution time; concurrent modifications
+  /// affect progress accuracy, not correctness.
   static Future<List<BulkPushSource>> resolveSources(
       List<String> paths) async {
     final out = <BulkPushSource>[];
