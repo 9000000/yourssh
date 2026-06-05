@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Unified right-click context menu in both SFTP panels: Open, Open with…,
+  Copy to target directory, Rename, Delete, Refresh, New Folder, and
+  Edit Permissions (chmod with rwx grid, octal field, and recursive apply)
+
 ---
 
 ## [0.1.28] — 2026-06-05
