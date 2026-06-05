@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.28] — 2026-06-05
+
+### Added
+- SSH Agent Forwarding (per-host toggle, like `ssh -A`): forwarded agent
+  channels are served by the local system agent (`SSH_AUTH_SOCK` / Windows
+  OpenSSH agent pipe), falling back to keys stored in the app Keychain when
+  no system agent is running. Forwarding is requested on shell sessions only
+  (background exec commands skip the extra round-trip), and a server refusing
+  the request shows a warning in the terminal instead of aborting the
+  session. ([#49](https://github.com/YoursshLabs/yourssh/issues/49))
+
+### Fixed
+- Editing a host through the quick Edit dialog no longer silently resets the
+  fields the dialog has no controls for — group, tags, auto-record, shell
+  integration, jump host, detected OS, created date, and agent forwarding all
+  survive the edit; switching auth away from a key still clears the linked
+  key. ([#51](https://github.com/YoursshLabs/yourssh/issues/51))
+
+---
+
 ## [0.1.27] — 2026-06-05
 
 ### Added
@@ -365,7 +385,8 @@ Initial release of YourSSH — a cross-platform SSH client for macOS, Windows, a
 - **Host management** — CRUD for SSH host profiles with `StorageService`
 - **Known hosts** — TOFU dialog for host-key verification; `KnownHostsProvider`
 
-[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.27...HEAD
+[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.28...HEAD
+[0.1.28]: https://github.com/YoursshLabs/yourssh/compare/v0.1.27...v0.1.28
 [0.1.27]: https://github.com/YoursshLabs/yourssh/compare/v0.1.26...v0.1.27
 [0.1.26]: https://github.com/YoursshLabs/yourssh/compare/v0.1.25...v0.1.26
 [0.1.25]: https://github.com/YoursshLabs/yourssh/compare/v0.1.24...v0.1.25

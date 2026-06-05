@@ -49,20 +49,37 @@ class _AddHostDialogState extends State<AddHostDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    final host = Host(
-      id: widget.existing?.id,
-      label: _label.text.trim(),
-      host: _host.text.trim(),
-      port: int.tryParse(_port.text) ?? 22,
-      username: _username.text.trim(),
-      authType: _authType,
-      keyId: (_authType == AuthType.privateKey || _authType == AuthType.certificate)
-          ? _selectedKeyId
-          : null,
-      sftpMode: _sftpMode,
-      sftpServerCommand:
-          _sftpMode == SftpMode.custom ? _sftpCommand.text.trim() : null,
-    );
+    final keyId =
+        (_authType == AuthType.privateKey || _authType == AuthType.certificate)
+            ? _selectedKeyId
+            : null;
+    final sftpServerCommand =
+        _sftpMode == SftpMode.custom ? _sftpCommand.text.trim() : null;
+    final existing = widget.existing;
+    // Edits go through copyWith so the fields this dialog has no UI for
+    // (group, tags, autoRecord, shellIntegration, jumpHostId, detectedOs,
+    // createdAt, agentForwarding) survive the edit (#51).
+    final host = existing != null
+        ? existing.copyWith(
+            label: _label.text.trim(),
+            host: _host.text.trim(),
+            port: int.tryParse(_port.text) ?? 22,
+            username: _username.text.trim(),
+            authType: _authType,
+            keyId: keyId,
+            sftpMode: _sftpMode,
+            sftpServerCommand: sftpServerCommand,
+          )
+        : Host(
+            label: _label.text.trim(),
+            host: _host.text.trim(),
+            port: int.tryParse(_port.text) ?? 22,
+            username: _username.text.trim(),
+            authType: _authType,
+            keyId: keyId,
+            sftpMode: _sftpMode,
+            sftpServerCommand: sftpServerCommand,
+          );
     Navigator.of(context).pop((host: host, password: _password.text));
   }
 

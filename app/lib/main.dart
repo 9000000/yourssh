@@ -26,6 +26,7 @@ import 'services/health_monitor_service.dart';
 import 'services/local_shell_service.dart';
 import 'services/notification_service.dart';
 import 'services/port_forward_service.dart';
+import 'services/agent_forwarding_handler.dart';
 import 'services/ssh_service.dart';
 import 'services/storage_service.dart';
 import 'services/sync_service.dart';
@@ -180,6 +181,8 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _sessionProvider.hostKeyVerifier = _knownHostsProvider.verifyHostKey;
     _ssh.defaultHostKeyVerifier = _knownHostsProvider.verifyHostKey;
     _ssh.defaultKeyLookup = (id) => _keyProvider.findById(id);
+    _ssh.keychainIdentitiesLoader = () =>
+        loadKeychainKeyPairs(_keyProvider.keys, _storage.loadPassphrase);
     _portForwardProvider = PortForwardProvider();
     _portForwardService = PortForwardService(
       acquireTransport: (host) async =>

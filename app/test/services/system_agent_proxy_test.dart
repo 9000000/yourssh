@@ -5,11 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yourssh/services/system_agent_proxy.dart';
 
-Uint8List _agentMsg(List<int> body) {
-  final header = Uint8List(4);
-  ByteData.view(header.buffer).setUint32(0, body.length, Endian.big);
-  return Uint8List.fromList([...header, ...body]);
-}
+import '../helpers/agent_protocol.dart';
 
 List<int> _strField(List<int> data) {
   final len = Uint8List(4);
@@ -53,7 +49,7 @@ void main() {
             ..._strField(keyBlob),
             ..._strField(utf8.encode('test-key')),
           ];
-          client.add(_agentMsg(response));
+          client.add(agentMsg(response));
         });
       }));
 
@@ -72,7 +68,7 @@ void main() {
         client.listen((_) {
           final nkeys = Uint8List(4);
           final response = [12, ...nkeys];
-          client.add(_agentMsg(response));
+          client.add(agentMsg(response));
         });
       }));
 
@@ -87,6 +83,29 @@ void main() {
         SystemAgentProxy.connectTo('/tmp/nonexistent_socket_xyz.sock'),
         throwsA(isA<SSHAgentUnavailableException>()),
       );
+    });
+
+    test('roundtrip frames the request and unframes the response', () async {
+      // Fake agent: expect framed [11] (REQUEST_IDENTITIES), reply with an
+      // empty IDENTITIES_ANSWER (type 12, count 0).
+      final received = <int>[];
+      unawaited(server.first.then((client) {
+        client.listen((data) {
+          received.addAll(data);
+          final nkeys = Uint8List(4); // count = 0
+          client.add(agentMsg([12, ...nkeys]));
+        });
+      }));
+
+      final proxy = await SystemAgentProxy.connectTo(socketPath);
+      final response = await proxy.roundtrip(Uint8List.fromList([11]));
+
+      // Request on the wire: 4-byte length prefix + body.
+      expect(received, equals([0, 0, 0, 1, 11]));
+      // Response comes back unframed: type byte + uint32 count.
+      expect(response, equals([12, 0, 0, 0, 0]));
+
+      await proxy.close();
     });
 
     test('_AgentKeyPair.signAsync sends type 13 and receives type 14', () async {
@@ -111,11 +130,11 @@ void main() {
               ..._strField(keyBlob),
               ..._strField(utf8.encode('test-key')),
             ];
-            client.add(_agentMsg(response));
+            client.add(agentMsg(response));
           } else {
             // Respond to SIGN_REQUEST (13) with SIGN_RESPONSE (14)
             final response = [14, ..._strField(fakeSignature)];
-            client.add(_agentMsg(response));
+            client.add(agentMsg(response));
           }
         });
       }));

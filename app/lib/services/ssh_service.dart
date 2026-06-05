@@ -13,6 +13,7 @@ import 'injection_gate.dart';
 import 'notification_service.dart';
 import 'shell_integration_service.dart';
 import 'recording_service.dart';
+import 'agent_forwarding_handler.dart';
 import 'storage_service.dart';
 import 'sudo_sftp.dart';
 import 'system_agent_proxy.dart';
@@ -46,6 +47,11 @@ class SshService {
   /// (exec, tunnels) — mirrors SessionProvider.keyLookup for shells.
   SshKeyEntry? Function(String keyId)? defaultKeyLookup;
 
+  /// Loads app-Keychain keys served through a forwarded agent when no system
+  /// agent is available. Set from main.dart (KeyProvider + stored
+  /// passphrases); null means the fallback serves an empty identity list.
+  Future<List<SSHKeyPair>> Function()? keychainIdentitiesLoader;
+
   /// Prompts the user for a sudo password (elevated SFTP). Set from
   /// main.dart; returning null cancels the elevated SFTP attempt. The
   /// password is persisted (when `remember` is set) only after it validates —
@@ -72,12 +78,12 @@ class SshService {
         return const _IdentityResolution([]);
       case AuthType.privateKey:
         if (keyEntry == null) return const _IdentityResolution([]);
-        final keyFile = File(keyEntry.privateKeyPath);
-        if (!await keyFile.exists()) return const _IdentityResolution([]);
-        final pem = await keyFile.readAsString();
+        if (!await File(keyEntry.privateKeyPath).exists()) {
+          return const _IdentityResolution([]);
+        }
         final passphrase = await _storage.loadPassphrase(keyEntry.id);
-        final effectivePassphrase = passphrase?.isNotEmpty == true ? passphrase : null;
-        return _IdentityResolution(SSHKeyPair.fromPem(pem, effectivePassphrase));
+        return _IdentityResolution(
+            await loadKeyPairsFromFile(keyEntry.privateKeyPath, passphrase));
       case AuthType.certificate:
         if (keyEntry == null) {
           throw Exception(jumpHostLabel == null
@@ -165,6 +171,15 @@ class SshService {
         username: host.username,
         onPasswordRequest: () => password ?? '',
         identities: resolution.identities.isNotEmpty ? resolution.identities : null,
+        // Forwarding terminates at the destination client only (OpenSSH
+        // ProxyJump semantics) — never add a handler to _ensureJumpClient
+        // or testConnection.
+        agentHandler: host.agentForwarding
+            ? AgentForwardingHandler(
+                loadKeychainIdentities:
+                    keychainIdentitiesLoader ?? () async => const <SSHKeyPair>[],
+              )
+            : null,
         onVerifyHostKey: (type, fp) async {
           if (verifyHostKey != null) return verifyHostKey(type.toString(), fp);
           return true;
@@ -356,6 +371,13 @@ class SshService {
 
     _shells[session.id] = shell;
     _shellToHost[session.id] = session.host.id;
+
+    // The user opted into agent forwarding for this host, but the server
+    // refused it (AllowAgentForwarding no). Match OpenSSH: warn, don't fail.
+    if (shell.agentForwardingRefused) {
+      session.terminal
+          .write('\r\n\x1b[33m[Agent forwarding refused by server]\x1b[0m\r\n');
+    }
 
     // Shell integration (OSC 7/133): route private OSC into the provider before
     // any output arrives, so the first prompt cycle is captured.

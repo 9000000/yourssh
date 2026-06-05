@@ -153,7 +153,12 @@ class _WindowsPipeTransport implements _AgentTransport {
     }
 
     final transport = _WindowsPipeTransport._(handle, writeFile, closeHandle);
-    await transport._startReading();
+    try {
+      await transport._startReading();
+    } catch (_) {
+      closeHandle(handle); // don't leak the pipe handle on spawn failure
+      rethrow;
+    }
     return transport;
   }
 
@@ -169,11 +174,17 @@ class _WindowsPipeTransport implements _AgentTransport {
         _controller.close();
       }
     });
-    _readIsolate = await Isolate.spawn(
-      _readLoop,
-      [_handle, _receivePort.sendPort],
-      debugName: 'ssh_agent_pipe_reader',
-    );
+    try {
+      _readIsolate = await Isolate.spawn(
+        _readLoop,
+        [_handle, _receivePort.sendPort],
+        debugName: 'ssh_agent_pipe_reader',
+      );
+    } catch (_) {
+      await _portSub.cancel();
+      _receivePort.close();
+      rethrow;
+    }
   }
 
   // Top-level-compatible static function required by Isolate.spawn.
@@ -227,11 +238,16 @@ class _WindowsPipeTransport implements _AgentTransport {
 
   @override
   Future<void> close() async {
-    _readIsolate.kill(priority: Isolate.immediate);
+    // Close the pipe handle FIRST: it unblocks the reader's ReadFile so
+    // _readLoop exits through its finally and frees its calloc buffers.
+    // Killing first would terminate the isolate without running finally
+    // (it can't reach a safepoint while blocked in FFI), leaking the native
+    // buffers on every close. The kill below is only a backstop.
+    _closeFn(_handle);
+    _readIsolate.kill(priority: Isolate.beforeNextEvent);
     await _portSub.cancel();
     _receivePort.close();
     await _controller.close();
-    _closeFn(_handle);
   }
 }
 
@@ -312,6 +328,17 @@ class SystemAgentProxy {
       pairs.add(_AgentKeyPair(keyBlob, _session));
     }
     return pairs;
+  }
+
+  /// Sends one raw (unframed) agent-protocol request and returns the raw
+  /// (unframed) response body. Length-prefix framing is handled internally.
+  /// Used by AgentForwardingHandler to relay forwarded agent requests
+  /// verbatim — the payload is never parsed, so agent extensions work.
+  Future<Uint8List> roundtrip(Uint8List requestBody) async {
+    final header = Uint8List(4);
+    ByteData.view(header.buffer).setUint32(0, requestBody.length, Endian.big);
+    _session.write(Uint8List.fromList([...header, ...requestBody]));
+    return _session.readMessage();
   }
 
   Future<void> close() => _session.close();
