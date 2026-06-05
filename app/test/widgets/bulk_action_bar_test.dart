@@ -37,7 +37,30 @@ void main() {
     await tester.tap(find.text('RUN COMMAND'));
     await tester.tap(find.text('PUSH FILES'));
     await tester.tap(find.text('SELECT ALL'));
+    // DONE lives inside a SingleChildScrollView — ensure it is visible before tap.
+    await tester.ensureVisible(find.text('DONE'));
     await tester.tap(find.text('DONE'));
     expect(fired, ['connect', 'run', 'push', 'all', 'done']);
+  });
+
+  testWidgets('does not overflow at narrow window widths', (tester) async {
+    tester.view.physicalSize = const Size(600, 400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: BulkActionBar(
+          selectedCount: 3,
+          onSelectAll: () {},
+          onClear: () {},
+          onConnectAll: () {},
+          onRunCommand: () {},
+          onPushFiles: () {},
+          onDone: () {},
+        ),
+      ),
+    ));
+    expect(tester.takeException(), isNull); // no RenderFlex overflow
   });
 }

@@ -45,25 +45,35 @@ class BulkActionBar extends StatelessWidget {
           const SizedBox(width: 8),
           _BarBtn(label: 'CLEAR', onTap: onClear, enabled: hasSelection),
           const Spacer(),
-          _BarBtn(
-              icon: Icons.cable,
-              label: 'CONNECT ALL',
-              onTap: onConnectAll,
-              enabled: hasSelection),
-          const SizedBox(width: 8),
-          _BarBtn(
-              icon: Icons.terminal,
-              label: 'RUN COMMAND',
-              onTap: onRunCommand,
-              enabled: hasSelection),
-          const SizedBox(width: 8),
-          _BarBtn(
-              icon: Icons.upload_file,
-              label: 'PUSH FILES',
-              onTap: onPushFiles,
-              enabled: hasSelection),
-          const SizedBox(width: 16),
-          _BarBtn(label: 'DONE', onTap: onDone, accent: true),
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _BarBtn(
+                      icon: Icons.cable,
+                      label: 'CONNECT ALL',
+                      onTap: onConnectAll,
+                      enabled: hasSelection),
+                  const SizedBox(width: 8),
+                  _BarBtn(
+                      icon: Icons.terminal,
+                      label: 'RUN COMMAND',
+                      onTap: onRunCommand,
+                      enabled: hasSelection),
+                  const SizedBox(width: 8),
+                  _BarBtn(
+                      icon: Icons.upload_file,
+                      label: 'PUSH FILES',
+                      onTap: onPushFiles,
+                      enabled: hasSelection),
+                  const SizedBox(width: 16),
+                  _BarBtn(label: 'DONE', onTap: onDone, accent: true),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
