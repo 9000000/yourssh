@@ -183,6 +183,9 @@ running prompts "Cancel run?" and cancels the token on confirm.
 - `SftpTransferService.uploadFile` gains an optional
   `onProgress(sent, total)` callback (today only `uploadDirectory` reports
   progress) so single-file pushes show bytes too.
+- `SftpTransferService.uploadDirectory` gains an `overwrite` flag
+  (default `false` keeps today's skip-existing behavior; bulk push passes
+  `true` so the fleet converges on the pushed content).
 
 ## Diff logic (pure, `app/lib/util/bulk_diff.dart`)
 
@@ -230,5 +233,5 @@ No Flutter or IO imports:
 | `app/lib/widgets/bulk/bulk_host_status_list.dart` | new — shared per-host rows |
 | `app/lib/widgets/bulk/bulk_diff_view.dart` | new — diff tab (groups + side-by-side) |
 | `app/lib/widgets/hosts_dashboard.dart` | selection mode + action bar |
-| `app/lib/services/sftp_transfer_service.dart` | `uploadFile` gains optional `onProgress` |
-| `app/pubspec.yaml` | add `file_selector` if not already present |
+| `app/lib/services/sftp_transfer_service.dart` | `uploadFile` gains optional `onProgress`; `uploadDirectory` gains `overwrite` flag |
+| `app/pubspec.yaml` | no change — `file_selector` is already a dependency |
