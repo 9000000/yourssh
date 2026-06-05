@@ -14,6 +14,7 @@ import 'notification_service.dart';
 import 'shell_integration_service.dart';
 import 'recording_service.dart';
 import 'agent_forwarding_handler.dart';
+import 'os_detection.dart';
 import 'storage_service.dart';
 import 'sudo_sftp.dart';
 import 'system_agent_proxy.dart';
@@ -949,7 +950,15 @@ class SshService {
   Future<String?> detectOs(Host host) async {
     try {
       final result = await exec(host, 'uname -s 2>/dev/null || ver');
-      return parseOsFromUname(result.stdout);
+      final os = parseOsFromUname(result.stdout);
+      if (os != 'linux') return os;
+      // Linux: best-effort distro probe — generic 'linux' on any failure.
+      try {
+        final release = await exec(host, 'cat /etc/os-release 2>/dev/null');
+        final id = parseOsReleaseId(release.stdout);
+        if (id != null) return normalizeDistroId(id);
+      } catch (_) {}
+      return 'linux';
     } catch (e) {
       debugPrint('[SshService] OS detect failed for ${host.host}: $e');
       return null;
