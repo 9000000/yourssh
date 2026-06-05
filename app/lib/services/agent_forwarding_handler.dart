@@ -18,7 +18,10 @@ import 'system_agent_proxy.dart';
 /// through dartssh2's [SSHKeyPairAgent], built lazily on first use and cached
 /// for the lifetime of this handler (one SSH connection). The fallback only
 /// triggers on connect failure — a request that fails *after* connecting
-/// propagates instead, so we never switch key sources mid-request.
+/// propagates instead, so we never switch key sources mid-request. Across
+/// requests the source CAN switch (system agent dies between an identity
+/// listing and the follow-up sign): the sign then fails once if the listed
+/// key isn't in the Keychain, which matches the per-request retry design.
 class AgentForwardingHandler implements SSHAgentHandler {
   AgentForwardingHandler({
     this._connectSystemAgent = SystemAgentProxy.connect,
@@ -28,7 +31,10 @@ class AgentForwardingHandler implements SSHAgentHandler {
   final Future<SystemAgentProxy> Function() _connectSystemAgent;
   final Future<List<SSHKeyPair>> Function() _loadKeychainIdentities;
 
-  SSHKeyPairAgent? _fallback;
+  // Memoizes the FUTURE (created synchronously, no await between the null
+  // check and the assignment) so concurrent first-use requests share one
+  // Keychain load instead of racing `??=` across an await.
+  Future<SSHKeyPairAgent>? _fallback;
 
   @override
   Future<Uint8List> handleRequest(Uint8List request) async {
@@ -36,10 +42,8 @@ class AgentForwardingHandler implements SSHAgentHandler {
     try {
       proxy = await _connectSystemAgent();
     } on SSHAgentUnavailableException {
-      // Concurrent first-use may build twice (last wins); harmless —
-      // SSHKeyPairAgent is immutable/stateless, only an extra Keychain load.
-      final fallback =
-          _fallback ??= SSHKeyPairAgent(await _loadKeychainIdentities());
+      final fallback = await (_fallback ??=
+          _loadKeychainIdentities().then(SSHKeyPairAgent.new));
       return fallback.handleRequest(request);
     }
     try {
@@ -57,6 +61,21 @@ class AgentForwardingHandler implements SSHAgentHandler {
   }
 }
 
+/// Reads the PEM private key at [path] and parses it with an optional
+/// passphrase (null/empty → unencrypted). Shared by interactive auth
+/// (`SshService._resolveIdentities`) and the agent-forwarding fallback so the
+/// passphrase normalization rule lives in one place.
+Future<List<SSHKeyPair>> loadKeyPairsFromFile(
+  String path,
+  String? passphrase,
+) async {
+  final pem = await File(path).readAsString();
+  return SSHKeyPair.fromPem(
+    pem,
+    passphrase?.isNotEmpty == true ? passphrase : null,
+  );
+}
+
 /// Loads every Keychain key that opens without user interaction —
 /// unencrypted, or encrypted with a stored passphrase. Entries that fail
 /// (missing file, wrong/missing passphrase, parse error) are skipped so one
@@ -69,12 +88,9 @@ Future<List<SSHKeyPair>> loadKeychainKeyPairs(
   final pairs = <SSHKeyPair>[];
   for (final entry in entries) {
     try {
-      final pem = await File(entry.privateKeyPath).readAsString();
       final passphrase = await loadPassphrase(entry.id);
-      pairs.addAll(SSHKeyPair.fromPem(
-        pem,
-        passphrase?.isNotEmpty == true ? passphrase : null,
-      ));
+      pairs.addAll(
+          await loadKeyPairsFromFile(entry.privateKeyPath, passphrase));
     } catch (_) {
       // Skipped by design — forwarding serves whatever is loadable.
     }
