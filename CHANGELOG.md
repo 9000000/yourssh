@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Bulk action panel** — select N hosts on the dashboard (SELECT mode with
+  per-card checkboxes, filter-aware Select all, Esc to exit) and act on all
+  of them at once:
+  - **Connect all** — opens a tab per host, skips already-connected hosts,
+    confirms before opening more than 5 tabs
+  - **Run command** — one command (free text or snippet) executed in
+    parallel (bounded concurrency, 30 s per-host timeout, per-host failure
+    isolation); per-host results with exit code, duration, and expandable
+    stdout/stderr; a **Diff** tab groups identical outputs against a
+    baseline (any group can be promoted) and side-by-side compares any two
+    hosts
+  - **Push files** — upload files/folders to one remote path on every host
+    (destination created if missing, existing files overwritten) with
+    per-host byte progress and cancel
+- Closing a bulk dialog mid-run asks for confirmation; queued hosts are
+  cancelled while in-flight operations finish and record their real result
+
+### Changed
+- `SftpTransferService.uploadFile` reports byte progress;
+  `uploadDirectory` gained an `overwrite` flag (bulk push uses it — the
+  SFTP panel's skip-existing behavior is unchanged)
+
 ---
 
 ## [0.1.29] — 2026-06-05
