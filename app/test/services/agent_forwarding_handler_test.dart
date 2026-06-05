@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yourssh/models/ssh_key.dart';
 import 'package:yourssh/services/agent_forwarding_handler.dart';
 import 'package:yourssh/services/system_agent_proxy.dart';
 
@@ -108,6 +109,10 @@ void main() {
         InternetAddress('$socketPath.dead', type: InternetAddressType.unix),
         0,
       );
+      addTearDown(() async {
+        final f = File('$socketPath.dead');
+        if (await f.exists()) await f.delete();
+      });
       server.listen((client) {
         client.destroy(); // connect OK, then immediate close
       });
@@ -128,13 +133,55 @@ void main() {
       );
       // Post-connect failure must NOT switch key sources mid-request.
       expect(loaderCalls, 0);
-
-      final f = File('$socketPath.dead');
-      if (await f.exists()) await f.delete();
     });
   },
       // Fake agent binds a Unix domain socket — unavailable on Windows CI.
       skip: Platform.isWindows
           ? 'Unix domain sockets unavailable on Windows'
           : false);
+
+  group('loadKeychainKeyPairs', () {
+    SshKeyEntry entry(String path) => SshKeyEntry(
+          label: 'k',
+          algorithm: KeyAlgorithm.ed25519,
+          publicKey: '',
+          privateKeyPath: path,
+        );
+
+    test('loads an unencrypted key', () async {
+      final pairs = await loadKeychainKeyPairs(
+        [entry('test/fixtures/keys/id_ed25519')],
+        (_) async => null,
+      );
+      expect(pairs, hasLength(1));
+      expect(pairs.single.type, 'ssh-ed25519');
+    });
+
+    test('loads an encrypted key using the stored passphrase', () async {
+      final pairs = await loadKeychainKeyPairs(
+        [entry('test/fixtures/keys/id_ed25519_enc')],
+        (_) async => 'test-passphrase',
+      );
+      expect(pairs, hasLength(1));
+    });
+
+    test('skips entries that cannot load, keeps the rest', () async {
+      final dir = await Directory.systemTemp.createTemp('yourssh_keys');
+      addTearDown(() => dir.delete(recursive: true));
+      final garbage = File('${dir.path}/garbage')
+        ..writeAsStringSync('not a pem');
+
+      final pairs = await loadKeychainKeyPairs(
+        [
+          entry('${dir.path}/missing'), // file does not exist
+          entry(garbage.path), // unparseable
+          entry('test/fixtures/keys/id_ed25519_enc'), // wrong passphrase
+          entry('test/fixtures/keys/id_ed25519'), // good
+        ],
+        (_) async => null,
+      );
+      expect(pairs, hasLength(1));
+      expect(pairs.single.type, 'ssh-ed25519');
+    });
+  });
 }

@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dartssh2/dartssh2.dart';
 
+import '../models/ssh_key.dart';
 import 'system_agent_proxy.dart';
 
 /// Serves forwarded `auth-agent@openssh.com` channels (issue #49).
@@ -36,6 +38,8 @@ class AgentForwardingHandler implements SSHAgentHandler {
     try {
       proxy = await _connectSystemAgent();
     } on SSHAgentUnavailableException {
+      // Concurrent first-use may build twice (last wins); harmless —
+      // SSHKeyPairAgent is immutable/stateless, only an extra Keychain load.
       final fallback =
           _fallback ??= SSHKeyPairAgent(await _loadKeychainIdentities());
       return fallback.handleRequest(request);
@@ -53,4 +57,29 @@ class AgentForwardingHandler implements SSHAgentHandler {
       await proxy.close().catchError((_) {});
     }
   }
+}
+
+/// Loads every Keychain key that opens without user interaction —
+/// unencrypted, or encrypted with a stored passphrase. Entries that fail
+/// (missing file, wrong/missing passphrase, parse error) are skipped so one
+/// broken entry never blocks the rest of the Keychain. Certificates are not
+/// served in v1 (private keys only).
+Future<List<SSHKeyPair>> loadKeychainKeyPairs(
+  Iterable<SshKeyEntry> entries,
+  Future<String?> Function(String keyId) loadPassphrase,
+) async {
+  final pairs = <SSHKeyPair>[];
+  for (final entry in entries) {
+    try {
+      final pem = await File(entry.privateKeyPath).readAsString();
+      final passphrase = await loadPassphrase(entry.id);
+      pairs.addAll(SSHKeyPair.fromPem(
+        pem,
+        passphrase?.isNotEmpty == true ? passphrase : null,
+      ));
+    } catch (_) {
+      // Skipped by design — forwarding serves whatever is loadable.
+    }
+  }
+  return pairs;
 }
