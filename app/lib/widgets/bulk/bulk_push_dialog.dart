@@ -1,4 +1,6 @@
 // app/lib/widgets/bulk/bulk_push_dialog.dart
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -84,15 +86,27 @@ class _BulkPushDialogState extends State<BulkPushDialog> {
       for (final f in files)
         if (!_sources.any((s) => s.path == f.path)) f.path,
     ];
-    final resolved = await BulkActionService.resolveSources(fresh);
-    if (mounted) setState(() => _sources.addAll(resolved));
+    try {
+      final resolved = await BulkActionService.resolveSources(fresh);
+      if (mounted) setState(() => _sources.addAll(resolved));
+    } on FileSystemException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not read source: ${e.message}')));
+    }
   }
 
   Future<void> _addFolder() async {
     final dir = await getDirectoryPath();
     if (dir == null || _sources.any((s) => s.path == dir)) return;
-    final resolved = await BulkActionService.resolveSources([dir]);
-    if (mounted) setState(() => _sources.addAll(resolved));
+    try {
+      final resolved = await BulkActionService.resolveSources([dir]);
+      if (mounted) setState(() => _sources.addAll(resolved));
+    } on FileSystemException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not read source: ${e.message}')));
+    }
   }
 
   bool get _destValid => _destController.text.trim().startsWith('/');
@@ -215,28 +229,33 @@ class _BulkPushDialogState extends State<BulkPushDialog> {
                       ),
                       if (_sources.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            for (final s in _sources)
-                              Chip(
-                                backgroundColor: AppColors.card,
-                                side: const BorderSide(
-                                    color: AppColors.border),
-                                label: Text(
-                                    '${s.isDirectory ? '📁 ' : ''}${s.name} · ${_fmtBytes(s.bytes)}',
-                                    style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 11)),
-                                deleteIcon:
-                                    const Icon(Icons.close, size: 12),
-                                onDeleted: running
-                                    ? null
-                                    : () =>
-                                        setState(() => _sources.remove(s)),
-                              ),
-                          ],
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 120),
+                          child: SingleChildScrollView(
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                for (final s in _sources)
+                                  Chip(
+                                    backgroundColor: AppColors.card,
+                                    side: const BorderSide(
+                                        color: AppColors.border),
+                                    label: Text(
+                                        '${s.isDirectory ? '📁 ' : ''}${s.name} · ${_fmtBytes(s.bytes)}',
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 11)),
+                                    deleteIcon:
+                                        const Icon(Icons.close, size: 12),
+                                    onDeleted: running
+                                        ? null
+                                        : () =>
+                                            setState(() => _sources.remove(s)),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                       const SizedBox(height: 10),
