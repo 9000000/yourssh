@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the request shows a warning in the terminal instead of aborting the
   session. ([#49](https://github.com/YoursshLabs/yourssh/issues/49))
 
+### Fixed
+- Editing a host through the quick Edit dialog no longer silently resets the
+  fields the dialog has no controls for — group, tags, auto-record, shell
+  integration, jump host, detected OS, created date, and agent forwarding all
+  survive the edit; switching auth away from a key still clears the linked
+  key. ([#51](https://github.com/YoursshLabs/yourssh/issues/51))
+
 ---
 
 ## [0.1.27] — 2026-06-05
