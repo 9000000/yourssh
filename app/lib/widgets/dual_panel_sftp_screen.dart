@@ -385,6 +385,20 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
     };
   }
 
+  /// Why a context-menu copy-to-target from [fromLeft] cannot run for an
+  /// entry of [isDirectory] (null = it can). Mirrors the transfer matrix:
+  /// remote→remote relays are file-only.
+  String? _copyBlockReason(bool fromLeft, {required bool isDirectory}) {
+    final src = _sourceOf(fromLeft);
+    final dst = _sourceOf(!fromLeft);
+    if (src == null || dst == null) return 'No target panel';
+    if (isDirectory &&
+        transferKindFor(src, dst) == TransferKind.remoteRelay) {
+      return 'Folders not supported between two remote hosts';
+    }
+    return null;
+  }
+
   // ── Drag & drop ───────────────────────────────────────
 
   // A dropped entry is treated as coming from the opposite slot and is
@@ -413,6 +427,10 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
       panel = LocalFilePanel(
         provider: _localOf(left),
         onChangeSource: () => _pickSource(left),
+        onCopyToTarget: (entry) =>
+            _transfer(fromLeft: left, localEntries: [entry]),
+        copyToTargetBlockReason: (entry) =>
+            _copyBlockReason(left, isDirectory: entry.isDirectory),
       );
     } else {
       final host = src is HostSource ? src.host : null;
@@ -424,6 +442,10 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
         onChangeHost: () => _pickSource(left),
         initialPath:
             host == null ? '/' : (_remotePathByHost[host.id] ?? '/'),
+        onCopyToTarget: (entry) =>
+            _transfer(fromLeft: left, sftpEntries: [entry]),
+        copyToTargetBlockReason: (entry) =>
+            _copyBlockReason(left, isDirectory: entry.isDirectory),
       );
     }
 
