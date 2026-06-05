@@ -171,6 +171,9 @@ class SshService {
         username: host.username,
         onPasswordRequest: () => password ?? '',
         identities: resolution.identities.isNotEmpty ? resolution.identities : null,
+        // Forwarding terminates at the destination client only (OpenSSH
+        // ProxyJump semantics) — never add a handler to _ensureJumpClient
+        // or testConnection.
         agentHandler: host.agentForwarding
             ? AgentForwardingHandler(
                 loadKeychainIdentities:
