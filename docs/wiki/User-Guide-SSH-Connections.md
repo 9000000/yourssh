@@ -28,6 +28,23 @@ Click **+** on the Hosts screen (or **Cmd/Ctrl+N** from anywhere). Required fiel
 
 In the host detail panel, expand **Jump Host** and select any other saved host as the bastion. YourSSH tunnels through the bastion transparently.
 
+### Agent Forwarding
+
+Enable **Agent forwarding** in the host detail panel (SESSION section) to hop
+between servers with the keys on your local machine — like `ssh -A` — without
+copying private keys to the intermediate server.
+
+- Works with any auth method; applies on the next connect. Off by default.
+- Keys come from your local SSH agent (`SSH_AUTH_SOCK` on macOS/Linux, the
+  OpenSSH Authentication Agent pipe on Windows). If no agent is running, keys
+  stored in the app Keychain (unencrypted or with a saved passphrase) are
+  served instead.
+- Private keys never leave your machine — only signatures cross the wire.
+- If the server disallows forwarding (`AllowAgentForwarding no`), a yellow
+  warning appears in the terminal and the session continues normally.
+- Only enable it for hosts you trust: root on the remote can use (not read)
+  your keys while the session is open.
+
 ## Groups
 
 Click **New Group** to create a folder. Drag hosts into groups to keep the list organized. Groups are collapsible.
