@@ -7,6 +7,7 @@ import '../models/known_host.dart';
 import '../models/local_session.dart';
 import '../models/ssh_session.dart';
 import '../models/terminal_session.dart';
+import '../providers/ai_chat_provider.dart';
 import '../providers/host_provider.dart';
 import '../providers/known_hosts_provider.dart';
 import '../providers/session_provider.dart';
@@ -685,6 +686,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   Widget _buildForeground(TerminalSession? active) {
     if (_viewingTerminal && active != null) {
+      // Hide the AI toggle (and any open chat panel) when no AI provider
+      // has an API key configured — it appears once a key is saved.
+      final aiConfigured = context.select<AiChatProvider, bool>(
+          (p) => p.configuredProviders.isNotEmpty);
+      final showAiChat = _showAiChat && aiConfigured;
       return Row(
         children: [
           Expanded(
@@ -693,27 +699,30 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 const SplitTerminalView(),
                 Positioned(
                   top: 8,
-                  right: _showAiChat ? 348 : 8,
+                  right: showAiChat ? 348 : 8,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const NetworkStatsOverlay(),
-                      const SizedBox(width: 8),
                       if (active is SshSession) ...[
-                        _ShareButton(session: active),
                         const SizedBox(width: 8),
+                        _ShareButton(session: active),
                       ],
-                      _AiChatToggle(
-                        active: _showAiChat,
-                        onToggle: () => setState(() => _showAiChat = !_showAiChat),
-                      ),
+                      if (aiConfigured) ...[
+                        const SizedBox(width: 8),
+                        _AiChatToggle(
+                          active: showAiChat,
+                          onToggle: () =>
+                              setState(() => _showAiChat = !_showAiChat),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          if (_showAiChat)
+          if (showAiChat)
             AiChatSidebar(
               onClose: () => setState(() => _showAiChat = false),
             ),
