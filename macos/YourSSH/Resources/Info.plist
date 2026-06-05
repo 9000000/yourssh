@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.thangnm.yourssh</string>
+    <string>com.yoursshlabs.yourssh</string>
     <key>CFBundleName</key>
     <string>YourSSH</string>
     <key>CFBundleDisplayName</key>
