@@ -11,7 +11,7 @@ import '../services/sftp_file_ops_service.dart';
 import '../util/app_launcher.dart';
 import 'code_editor_screen.dart';
 import 'path_breadcrumb.dart';
-import 'sftp_entry_context_menu.dart';
+import 'entry_context_menu.dart';
 
 class SftpPanel extends StatefulWidget {
   final Host? host;
@@ -576,8 +576,9 @@ class _SftpPanelState extends State<SftpPanel> {
 
   Widget _buildEntryTile(SftpEntry entry, SftpPanelProvider prov) {
     final isSelected = prov.selectedEntries.contains(entry);
-    return SftpEntryContextMenu(
-      entry: entry,
+    return EntryContextMenu(
+      path: entry.path,
+      isDirectory: entry.isDirectory,
       onOpen: () => _onEntryTap(entry),
       onView: entry.isDirectory ? null : () => _openViewer(entry),
       onEdit: entry.isDirectory ? null : () => _openEditor(entry),
@@ -601,6 +602,8 @@ class _SftpPanelState extends State<SftpPanel> {
             },
       onRename: () => _showRenameDialog(prov, entry),
       onDelete: () => _showDeleteConfirm(prov, [entry]),
+      onRefresh: () => _loadDirectory(prov.currentPath),
+      onNewFolder: () => _showNewFolderDialog(prov),
       child: Draggable<SftpEntry>(
         data: entry,
         feedback: Material(
