@@ -61,6 +61,13 @@ class SshService {
 
   SshService(this._storage, {this.hookBus, this.shellIntegration});
 
+  /// Test-only: register a (fake) client so shell/exec paths can run without
+  /// a real network connection.
+  @visibleForTesting
+  void debugSetClient(String hostId, SSHClient client) {
+    _clients[hostId] = client;
+  }
+
   // ── Identity resolution ───────────────────────────────
   //
   // Resolves the SSH key material for a given host, keyed by [host.authType].
@@ -361,10 +368,16 @@ class SshService {
     final client = _clients[session.host.id];
     if (client == null) throw Exception('Not connected');
 
+    // The tab (and thus TerminalView layout) exists before the handshake
+    // finishes, so the terminal already knows its real dimensions — open the
+    // PTY at that size instead of a fixed 80x24, which made remote output
+    // wrap at half the window width.
+    final ptyWidth = session.terminal.viewWidth;
+    final ptyHeight = session.terminal.viewHeight;
     final shell = await client.shell(
       pty: SSHPtyConfig(
-        width: 80,
-        height: 24,
+        width: ptyWidth,
+        height: ptyHeight,
         type: 'xterm-256color',
       ),
     );
@@ -607,6 +620,14 @@ class SshService {
     session.terminal.onResize = (w, h, pw, ph) {
       shell.resizeTerminal(w, h);
     };
+    // The view may have resized while the shell channel was opening (onResize
+    // was still null then, so that event was lost) — sync once so the remote
+    // never keeps a stale size.
+    if (session.terminal.viewWidth != ptyWidth ||
+        session.terminal.viewHeight != ptyHeight) {
+      shell.resizeTerminal(
+          session.terminal.viewWidth, session.terminal.viewHeight);
+    }
 
     // Wait until the remote shell actually closes
     await done.future;
