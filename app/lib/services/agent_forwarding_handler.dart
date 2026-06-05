@@ -21,11 +21,9 @@ import 'system_agent_proxy.dart';
 /// propagates instead, so we never switch key sources mid-request.
 class AgentForwardingHandler implements SSHAgentHandler {
   AgentForwardingHandler({
-    Future<SystemAgentProxy> Function() connectSystemAgent =
-        SystemAgentProxy.connect,
-    required Future<List<SSHKeyPair>> Function() loadKeychainIdentities,
-  })  : _connectSystemAgent = connectSystemAgent,
-        _loadKeychainIdentities = loadKeychainIdentities;
+    this._connectSystemAgent = SystemAgentProxy.connect,
+    required this._loadKeychainIdentities,
+  });
 
   final Future<SystemAgentProxy> Function() _connectSystemAgent;
   final Future<List<SSHKeyPair>> Function() _loadKeychainIdentities;
