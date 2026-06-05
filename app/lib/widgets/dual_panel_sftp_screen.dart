@@ -387,7 +387,9 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
 
   /// Why a context-menu copy-to-target from [fromLeft] cannot run for an
   /// entry of [isDirectory] (null = it can). Mirrors the transfer matrix:
-  /// remote→remote relays are file-only.
+  /// remote→remote relays are file-only, and a copy into the directory the
+  /// entry already lives in can never succeed (the transfer layer rejects
+  /// it), so the item is disabled up front instead of failing on click.
   String? _copyBlockReason(bool fromLeft, {required bool isDirectory}) {
     final src = _sourceOf(fromLeft);
     final dst = _sourceOf(!fromLeft);
@@ -396,7 +398,24 @@ class _DualPanelSftpScreenState extends State<DualPanelSftpScreen> {
         transferKindFor(src, dst) == TransferKind.remoteRelay) {
       return 'Folders not supported between two remote hosts';
     }
+    if (_sameDirectory(src, dst, fromLeft)) {
+      return 'Both panels show this folder';
+    }
     return null;
+  }
+
+  /// True when both panels currently display the same directory of the
+  /// same source (local↔local on one path, or the same host on one path).
+  bool _sameDirectory(PanelSource src, PanelSource dst, bool fromLeft) {
+    if (src is LocalSource && dst is LocalSource) {
+      return _localOf(fromLeft).currentPath ==
+          _localOf(!fromLeft).currentPath;
+    }
+    if (src is HostSource && dst is HostSource) {
+      return src.host.id == dst.host.id &&
+          _sftpOf(fromLeft).currentPath == _sftpOf(!fromLeft).currentPath;
+    }
+    return false;
   }
 
   // ── Drag & drop ───────────────────────────────────────
