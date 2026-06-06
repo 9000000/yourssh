@@ -6,6 +6,11 @@
 // saved defaultShellId keeps pointing at them. Only custom profiles
 // serialize to prefs.
 
+/// Sentinel id meaning "no profile — use the platform default shell" in UI
+/// pickers (Settings dropdown, new-tab menu). Never collides with real
+/// profile ids ('powershell', 'wsl-…', 'etc-/…', `custom-<uuid>`).
+const kPlatformDefaultShellId = '__platform_default__';
+
 class ShellProfile {
   final String id;
   final String name;

@@ -1252,7 +1252,7 @@ class _AddTabBtnState extends State<_AddTabBtn> {
         if (profiles.isNotEmpty) const PopupMenuDivider(height: 4),
         if (profiles.isNotEmpty)
           const PopupMenuItem(
-            value: 'shell:__platform__',
+            value: 'shell:$kPlatformDefaultShellId',
             child: Row(children: [
               Icon(Icons.terminal, size: 14, color: Color(0xFFAAAAAA)),
               SizedBox(width: 8),
@@ -1278,7 +1278,7 @@ class _AddTabBtnState extends State<_AddTabBtn> {
       widget.onNewSsh();
     } else if (result == 'local') {
       widget.onNewLocal();
-    } else if (result == 'shell:__platform__') {
+    } else if (result == 'shell:$kPlatformDefaultShellId') {
       widget.onNewLocal(platformDefault: true);
     } else if (result.startsWith('shell:')) {
       final id = result.substring('shell:'.length);

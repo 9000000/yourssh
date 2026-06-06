@@ -117,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   Consumer<SettingsProvider>(
                     builder: (context, settings, _) {
-                      const platformDefault = '__platform_default__';
+                      const platformDefault = kPlatformDefaultShellId;
                       final profiles = settings.allShellProfiles;
                       final ids = {for (final s in profiles) s.id};
                       final value = settings.defaultShellId != null &&
@@ -1214,12 +1214,54 @@ class _CustomShellsRows extends StatelessWidget {
 
 Future<void> _showAddCustomShellDialog(BuildContext context) async {
   final settings = context.read<SettingsProvider>();
-  final nameCtrl = TextEditingController();
-  final exeCtrl = TextEditingController();
-  final argsCtrl = TextEditingController();
-  final added = await showDialog<bool>(
+  final profile = await showDialog<ShellProfile>(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (_) => const _AddShellDialog(),
+  );
+  if (profile != null) await settings.addCustomShellProfile(profile);
+}
+
+/// Stateful so the TextEditingControllers are disposed by the route teardown
+/// (State.dispose), not while the dialog's exit animation still references
+/// the text fields.
+class _AddShellDialog extends StatefulWidget {
+  const _AddShellDialog();
+
+  @override
+  State<_AddShellDialog> createState() => _AddShellDialogState();
+}
+
+class _AddShellDialogState extends State<_AddShellDialog> {
+  final _nameCtrl = TextEditingController();
+  final _exeCtrl = TextEditingController();
+  final _argsCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _exeCtrl.dispose();
+    _argsCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Null when the executable is empty — Add then behaves like Cancel.
+  ShellProfile? _buildProfile() {
+    final exe = _exeCtrl.text.trim();
+    if (exe.isEmpty) return null;
+    final name = _nameCtrl.text.trim();
+    final argsText = _argsCtrl.text.trim();
+    return ShellProfile(
+      id: 'custom-${const Uuid().v4()}',
+      name: name.isEmpty ? path_util.basename(exe) : name,
+      executable: exe,
+      args: argsText.isEmpty ? const [] : argsText.split(RegExp(r'\s+')),
+      isCustom: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
       backgroundColor: AppColors.card,
       title: const Text('Add custom shell', style: TextStyle(fontSize: 15)),
       content: SizedBox(
@@ -1228,13 +1270,13 @@ Future<void> _showAddCustomShellDialog(BuildContext context) async {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: nameCtrl,
+              controller: _nameCtrl,
               decoration: const InputDecoration(labelText: 'Display name'),
             ),
             Row(children: [
               Expanded(
                 child: TextField(
-                  controller: exeCtrl,
+                  controller: _exeCtrl,
                   decoration:
                       const InputDecoration(labelText: 'Executable path'),
                 ),
@@ -1245,12 +1287,12 @@ Future<void> _showAddCustomShellDialog(BuildContext context) async {
                 onPressed: () async {
                   final result = await FilePicker.platform.pickFiles();
                   final path = result?.files.single.path;
-                  if (path != null) exeCtrl.text = path;
+                  if (path != null) _exeCtrl.text = path;
                 },
               ),
             ]),
             TextField(
-              controller: argsCtrl,
+              controller: _argsCtrl,
               decoration: const InputDecoration(
                 labelText: 'Arguments',
                 helperText: 'Space-separated; quoting not supported',
@@ -1261,29 +1303,14 @@ Future<void> _showAddCustomShellDialog(BuildContext context) async {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Cancel')),
         TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => Navigator.pop(context, _buildProfile()),
             child: const Text('Add')),
       ],
-    ),
-  );
-  final exe = exeCtrl.text.trim();
-  if (added == true && exe.isNotEmpty) {
-    final name = nameCtrl.text.trim();
-    final argsText = argsCtrl.text.trim();
-    await settings.addCustomShellProfile(ShellProfile(
-      id: 'custom-${const Uuid().v4()}',
-      name: name.isEmpty ? path_util.basename(exe) : name,
-      executable: exe,
-      args: argsText.isEmpty ? const [] : argsText.split(RegExp(r'\s+')),
-      isCustom: true,
-    ));
+    );
   }
-  nameCtrl.dispose();
-  exeCtrl.dispose();
-  argsCtrl.dispose();
 }
 
 class _Section extends StatelessWidget {
