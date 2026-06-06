@@ -45,6 +45,22 @@ copying private keys to the intermediate server.
 - Only enable it for hosts you trust: root on the remote can use (not read)
   your keys while the session is open.
 
+**How to tell it's working**
+
+- When you switch the toggle on, a status line appears and checks your local
+  agent automatically: ✓ "System agent connected — N identities" means
+  forwarding will serve your `ssh-agent` keys; ⚠ "No system agent — N app
+  Keychain keys will be offered instead" means the app falls back to keys
+  stored in its Keychain; ✗ "No agent and no usable Keychain keys" means
+  forwarding would offer nothing — run `ssh-add <key>` or add a key in
+  Keychain.
+- While connected, the session tab shows a small key icon: grey = enabled but
+  no key requests yet, green = a request was just served by your system
+  agent, yellow = served from app Keychain keys, red = the server refused
+  forwarding (`AllowAgentForwarding no`). Hover the icon for details.
+- If the server refuses forwarding you also get a notification in the bell;
+  clicking it jumps to that session.
+
 ## Groups
 
 Click **New Group** to create a folder. Drag hosts into groups to keep the list organized. Groups are collapsible.

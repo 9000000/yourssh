@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   date, or hostname, ascending/descending) from the new toolbar dropdown.
   Both choices persist across restarts. Default order is now Name A–Z
   (previously insertion order).
+- **Agent forwarding observability** — live SSH agent status in the host
+  panel (system agent / Keychain fallback / nothing detected), a
+  per-session key icon on the session tab (ready / active / fallback /
+  refused), and a notification-bell item with tap-to-jump when the server
+  refuses forwarding.
 
 ### Changed
 - `SftpTransferService.uploadFile` reports byte progress;
