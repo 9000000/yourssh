@@ -66,6 +66,31 @@ copying private keys to the intermediate server.
 - If the server refuses forwarding you also get a notification in the bell;
   clicking it jumps to that session.
 
+### Session Template (per-host preset)
+
+The **SESSION TEMPLATE** section in the host detail panel pre-configures every
+new session on that host. All fields are optional — anything left empty
+follows your global settings.
+
+- **Working directory** — `cd` into this path on connect. Delivered
+  invisibly (no echo in the terminal, nothing in recordings); if the
+  directory doesn't exist you get a one-line warning. bash/zsh only.
+- **Env vars** — `NAME=value` pairs exported on connect, also invisible.
+  Names must be valid POSIX identifiers; duplicates are rejected on save.
+  bash/zsh only.
+- **Startup snippet** — command text typed *visibly* into the shell after
+  the setup completes, exactly as if you typed it (it appears in recordings
+  and the audit log). Skipped when tmux is on — a tmux re-attach would run
+  it again into your existing session.
+- **Terminal theme / font / size** — per-host appearance override. Handy for
+  making production hosts visually unmistakable (e.g. a red theme). Applies
+  live to open sessions when you edit the host.
+- **TERM type** and **tmux** — per-host overrides of the global Settings →
+  Terminal values; applies on the next connect.
+
+If you start typing before the setup is delivered, the app backs off and
+skips the template entirely — you always own the session.
+
 ## Groups
 
 Click **New Group** to create a folder. Drag hosts into groups to keep the list organized. Groups are collapsible.
