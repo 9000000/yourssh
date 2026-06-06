@@ -18,6 +18,9 @@ class SettingsProvider extends ChangeNotifier {
   String terminalType = 'xterm-256color';
   String recordingPath = '';
 
+  /// Audit log retention in days; 0 = keep forever.
+  int auditRetentionDays = 90;
+
   /// Hosts dashboard layout: 'grid' (cards) or 'list' (compact rows).
   /// Anything else is treated as 'grid' at the point of use.
   String dashboardViewMode = 'grid';
@@ -55,6 +58,7 @@ class SettingsProvider extends ChangeNotifier {
     shellIntegrationEnabled = prefs.getBool('shellIntegrationEnabled') ?? true;
     terminalFont = prefs.getString('terminalFont') ?? 'MesloLGS NF';
     terminalType = prefs.getString('terminalType') ?? 'xterm-256color';
+    auditRetentionDays = prefs.getInt('auditRetentionDays') ?? 90;
     final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     final defaultPath = home != null
         ? p.join(home, 'Documents', 'YourSSH', 'Recordings')
@@ -105,6 +109,7 @@ class SettingsProvider extends ChangeNotifier {
     String? recordingPath,
     String? dashboardViewMode,
     String? dashboardSort,
+    int? auditRetentionDays,
   }) async {
     if (autoReconnect != null) this.autoReconnect = autoReconnect;
     if (reconnectAttempts != null) this.reconnectAttempts = reconnectAttempts;
@@ -121,6 +126,9 @@ class SettingsProvider extends ChangeNotifier {
     if (recordingPath != null) this.recordingPath = recordingPath;
     if (dashboardViewMode != null) this.dashboardViewMode = dashboardViewMode;
     if (dashboardSort != null) this.dashboardSort = dashboardSort;
+    if (auditRetentionDays != null) {
+      this.auditRetentionDays = auditRetentionDays;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('autoReconnect', this.autoReconnect);
     await prefs.setInt('reconnectAttempts', this.reconnectAttempts);
@@ -137,6 +145,7 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString('recordingPath', this.recordingPath);
     await prefs.setString('dashboardViewMode', this.dashboardViewMode);
     await prefs.setString('dashboardSort', this.dashboardSort);
+    await prefs.setInt('auditRetentionDays', this.auditRetentionDays);
     notifyListeners();
   }
 }

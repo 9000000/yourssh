@@ -5,6 +5,7 @@ import '../models/ai_provider_config.dart';
 import '../providers/ai_chat_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/sync_provider.dart';
+import '../services/audit_service.dart';
 import '../services/sync_service.dart';
 import '../services/sync_code.dart';
 import '../providers/host_provider.dart';
@@ -175,6 +176,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ]),
                 const SizedBox(height: 24),
+                _Section(title: 'Audit', children: [
+                  _Row(
+                    label: 'Retention',
+                    subtitle: 'Delete audit events older than this on launch',
+                    trailing: _DropDown<int>(
+                      value: const [30, 90, 365, 0]
+                              .contains(settings.auditRetentionDays)
+                          ? settings.auditRetentionDays
+                          : 90,
+                      items: const [30, 90, 365, 0],
+                      labelOf: (d) => d == 0 ? 'Keep forever' : '$d days',
+                      onChanged: (d) =>
+                          settings.save(auditRetentionDays: d),
+                    ),
+                  ),
+                  _Row(
+                    label: 'Clear audit log',
+                    subtitle: 'Delete all recorded events now',
+                    trailing: TextButton.icon(
+                      icon: const Icon(Icons.delete_outline,
+                          size: 14, color: Colors.red),
+                      label: const Text('Clear',
+                          style: TextStyle(fontSize: 12, color: Colors.red)),
+                      onPressed: () => _confirmClearAudit(context),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 24),
                 _SyncSection(sync: sync),
                 const SizedBox(height: 24),
                 const _AiProvidersSection(),
@@ -282,6 +311,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _confirmClearAudit(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Clear audit log?',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 15)),
+        content: const Text('All recorded events will be deleted.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Clear', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      context.read<AuditService>().clearAll();
+    } on ProviderNotFoundException {
+      // Settings pumped without audit wiring (tests).
+    }
+  }
 }
 
 class _SyncSection extends StatefulWidget {
