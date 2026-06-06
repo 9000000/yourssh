@@ -78,14 +78,26 @@ class _AgentStatusLineState extends State<AgentStatusLine> {
             child: Text(text,
                 style: TextStyle(color: color, fontSize: 11, height: 1.3)),
           ),
-          InkWell(
-            onTap: _result == null ? null : _run,
-            child: const Padding(
-              padding: EdgeInsets.all(2),
-              child: Icon(Icons.refresh,
-                  size: 13, color: AppColors.textTertiary),
-            ),
-          ),
+          // While a probe is in flight the refresh affordance becomes a
+          // spinner — taps are blocked and the user sees progress.
+          _result == null
+              ? const Padding(
+                  padding: EdgeInsets.all(2),
+                  child: SizedBox(
+                    width: 13,
+                    height: 13,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 1.5, color: AppColors.textTertiary),
+                  ),
+                )
+              : InkWell(
+                  onTap: _run,
+                  child: const Padding(
+                    padding: EdgeInsets.all(2),
+                    child: Icon(Icons.refresh,
+                        size: 13, color: AppColors.textTertiary),
+                  ),
+                ),
         ],
       ),
     );

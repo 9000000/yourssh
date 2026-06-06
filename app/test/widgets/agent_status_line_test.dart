@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yourssh/services/agent_probe.dart';
@@ -60,5 +62,36 @@ void main() {
     await tester.tap(find.byIcon(Icons.refresh));
     await tester.pumpAndSettle();
     expect(find.text('System agent connected — 2 identities'), findsOneWidget);
+  });
+
+  testWidgets('shows a spinner instead of the refresh icon while in flight',
+      (tester) async {
+    var completer = Completer<AgentProbeResult>();
+    await tester.pumpWidget(wrap(AgentStatusLine(
+      probe: () => completer.future,
+    )));
+
+    // Initial probe in flight: spinner visible, refresh hidden.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byIcon(Icons.refresh), findsNothing);
+
+    completer.complete(const AgentProbeSystem(1));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.refresh), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    // Refresh returns to the loading state until the new probe resolves.
+    completer = Completer<AgentProbeResult>();
+    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.pump();
+    expect(find.text('Checking SSH agent…'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    completer.complete(const AgentProbeKeychain(2));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No system agent — 2 app Keychain keys will be offered instead'),
+      findsOneWidget,
+    );
   });
 }
