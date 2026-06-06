@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     per-host byte progress and cancel
 - Closing a bulk dialog mid-run asks for confirmation; queued hosts are
   cancelled while in-flight operations finish and record their real result
+- **Grid & List view for the hosts dashboard** — toggle between the card
+  grid and a compact single-line list; pick a sort order (name, creation
+  date, or hostname, ascending/descending) from the new toolbar dropdown.
+  Both choices persist across restarts. Default order is now Name A–Z
+  (previously insertion order).
 
 ### Changed
 - `SftpTransferService.uploadFile` reports byte progress;
