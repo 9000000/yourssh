@@ -80,6 +80,12 @@ env:staging port:2222
 
 Combine with `AND` / `OR`, or toggle the chip buttons for common filters.
 
+## Dashboard Views & Sorting
+
+The hosts dashboard can show hosts as a card grid or a compact one-line list — toggle with the grid/list button in the toolbar. A sort dropdown orders hosts by name, creation date, or hostname, ascending or descending. Both choices persist across restarts; the default is Name A–Z.
+
+To act on several hosts at once (connect all, run a command in parallel, push files), see [Bulk Actions](User-Guide-Bulk-Actions).
+
 ## Importing Hosts
 
 **Settings → Import** accepts:
