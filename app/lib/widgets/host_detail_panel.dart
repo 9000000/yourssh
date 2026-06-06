@@ -89,6 +89,9 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
   Future<AgentProbeResult> _probeAgent() {
     final custom = widget.agentProbe;
     if (custom != null) return custom();
+    // Defensive: the status line probes from its initState; if this panel is
+    // torn down in the same frame, context.read would throw on a dead element.
+    if (!mounted) return Future.value(const AgentProbeNothing());
     final loader = context.read<SshService>().keychainIdentitiesLoader;
     return probeAgentStatus(
         loadKeychainIdentities: loader ?? () async => const []);
