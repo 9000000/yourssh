@@ -355,7 +355,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         .toList();
                     if (otherHosts.isEmpty) return const SizedBox.shrink();
                     // Drop a stale jump host selection if that host was deleted
-                    // — otherwise DropdownButton asserts on a value not in items.
+                    // — otherwise the firstWhere below throws on an id not in the list.
                     final validJump = _selectedJumpHostId != null &&
                             otherHosts.any((h) => h.id == _selectedJumpHostId)
                         ? _selectedJumpHostId
