@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.1.31] — 2026-06-06
+## [0.1.30] — 2026-06-06
 
 ### Added
 - **Connection Chain editor** — the Jump Host dropdown in the host panel is
@@ -20,18 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tool/jump_probe.dart` — layer-by-layer jump-host diagnostic CLI
   (TCP → bastion auth → direct-tcpip channel → target auth → exec) for
   debugging "can't reach host behind bastion" reports.
-
-### Fixed
-- **Jump host on auto-connect paths** — SFTP, exec, and port forwarding
-  auto-connect (`ensureClient`) never resolved the host's jump host, so
-  hosts behind a bastion dialed direct and timed out. They now tunnel
-  through the bastion exactly like interactive sessions.
-
----
-
-## [0.1.30] — 2026-06-06
-
-### Added
 - **Bulk action panel** — select N hosts on the dashboard (SELECT mode with
   per-card checkboxes, filter-aware Select all, Esc to exit) and act on all
   of them at once:
@@ -58,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-session key icon on the session tab (ready / active / fallback /
   refused), and a notification-bell item with tap-to-jump when the server
   refuses forwarding.
+
+### Fixed
+- **Jump host on auto-connect paths** — SFTP, exec, and port forwarding
+  auto-connect (`ensureClient`) never resolved the host's jump host, so
+  hosts behind a bastion dialed direct and timed out. They now tunnel
+  through the bastion exactly like interactive sessions.
 
 ### Changed
 - Command-finish notifications are now **off by default** (re-enable via
@@ -492,8 +486,7 @@ Initial release of YourSSH — a cross-platform SSH client for macOS, Windows, a
 - **Host management** — CRUD for SSH host profiles with `StorageService`
 - **Known hosts** — TOFU dialog for host-key verification; `KnownHostsProvider`
 
-[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.31...HEAD
-[0.1.31]: https://github.com/YoursshLabs/yourssh/compare/v0.1.30...v0.1.31
+[Unreleased]: https://github.com/YoursshLabs/yourssh/compare/v0.1.30...HEAD
 [0.1.30]: https://github.com/YoursshLabs/yourssh/compare/v0.1.29...v0.1.30
 [0.1.29]: https://github.com/YoursshLabs/yourssh/compare/v0.1.28...v0.1.29
 [0.1.28]: https://github.com/YoursshLabs/yourssh/compare/v0.1.27...v0.1.28
