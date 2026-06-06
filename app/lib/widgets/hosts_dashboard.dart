@@ -9,6 +9,7 @@ import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
 import '../util/bulk_connect.dart';
 import '../util/host_query.dart';
+import '../util/host_sort.dart';
 import '../providers/host_provider.dart';
 import '../providers/key_provider.dart';
 import '../providers/session_provider.dart';
@@ -373,6 +374,112 @@ class _OutlinedBtn extends StatelessWidget {
             const SizedBox(width: 6),
             Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, letterSpacing: 0.3)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Dropdown button showing the current sort mode; opens a menu with all
+/// HostSortMode values.
+class _SortBtn extends StatelessWidget {
+  final HostSortMode mode;
+  final ValueChanged<HostSortMode> onChanged;
+  const _SortBtn({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (d) => _openMenu(context, d.globalPosition),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sort, size: 13, color: AppColors.textSecondary),
+            const SizedBox(width: 6),
+            Text(mode.label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, letterSpacing: 0.3)),
+            const Icon(Icons.arrow_drop_down, size: 16, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openMenu(BuildContext context, Offset position) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final selected = await showMenu<HostSortMode>(
+      context: context,
+      color: AppColors.card,
+      position: RelativeRect.fromRect(
+        position & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        for (final m in HostSortMode.values)
+          PopupMenuItem<HostSortMode>(
+            value: m,
+            height: 36,
+            child: Row(
+              children: [
+                Icon(Icons.check,
+                    size: 14,
+                    color: m == mode ? AppColors.accent : Colors.transparent),
+                const SizedBox(width: 8),
+                Text(m.label,
+                    style: TextStyle(
+                        color: m == mode ? AppColors.textPrimary : AppColors.textSecondary,
+                        fontSize: 13)),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (selected != null) onChanged(selected);
+  }
+}
+
+/// Segmented grid/list switch for the hosts dashboard.
+class _ViewToggle extends StatelessWidget {
+  final String viewMode; // 'grid' | 'list'
+  final ValueChanged<String> onChanged;
+  const _ViewToggle({required this.viewMode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _segment(Icons.grid_view, 'Grid view', 'grid'),
+            Container(width: 1, height: 27, color: AppColors.border),
+            _segment(Icons.view_list, 'List view', 'list'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _segment(IconData icon, String tooltip, String mode) {
+    final active = viewMode == mode;
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: () => onChanged(mode),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          color: active ? AppColors.card : Colors.transparent,
+          child: Icon(icon, size: 13, color: active ? AppColors.textPrimary : AppColors.textSecondary),
         ),
       ),
     );
@@ -1330,3 +1437,19 @@ Widget hostListRowForTest({
       selected: selected,
       onToggleSelect: onToggleSelect,
     );
+
+/// Test-only entry point to the private sort dropdown button.
+@visibleForTesting
+Widget sortButtonForTest({
+  required HostSortMode mode,
+  required ValueChanged<HostSortMode> onChanged,
+}) =>
+    _SortBtn(mode: mode, onChanged: onChanged);
+
+/// Test-only entry point to the private grid/list view toggle.
+@visibleForTesting
+Widget viewToggleForTest({
+  required String viewMode,
+  required ValueChanged<String> onChanged,
+}) =>
+    _ViewToggle(viewMode: viewMode, onChanged: onChanged);
