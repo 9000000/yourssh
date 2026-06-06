@@ -37,6 +37,7 @@ import '../providers/plugin_engine_provider.dart';
 import '../providers/plugin_provider.dart';
 import '../services/ssh_service.dart';
 import 'package:yourssh_plugin_api/yourssh_plugin_api.dart';
+import '../models/shell_profile.dart';
 import '../providers/settings_provider.dart';
 import '../providers/terminal_layout_provider.dart';
 import '../services/hotkey_service.dart';
@@ -548,9 +549,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               });
               _openHostPanel();
             },
-            onAddLocalSession: () {
+            onAddLocalSession: (
+                {ShellProfile? profile, bool platformDefault = false}) {
               setState(() => _viewingTerminal = true);
-              unawaited(context.read<SessionProvider>().newLocalSession());
+              unawaited(context.read<SessionProvider>().newLocalSession(
+                  profile: profile, platformDefault: platformDefault));
             },
             onShowUpdateDetails: _showUpdateDetails,
             onOpenSession: (sessionId) {
@@ -1068,7 +1071,8 @@ class _TopTabBar extends StatelessWidget {
   final ValueChanged<NavSection> onNavSelect;
   final ValueChanged<String> onSessionTap;
   final VoidCallback onAddSession;
-  final VoidCallback onAddLocalSession;
+  final void Function({ShellProfile? profile, bool platformDefault})
+      onAddLocalSession;
   final VoidCallback onShowUpdateDetails;
   final ValueChanged<String> onOpenSession;
 
@@ -1204,7 +1208,8 @@ class _PinnedTabState extends State<_PinnedTab> {
 
 class _AddTabBtn extends StatefulWidget {
   final VoidCallback onNewSsh;
-  final VoidCallback onNewLocal;
+  final void Function({ShellProfile? profile, bool platformDefault})
+      onNewLocal;
   const _AddTabBtn({required this.onNewSsh, required this.onNewLocal});
 
   @override
@@ -1215,6 +1220,8 @@ class _AddTabBtnState extends State<_AddTabBtn> {
   bool _hovered = false;
 
   Future<void> _showAddMenu() async {
+    // Same set as the Settings dropdown: platform default + detected + custom.
+    final profiles = context.read<SettingsProvider>().allShellProfiles;
     final box = context.findRenderObject() as RenderBox;
     final origin = box.localToGlobal(Offset(0, box.size.height));
     final result = await showMenu<String>(
@@ -1242,13 +1249,40 @@ class _AddTabBtnState extends State<_AddTabBtn> {
                 style: TextStyle(color: Color(0xFFCCCCCC), fontSize: 13)),
           ]),
         ),
+        if (profiles.isNotEmpty) const PopupMenuDivider(height: 4),
+        if (profiles.isNotEmpty)
+          const PopupMenuItem(
+            value: 'shell:__platform__',
+            child: Row(children: [
+              Icon(Icons.terminal, size: 14, color: Color(0xFFAAAAAA)),
+              SizedBox(width: 8),
+              Text('Platform default shell',
+                  style: TextStyle(color: Color(0xFFCCCCCC), fontSize: 13)),
+            ]),
+          ),
+        for (final s in profiles)
+          PopupMenuItem(
+            value: 'shell:${s.id}',
+            child: Row(children: [
+              const Icon(Icons.terminal, size: 14, color: Color(0xFFAAAAAA)),
+              const SizedBox(width: 8),
+              Text(s.name,
+                  style: const TextStyle(
+                      color: Color(0xFFCCCCCC), fontSize: 13)),
+            ]),
+          ),
       ],
     );
-    switch (result) {
-      case 'ssh':
-        widget.onNewSsh();
-      case 'local':
-        widget.onNewLocal();
+    if (result == null) return;
+    if (result == 'ssh') {
+      widget.onNewSsh();
+    } else if (result == 'local') {
+      widget.onNewLocal();
+    } else if (result == 'shell:__platform__') {
+      widget.onNewLocal(platformDefault: true);
+    } else if (result.startsWith('shell:')) {
+      final id = result.substring('shell:'.length);
+      widget.onNewLocal(profile: profiles.firstWhere((s) => s.id == id));
     }
   }
 
