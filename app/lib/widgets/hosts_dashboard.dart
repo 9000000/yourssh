@@ -726,15 +726,15 @@ class _HostCardState extends State<_HostCard> {
   @override
   Widget build(BuildContext context) {
     final color = AppColors.hostColor(widget.host.id);
-    final sessionProvider = context.read<SessionProvider>();
-    final hostProvider = context.read<HostProvider>();
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.selectionMode ? widget.onToggleSelect : null,
-        onDoubleTap: widget.selectionMode ? null : () => sessionProvider.connect(widget.host),
+        onDoubleTap: widget.selectionMode
+            ? null
+            : () => context.read<SessionProvider>().connect(widget.host),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -812,7 +812,7 @@ class _HostCardState extends State<_HostCard> {
                 const SizedBox(width: 2),
                 _iconBtn(Icons.folder_outlined, 'SFTP', onTap: () => _openSftp(context)),
                 const SizedBox(width: 2),
-                _iconBtn(Icons.more_horiz, 'More', onTapDown: (d) => _showMenu(context, hostProvider, sessionProvider, d.globalPosition)),
+                _iconBtn(Icons.more_horiz, 'More', onTapDown: (d) => _showMenu(context, d.globalPosition)),
               ],
               if (_testing)
                 const SizedBox(
@@ -862,7 +862,9 @@ class _HostCardState extends State<_HostCard> {
     );
   }
 
-  void _showMenu(BuildContext context, HostProvider hostProvider, SessionProvider sessionProvider, Offset tapPosition) {
+  void _showMenu(BuildContext context, Offset tapPosition) {
+    final hostProvider = context.read<HostProvider>();
+    final sessionProvider = context.read<SessionProvider>();
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     showMenu(
       context: context,
