@@ -30,4 +30,58 @@ void main() {
     );
     expect(find.text('Clear'), findsNothing);
   });
+
+  testWidgets('chain state shows both cards, arrow and Clear', (tester) async {
+    await tester.pumpWidget(wrap(HostChainEditor(
+      currentHostLabel: 'prod-db',
+      jumpHost: makeHost('h1', 'bastion'),
+      candidates: [makeHost('h1', 'bastion')],
+      onSelect: (_) {},
+    )));
+
+    expect(find.text('bastion'), findsOneWidget);
+    expect(find.text('prod-db'), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_downward), findsOneWidget);
+    expect(find.text('Clear'), findsOneWidget);
+    expect(find.text('Add a Host'), findsNothing);
+  });
+
+  testWidgets('key icon shows iff agentForwarding', (tester) async {
+    final jump = makeHost('h1', 'bastion');
+    await tester.pumpWidget(wrap(HostChainEditor(
+      currentHostLabel: 'prod-db',
+      jumpHost: jump,
+      agentForwarding: true,
+      candidates: [jump],
+      onSelect: (_) {},
+    )));
+    expect(find.byIcon(Icons.key), findsOneWidget);
+
+    await tester.pumpWidget(wrap(HostChainEditor(
+      currentHostLabel: 'prod-db',
+      jumpHost: jump,
+      agentForwarding: false,
+      candidates: [jump],
+      onSelect: (_) {},
+    )));
+    expect(find.byIcon(Icons.key), findsNothing);
+  });
+
+  testWidgets('Clear tap fires onSelect(null)', (tester) async {
+    Host? selected = makeHost('sentinel', 's');
+    var fired = false;
+    await tester.pumpWidget(wrap(HostChainEditor(
+      currentHostLabel: 'prod-db',
+      jumpHost: makeHost('h1', 'bastion'),
+      candidates: const [],
+      onSelect: (h) {
+        fired = true;
+        selected = h;
+      },
+    )));
+
+    await tester.tap(find.text('Clear'));
+    expect(fired, isTrue);
+    expect(selected, isNull);
+  });
 }
