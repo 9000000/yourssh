@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import '../models/host.dart';
 import '../providers/host_provider.dart';
 import '../providers/key_provider.dart';
+import '../services/agent_probe.dart';
 import '../services/ssh_service.dart';
 import '../theme/app_theme.dart';
+import 'agent_status_line.dart';
 
 class HostDetailPanel extends StatefulWidget {
   final Host? existing;
@@ -14,6 +16,10 @@ class HostDetailPanel extends StatefulWidget {
   final Future<void> Function(Host host, String password) onSave;
   final Future<void> Function(Host host)? onConnect;
 
+  /// Test seam for the agent status line; defaults to the real probe using
+  /// SshService's Keychain loader.
+  final Future<AgentProbeResult> Function()? agentProbe;
+
   const HostDetailPanel({
     super.key,
     this.existing,
@@ -21,6 +27,7 @@ class HostDetailPanel extends StatefulWidget {
     required this.onClose,
     required this.onSave,
     this.onConnect,
+    this.agentProbe,
   });
 
   @override
@@ -77,6 +84,14 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
 
   void _clearTestResult() {
     if (_testResult != null || _testing) setState(() { _testResult = null; _testing = false; });
+  }
+
+  Future<AgentProbeResult> _probeAgent() {
+    final custom = widget.agentProbe;
+    if (custom != null) return custom();
+    final loader = context.read<SshService>().keychainIdentitiesLoader;
+    return probeAgentStatus(
+        loadKeychainIdentities: loader ?? () async => const []);
   }
 
   @override
@@ -306,6 +321,12 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         ),
                       ),
                     ],
+                    if (_authType == AuthType.agent) ...[
+                      _divider(),
+                      AgentStatusLine(
+                          key: const ValueKey('auth-agent-status'),
+                          probe: _probeAgent),
+                    ],
                   ]),
 
                   const SizedBox(height: 16),
@@ -450,19 +471,49 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                     SwitchListTile(
                       value: _agentForwarding,
                       onChanged: (v) => setState(() => _agentForwarding = v),
-                      title: const Text(
-                        'Agent forwarding',
-                        style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                      ),
+                      title: const Row(children: [
+                        Flexible(
+                          child: Text(
+                            'Agent forwarding',
+                            style: TextStyle(
+                                color: AppColors.textPrimary, fontSize: 13),
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Tooltip(
+                          message:
+                              'SSH Agent auth: your agent\'s keys log you in '
+                              'to THIS host.\n'
+                              'Agent forwarding: this host can borrow your '
+                              'local keys to reach other places (git pull, '
+                              'ssh to the next hop). Private keys never '
+                              'leave your machine.\n'
+                              'Only enable for trusted hosts — root on the '
+                              'host can use your keys while you are '
+                              'connected.',
+                          child: Icon(Icons.info_outline,
+                              size: 13, color: AppColors.textTertiary),
+                        ),
+                      ]),
                       subtitle: const Text(
-                        'Forward your local SSH agent to this host (like ssh -A). '
-                        'Applies on next connect.',
-                        style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                        'Let this host use your local SSH keys for onward '
+                        'connections — git, ssh to other servers (like '
+                        'ssh -A). Applies on next connect.',
+                        style: TextStyle(
+                            color: AppColors.textTertiary, fontSize: 11),
                       ),
                       dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 2),
                       activeThumbColor: AppColors.accent,
                     ),
+                    // Zero-click feedback: probes on appearance. The auth
+                    // section owns the line when auth = SSH Agent (spec: one
+                    // probe, no duplicate row).
+                    if (_agentForwarding && _authType != AuthType.agent)
+                      AgentStatusLine(
+                          key: const ValueKey('forwarding-status'),
+                          probe: _probeAgent),
                   ]),
 
                   const SizedBox(height: 24),
