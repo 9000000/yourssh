@@ -30,6 +30,7 @@ import '../widgets/ai_chat_sidebar.dart';
 import '../widgets/command_palette.dart';
 import '../widgets/plugin_consent_dialog.dart';
 import '../widgets/plugin_manager_screen.dart';
+import '../widgets/audit_screen.dart';
 import '../widgets/recording_library_screen.dart';
 import '../plugins/plugin_context_impl.dart';
 import '../providers/plugin_engine_provider.dart';
@@ -48,7 +49,7 @@ import '../widgets/update_banner.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/session_tab.dart';
 
-enum NavSection { hosts, keychain, portForwarding, sftp, knownHosts, recordings, settings, plugins }
+enum NavSection { hosts, keychain, portForwarding, sftp, knownHosts, recordings, audit, settings, plugins }
 
 enum _SidePanel { none, host, newGroup, import }
 
@@ -785,6 +786,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       // Rendered by the KeepAliveOffstage layer in _buildContent.
       NavSection.sftp => const SizedBox.shrink(),
       NavSection.recordings => const RecordingLibraryScreen(),
+      NavSection.audit => const AuditScreen(),
       NavSection.knownHosts => const KnownHostsScreen(),
       NavSection.settings => const SettingsScreen(),
       NavSection.plugins => const PluginManagerScreen(),
@@ -858,6 +860,7 @@ class _Sidebar extends StatelessWidget {
             onTap: onOpenLocalTerminal,
           ),
           _navItem(Icons.video_library_outlined, 'Recordings', NavSection.recordings),
+          _navItem(Icons.receipt_long_outlined, 'Audit Log', NavSection.audit),
           ...context.watch<PluginProvider>().enabledPlugins.map(
             (plugin) => _pluginNavItem(context, plugin),
           ),
