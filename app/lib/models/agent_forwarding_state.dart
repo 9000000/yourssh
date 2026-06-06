@@ -13,7 +13,8 @@ enum AgentForwardingState {
   /// Latest request served from app-Keychain keys (system agent unreachable).
   fallback,
 
-  /// Server refused `auth-agent-req` (AllowAgentForwarding no). Terminal for
-  /// the shell — the request is sent once per shell; reset on reconnect.
+  /// Server refused `auth-agent-req` (AllowAgentForwarding no). Final for
+  /// the lifetime of the shell — the request is sent once per shell; a
+  /// reconnect (new shell) resets the state to [ready].
   refused,
 }
