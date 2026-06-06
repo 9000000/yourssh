@@ -56,7 +56,7 @@ copying private keys to the intermediate server.
   Keychain.
 - While connected, the session tab shows a small key icon: grey = enabled but
   no key requests yet, green = a request was just served by your system
-  agent, yellow = served from app Keychain keys, red = the server refused
+  agent, orange = served from app Keychain keys, red = the server refused
   forwarding (`AllowAgentForwarding no`). Hover the icon for details.
 - If the server refuses forwarding you also get a notification in the bell;
   clicking it jumps to that session.

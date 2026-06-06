@@ -120,7 +120,7 @@ Flutter UI (widgets/screens)
 - `Host` — connection profile (host, port, username, `AuthType`: `password` / `privateKey` / `certificate` / `agent`; `agentForwarding` opt-in per host, default off)
 - `SshSession` — wraps an xterm `Terminal`; bridges `dartssh2` shell I/O to the widget; has `SessionStatus` (connecting/connected/disconnected/error) and reconnect attempt counter
 - `SshKeyEntry` — key file path, optional passphrase, optional `certificatePath` for cert auth
-- `AgentForwardingState` — sealed enum (`off`, `ready`, `active`, `fallback`, `refused`); mutable on `SshSession`; drives the key icon on `SessionTab` and the notification bell entry
+- `AgentForwardingState` — enum (`off`, `ready`, `active`, `fallback`, `refused`); mutable on `SshSession`; drives the key icon on `SessionTab` and the notification bell entry
 - `PortForward`, `TunnelConfig`, `Snippet`, `KnownHost`, `NetworkStats`, `LocalEntry`, `SftpEntry`, `SftpTransferItem` — `SftpEntry.mode` / `LocalEntry.mode` carry the raw st_mode from listing/scan time (null when the server/stat omits it) so the permissions dialog never re-stats at open; a null mode makes the dialog warn and gate Apply instead of defaulting to 000
 - `ChatMessage`, `AiProviderConfig` — AI chat models
 - `ToolResult` — structured result from AI tool calls
