@@ -27,6 +27,18 @@ class Host {
   SftpMode sftpMode;
   String? sftpServerCommand;
 
+  // ── Session template (per-host preset) ──────────────────────────────
+  // All null/empty = no override; see
+  // docs/superpowers/specs/2026-06-06-session-template-design.md.
+  String? workingDir;
+  Map<String, String> envVars;
+  String? startupSnippet;
+  String? terminalThemeId;
+  String? fontFamily;
+  double? fontSize;
+  String? termType;
+  bool? tmuxOverride;
+
   Host({
     String? id,
     required this.label,
@@ -45,11 +57,26 @@ class Host {
     this.agentForwarding = false,
     this.sftpMode = SftpMode.normal,
     this.sftpServerCommand,
+    this.workingDir,
+    Map<String, String> envVars = const {},
+    this.startupSnippet,
+    this.terminalThemeId,
+    this.fontFamily,
+    this.fontSize,
+    this.termType,
+    this.tmuxOverride,
   })  : id = id ?? const Uuid().v4(),
         // Always own a growable copy so callers can `tags.add(...)`
         // without hitting `Unsupported operation` on the shared `const []`.
         tags = List.of(tags),
+        envVars = Map.of(envVars),
         createdAt = createdAt ?? DateTime.now();
+
+  /// Whether connect-time template work exists. Drives the invisible
+  /// handshake when shell integration is off — the snippet needs the
+  /// handshake too, since DONE is its send trigger.
+  bool get hasTemplateSetup =>
+      workingDir != null || envVars.isNotEmpty || startupSnippet != null;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -69,6 +96,14 @@ class Host {
         'agentForwarding': agentForwarding,
         'sftpMode': sftpMode.name,
         'sftpServerCommand': sftpServerCommand,
+        'workingDir': workingDir,
+        'envVars': envVars,
+        'startupSnippet': startupSnippet,
+        'terminalThemeId': terminalThemeId,
+        'fontFamily': fontFamily,
+        'fontSize': fontSize,
+        'termType': termType,
+        'tmuxOverride': tmuxOverride,
       };
 
   /// Tolerant of partially-missing fields so a corrupted prefs blob or
@@ -102,6 +137,14 @@ class Host {
       // carrying a future mode must not abort loading the whole list.
       return SftpMode.values.asNameMap()[name] ?? SftpMode.normal;
     }
+    Map<String, String> parseEnvVars() {
+      final raw = json['envVars'];
+      // Malformed/forward-compat values degrade to empty rather than
+      // throwing: a single bad host in a sync payload must not abort
+      // loading the whole list.
+      if (raw is! Map) return const {};
+      return raw.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
     return Host(
       id: json['id'] as String?,
       label: (json['label'] as String?) ?? host,
@@ -120,6 +163,14 @@ class Host {
       agentForwarding: (json['agentForwarding'] as bool?) ?? false,
       sftpMode: parseSftpMode(),
       sftpServerCommand: json['sftpServerCommand'] as String?,
+      workingDir: json['workingDir'] as String?,
+      envVars: parseEnvVars(),
+      startupSnippet: json['startupSnippet'] as String?,
+      terminalThemeId: json['terminalThemeId'] as String?,
+      fontFamily: json['fontFamily'] as String?,
+      fontSize: (json['fontSize'] as num?)?.toDouble(),
+      termType: json['termType'] as String?,
+      tmuxOverride: json['tmuxOverride'] as bool?,
     );
   }
 
@@ -138,6 +189,14 @@ class Host {
     bool? agentForwarding,
     SftpMode? sftpMode,
     Object? sftpServerCommand = const _Unset(),
+    Object? workingDir = const _Unset(),
+    Map<String, String>? envVars,
+    Object? startupSnippet = const _Unset(),
+    Object? terminalThemeId = const _Unset(),
+    Object? fontFamily = const _Unset(),
+    Object? fontSize = const _Unset(),
+    Object? termType = const _Unset(),
+    Object? tmuxOverride = const _Unset(),
   }) =>
       Host(
         id: id,
@@ -159,6 +218,21 @@ class Host {
         sftpServerCommand: sftpServerCommand is _Unset
             ? this.sftpServerCommand
             : sftpServerCommand as String?,
+        workingDir:
+            workingDir is _Unset ? this.workingDir : workingDir as String?,
+        envVars: envVars ?? this.envVars,
+        startupSnippet: startupSnippet is _Unset
+            ? this.startupSnippet
+            : startupSnippet as String?,
+        terminalThemeId: terminalThemeId is _Unset
+            ? this.terminalThemeId
+            : terminalThemeId as String?,
+        fontFamily:
+            fontFamily is _Unset ? this.fontFamily : fontFamily as String?,
+        fontSize: fontSize is _Unset ? this.fontSize : fontSize as double?,
+        termType: termType is _Unset ? this.termType : termType as String?,
+        tmuxOverride:
+            tmuxOverride is _Unset ? this.tmuxOverride : tmuxOverride as bool?,
       );
 }
 
