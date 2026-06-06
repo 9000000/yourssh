@@ -98,6 +98,11 @@ dependencies:
   # AccumulatorSink<Digest> for streaming SHA-256 verification in UpdateService
   convert: ^3.1.1
 
+  # Audit log storage (direct SQL, no codegen)
+  sqlite3: ^2.4.0
+  # Bundles the native sqlite3 library on macOS/Windows/Linux
+  sqlite3_flutter_libs: ^0.5.20
+
   # FFI utilities (Utf16 string conversion, Arena allocator) — Windows SSH agent named pipe
   ffi: ^2.1.3
 
