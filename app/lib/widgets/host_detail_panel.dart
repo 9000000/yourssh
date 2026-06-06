@@ -8,6 +8,7 @@ import '../services/agent_probe.dart';
 import '../services/ssh_service.dart';
 import '../theme/app_theme.dart';
 import 'agent_status_line.dart';
+import 'host_chain_editor.dart';
 
 class HostDetailPanel extends StatefulWidget {
   final Host? existing;
@@ -84,6 +85,17 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
 
   void _clearTestResult() {
     if (_testResult != null || _testing) setState(() { _testResult = null; _testing = false; });
+  }
+
+  /// Display label for the host being edited, used by the chain editor.
+  /// Falls back to user@host while the label field is still empty.
+  String _currentHostLabel() {
+    final label = _labelCtrl.text.trim();
+    if (label.isNotEmpty) return label;
+    final host = _hostCtrl.text.trim();
+    if (host.isEmpty) return 'this host';
+    final user = _usernameCtrl.text.trim();
+    return user.isEmpty ? host : '$user@$host';
   }
 
   Future<AgentProbeResult> _probeAgent() {
@@ -333,7 +345,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                   ]),
 
                   const SizedBox(height: 16),
-                  _sectionLabel('JUMP HOST'),
+                  _sectionLabel('CONNECTION CHAIN'),
                   const SizedBox(height: 6),
                   Builder(builder: (context) {
                     final allHosts = context.watch<HostProvider>().allHosts;
@@ -353,37 +365,23 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         if (mounted) setState(() => _selectedJumpHostId = validJump);
                       });
                     }
-                    return _Card(children: [
-                      _DropdownRow(
-                        icon: Icons.hive_outlined,
-                        child: DropdownButton<String?>(
-                          value: validJump,
-                          isExpanded: true,
-                          hint: const Text(
-                            'None (direct connection)',
-                            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
-                          ),
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                          dropdownColor: AppColors.card,
-                          underline: const SizedBox(),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('None (direct connection)',
-                                  style: TextStyle(color: AppColors.textTertiary, fontSize: 13)),
-                            ),
-                            ...otherHosts.map((h) => DropdownMenuItem<String?>(
-                              value: h.id,
-                              child: Text(
-                                '${h.label} (${h.username}@${h.host})',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            )),
-                          ],
-                          onChanged: (v) => setState(() => _selectedJumpHostId = v),
-                        ),
+                    final jump = validJump == null
+                        ? null
+                        : otherHosts.firstWhere((h) => h.id == validJump);
+                    return ListenableBuilder(
+                      // Live-update the bottom card while typing label/host.
+                      listenable: Listenable.merge(
+                          [_labelCtrl, _usernameCtrl, _hostCtrl]),
+                      builder: (context, _) => HostChainEditor(
+                        currentHostLabel: _currentHostLabel(),
+                        currentHostOs: widget.existing?.detectedOs,
+                        jumpHost: jump,
+                        agentForwarding: _agentForwarding,
+                        candidates: otherHosts,
+                        onSelect: (h) =>
+                            setState(() => _selectedJumpHostId = h?.id),
                       ),
-                    ]);
+                    );
                   }),
 
                   const SizedBox(height: 16),
