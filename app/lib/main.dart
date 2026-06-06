@@ -373,6 +373,9 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     // A queued reconnect timer may still fire onSessionDropped during
     // teardown — detach it before disposing the notification center.
     _sessionProvider.onSessionDropped = null;
+    // Same risk for agent-forwarding events: a live SSHClient handler may
+    // still serve a request mid-teardown — detach before disposing providers.
+    _ssh.onAgentForwardingEvent = null;
     // Dispose the provider only after stopAll's final status callbacks fire.
     unawaited(_portForwardService
         .stopAll()
