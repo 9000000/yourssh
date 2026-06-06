@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../models/agent_forwarding_state.dart';
 import '../models/host.dart';
 import '../models/local_session.dart';
 import '../models/ssh_key.dart';
@@ -350,6 +351,30 @@ class SessionProvider extends ChangeNotifier {
     session.colorTag = colorHex;
     if (session is SshSession) _persistTabMetadata(session);
     _safeNotify();
+  }
+
+  /// Routes agent-forwarding events from SshService into session state.
+  /// sessionId == null targets every session on [hostId] (served requests go
+  /// through the client-wide handler); a per-shell `refused` is never
+  /// overwritten by host-scoped events — only a per-shell `ready` (reconnect)
+  /// resets it.
+  void handleAgentForwardingEvent(
+      String hostId, String? sessionId, AgentForwardingState state) {
+    var changed = false;
+    for (final s in sshSessions) {
+      final match =
+          sessionId != null ? s.id == sessionId : s.host.id == hostId;
+      if (!match) continue;
+      if (sessionId == null &&
+          s.agentForwardingState == AgentForwardingState.refused) {
+        continue;
+      }
+      if (s.agentForwardingState != state) {
+        s.agentForwardingState = state;
+        changed = true;
+      }
+    }
+    if (changed) _safeNotify();
   }
 
   void togglePin(String sessionId) {
