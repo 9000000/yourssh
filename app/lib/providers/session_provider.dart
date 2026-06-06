@@ -354,14 +354,17 @@ class SessionProvider extends ChangeNotifier {
   }
 
   /// Routes agent-forwarding events from SshService into session state.
-  /// sessionId == null targets every session on [hostId] (served requests go
-  /// through the client-wide handler); a per-shell `refused` is never
-  /// overwritten by host-scoped events — only a per-shell `ready` (reconnect)
-  /// resets it.
+  /// [sessionId] == null targets every session on [hostId] (served requests
+  /// go through the client-wide handler); host-scoped events never overwrite
+  /// a per-shell [AgentForwardingState.refused] — only a session-scoped event
+  /// (e.g. a reconnect firing [AgentForwardingState.ready]) can reset it.
   void handleAgentForwardingEvent(
       String hostId, String? sessionId, AgentForwardingState state) {
     var changed = false;
     for (final s in sshSessions) {
+      // Watch sessions carry a synthetic host id that never matches a real
+      // one; skip them explicitly so that invariant isn't load-bearing here.
+      if (s.isWatch) continue;
       final match =
           sessionId != null ? s.id == sessionId : s.host.id == hostId;
       if (!match) continue;

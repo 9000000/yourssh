@@ -114,5 +114,33 @@ void main() {
       expect(notifies, 1);
       expect(s1.agentForwardingState, AgentForwardingState.active);
     });
+
+    test('a host-scoped event changing two sessions notifies exactly once',
+        () {
+      final s1 = seed(_host('h1'));
+      final s2 = seed(_host('h1'));
+      var notifies = 0;
+      provider.addListener(() => notifies++);
+
+      provider.handleAgentForwardingEvent(
+          'h1', null, AgentForwardingState.active);
+
+      expect(notifies, 1);
+      expect(s1.agentForwardingState, AgentForwardingState.active);
+      expect(s2.agentForwardingState, AgentForwardingState.active);
+    });
+
+    test('watch sessions are never touched, even on host-id collision', () {
+      final watch = SshSession.watch(watchedTitle: 'shared');
+      // Force the synthetic host id to collide with a real one.
+      final real = seed(_host(watch.host.id));
+      provider.sessions.add(watch);
+
+      provider.handleAgentForwardingEvent(
+          watch.host.id, null, AgentForwardingState.active);
+
+      expect(real.agentForwardingState, AgentForwardingState.active);
+      expect(watch.agentForwardingState, AgentForwardingState.off);
+    });
   });
 }
