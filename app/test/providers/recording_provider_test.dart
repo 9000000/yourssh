@@ -4,7 +4,6 @@ import 'package:xterm/xterm.dart';
 import 'package:yourssh/models/host.dart';
 import 'package:yourssh/models/local_session.dart';
 import 'package:yourssh/models/ssh_session.dart';
-import 'package:yourssh/models/terminal_session.dart';
 import 'package:yourssh/providers/recording_provider.dart';
 import 'package:yourssh/services/recording_service.dart';
 
