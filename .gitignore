@@ -1,5 +1,6 @@
 # Rust
 /core/target/
+/packages/yourssh_rdp/rust/target/
 
 # Xcode (scope to core/ only — app/macos/ xcodeproj must be tracked for CI)
 core/*.xcodeproj/
