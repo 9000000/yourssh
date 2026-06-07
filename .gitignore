@@ -2,6 +2,10 @@
 /core/target/
 /packages/yourssh_rdp/rust/target/
 
+# Built native RDP libraries — rebuilt locally via packages/yourssh_rdp/build.sh
+# (build.ps1 on Windows); CI builds them fresh in pr-test.yml / release.yml.
+/packages/yourssh_rdp/assets/native/
+
 # Xcode (scope to core/ only — app/macos/ xcodeproj must be tracked for CI)
 core/*.xcodeproj/
 core/*.xcworkspace/
@@ -30,6 +34,9 @@ macos/YourSSH/Generated/
 .superpowers/
 .idea/
 app/build
+
+# Review/scratch artifacts
+.tmp-review/
 
 # Dart package build artifacts (packages/ subdirectories only)
 packages/*/.dart_tool/
