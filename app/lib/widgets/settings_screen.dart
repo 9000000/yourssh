@@ -190,6 +190,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
+                  SwitchListTile(
+                    title: const Text('Redact secrets in recordings', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                    subtitle: const Text('Mask passwords/tokens (AuditRedactor patterns) before writing .cast — replay timing becomes per-line; per-host opt-out in the host panel', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                    value: settings.recordingRedactionEnabled,
+                    onChanged: (v) => context
+                        .read<SettingsProvider>()
+                        .save(recordingRedactionEnabled: v),
+                  ),
                 ]),
                 const SizedBox(height: 24),
                 _Section(title: 'Monitoring', children: [

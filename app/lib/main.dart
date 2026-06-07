@@ -47,6 +47,7 @@ import 'models/agent_forwarding_state.dart';
 import 'models/app_notification.dart';
 import 'models/audit_event.dart';
 import 'models/app_release.dart';
+import 'models/ssh_session.dart';
 import 'providers/notification_center_provider.dart';
 
 String kAppVersion = '';
@@ -202,6 +203,11 @@ class _YourSSHAppState extends State<YourSSHApp> with WindowListener {
     _sessionProvider.tmuxEnabled = () => _settingsProvider.tmuxEnabled;
     _sessionProvider.terminalType = () => _settingsProvider.terminalType;
     _sessionProvider.recordingStart = (s) => _recordingProvider.startRecording(s);
+    // Effective redaction = global AND per-host; local shells (no Host)
+    // follow the global toggle alone. Sampled once at recording start.
+    _recordingProvider.redactionPolicy = (s) =>
+        _settingsProvider.recordingRedactionEnabled &&
+        (s is! SshSession || s.host.recordingRedaction);
     _audit = AuditService();
     _auditProvider = AuditProvider(_audit);
     _ssh.audit = _audit;

@@ -55,6 +55,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
   bool _testing = false;
   ({bool success, int latencyMs, String? error})? _testResult;
   bool _autoRecord = false;
+  bool _recordingRedaction = true;
   bool _shellIntegration = true;
   bool _agentForwarding = false;
   late final TextEditingController _workingDirCtrl;
@@ -86,6 +87,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
     _authType = h?.authType ?? AuthType.password;
     _selectedKeyId = h?.keyId;
     _autoRecord = h?.autoRecord ?? false;
+    _recordingRedaction = h?.recordingRedaction ?? true;
     _shellIntegration = h?.shellIntegration ?? true;
     _agentForwarding = h?.agentForwarding ?? false;
     _workingDirCtrl = TextEditingController(text: h?.workingDir ?? '');
@@ -170,6 +172,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
       group: _groupCtrl.text.trim(),
       tags: tags,
       autoRecord: _autoRecord,
+      recordingRedaction: _recordingRedaction,
       shellIntegration: _shellIntegration,
       agentForwarding: _agentForwarding,
       jumpHostIds: _jumpHostIds,
@@ -506,6 +509,25 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                       ),
                       dense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                      activeThumbColor: AppColors.accent,
+                    ),
+                    SwitchListTile(
+                      value: _recordingRedaction,
+                      onChanged: (v) =>
+                          setState(() => _recordingRedaction = v),
+                      title: const Text(
+                        'Redact secrets in recordings',
+                        style: TextStyle(
+                            color: AppColors.textPrimary, fontSize: 13),
+                      ),
+                      subtitle: const Text(
+                        'Mask passwords/tokens before writing .cast',
+                        style: TextStyle(
+                            color: AppColors.textTertiary, fontSize: 11),
+                      ),
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 2),
                       activeThumbColor: AppColors.accent,
                     ),
                     SwitchListTile(
