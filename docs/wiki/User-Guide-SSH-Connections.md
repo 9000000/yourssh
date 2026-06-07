@@ -24,6 +24,21 @@ Click **+** on the Hosts screen (or **Cmd/Ctrl+N** from anywhere). Required fiel
 | **Certificate** | CA-signed key + certificate file (`.pub` format) |
 | **SSH Agent** | Delegates to `SSH_AUTH_SOCK` (macOS/Linux) or `\\.\pipe\openssh-ssh-agent` (Windows 10+) |
 
+### Generating SSH Keys
+
+The **Keychain** screen can generate key pairs in-app — no terminal needed:
+
+- **Ed25519** (recommended) — generated in pure Dart, works everywhere
+- **RSA-4096 / ECDSA-P256** — uses the system `ssh-keygen`; these options are
+  hidden if the binary isn't installed
+
+Keys are written to `Documents/YourSSH/keys` with `600` permissions; an
+optional passphrase encrypts the private key (OpenSSH format) and is stored in
+the OS keychain so connections stay one-click. After generating you can **copy
+the public key** or **deploy it to a host** straight from the panel — the
+deploy dialog appends it to `~/.ssh/authorized_keys` over an existing
+connection (idempotent: deploying twice never duplicates the line).
+
 ### Connection Chain (Jump Host / Bastion)
 
 In the host detail panel, the **Connection Chain** section shows the route to
