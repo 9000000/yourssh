@@ -196,23 +196,18 @@ class _HostCard extends StatelessWidget {
   final String label;
   final String? detectedOs;
   final Widget? trailing;
-  final VoidCallback? onTap;
 
   const _HostCard({
     required this.label,
     this.detectedOs,
     this.trailing,
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final asset = osIconAsset(detectedOs);
-    return MouseRegion(
-      cursor: onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
+    return RepaintBoundary(
+      child: Container(
           height: 44,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
@@ -262,7 +257,6 @@ class _HostCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
