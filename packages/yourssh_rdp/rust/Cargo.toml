@@ -1,0 +1,30 @@
+[package]
+name = "yourssh_rdp"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[profile.release]
+# Shrink the shipped dylib (12.4 MB → see PR #57): strip symbols, thin LTO,
+# single codegen unit. opt-level stays 3 — frame/bitmap decode is hot-path,
+# "z" would trade decode speed for a little extra size.
+strip = true
+lto = "thin"
+codegen-units = 1
+
+[dependencies]
+flutter_rust_bridge = "=2.12.0"
+ironrdp = { version = "0.15.0", features = ["connector", "session", "input", "graphics", "cliprdr"] }
+ironrdp-tokio = { version = "0.9.0", features = ["reqwest"] }
+ironrdp-tls = { version = "0.2.1", features = ["rustls"] }
+ironrdp-cliprdr = "0.6.0"
+sspi = { version = "0.21.0", features = ["network_client"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros", "time"] }
+anyhow = "1"
+futures = "0.3"
+sha2 = "0.10"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
