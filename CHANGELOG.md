@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.33] — 2026-06-07
 
 ### Added
 - **In-app RDP client** — connect to Windows, xrdp, and any RDP-compatible remote desktop server directly from a YourSSH tab alongside SSH sessions. Powered by [IronRDP](https://github.com/Devolutions/IronRDP) via `flutter_rust_bridge` v2.
