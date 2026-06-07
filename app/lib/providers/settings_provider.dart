@@ -23,6 +23,7 @@ class SettingsProvider extends ChangeNotifier {
   bool tmuxEnabled = false;
   bool commandNotificationsEnabled = false;
   bool shellIntegrationEnabled = true;
+  bool recordingRedactionEnabled = true;
   String terminalFont = 'MesloLGS NF';
   String terminalType = 'xterm-256color';
   String recordingPath = '';
@@ -79,6 +80,7 @@ class SettingsProvider extends ChangeNotifier {
     tmuxEnabled = prefs.getBool('tmuxEnabled') ?? false;
     commandNotificationsEnabled = prefs.getBool('commandNotificationsEnabled') ?? false;
     shellIntegrationEnabled = prefs.getBool('shellIntegrationEnabled') ?? true;
+    recordingRedactionEnabled = prefs.getBool('recordingRedactionEnabled') ?? true;
     terminalFont = prefs.getString('terminalFont') ?? 'MesloLGS NF';
     terminalType = prefs.getString('terminalType') ?? 'xterm-256color';
     auditRetentionDays =
@@ -143,6 +145,7 @@ class SettingsProvider extends ChangeNotifier {
     String? terminalType,
     bool? commandNotificationsEnabled,
     bool? shellIntegrationEnabled,
+    bool? recordingRedactionEnabled,
     String? recordingPath,
     String? dashboardViewMode,
     String? dashboardSort,
@@ -160,6 +163,7 @@ class SettingsProvider extends ChangeNotifier {
     if (terminalType != null) this.terminalType = terminalType;
     if (commandNotificationsEnabled != null) this.commandNotificationsEnabled = commandNotificationsEnabled;
     if (shellIntegrationEnabled != null) this.shellIntegrationEnabled = shellIntegrationEnabled;
+    if (recordingRedactionEnabled != null) this.recordingRedactionEnabled = recordingRedactionEnabled;
     if (recordingPath != null) this.recordingPath = recordingPath;
     if (dashboardViewMode != null) this.dashboardViewMode = dashboardViewMode;
     if (dashboardSort != null) this.dashboardSort = dashboardSort;
@@ -179,6 +183,7 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString('terminalType', this.terminalType);
     await prefs.setBool('commandNotificationsEnabled', this.commandNotificationsEnabled);
     await prefs.setBool('shellIntegrationEnabled', this.shellIntegrationEnabled);
+    await prefs.setBool('recordingRedactionEnabled', this.recordingRedactionEnabled);
     await prefs.setString('recordingPath', this.recordingPath);
     await prefs.setString('dashboardViewMode', this.dashboardViewMode);
     await prefs.setString('dashboardSort', this.dashboardSort);
