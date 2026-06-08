@@ -46,11 +46,19 @@ class _Semaphore {
   }
 }
 
+// fix #4: per-scan cancellation token so restarting a scan doesn't corrupt
+// the in-flight goroutines of the previous scan.
+class _ScanToken {
+  bool _cancelled = false;
+  bool get isCancelled => _cancelled;
+  void cancel() => _cancelled = true;
+}
+
 class NetworkDiscoveryService {
   final SocketConnector _connector;
   final MdnsClientFactory _mdnsFactory;
 
-  bool _cancelled = false;
+  _ScanToken? _activeToken;
 
   NetworkDiscoveryService({
     @visibleForTesting SocketConnector? connector,
@@ -64,7 +72,8 @@ class NetworkDiscoveryService {
     return interfaces
         .expand((i) => i.addresses.map((a) => SubnetInfo(
               interfaceName: i.name,
-              displayName: _displayName(i.name),
+              // fix #10: use shared display name from SubnetInfo
+              displayName: SubnetInfo.interfaceDisplayName(i.name),
               address: a.address,
               subnet: SubnetInfo.subnetFromAddress(a.address),
             )))
@@ -80,12 +89,16 @@ class NetworkDiscoveryService {
     Duration timeout = const Duration(milliseconds: 500),
     void Function(int scanned, int total)? onProgress,
   }) {
-    _cancelled = false;
+    // fix #4: cancel the previous scan's token and create a fresh one
+    _activeToken?.cancel();
+    final token = _ScanToken();
+    _activeToken = token;
+
     final controller = StreamController<DiscoveredHost>();
     final seen = <String, DiscoveredHost>{};
 
     void emit(DiscoveredHost h) {
-      if (_cancelled || controller.isClosed) return;
+      if (token.isCancelled || controller.isClosed) return;
       final existing = seen[h.ip];
       if (existing == null) {
         seen[h.ip] = h;
@@ -105,8 +118,9 @@ class NetworkDiscoveryService {
           timeout,
           emit,
           onProgress,
+          token,
         ),
-        _runMdnsScan(emit),
+        _runMdnsScan(emit, token),
       ]);
       if (!controller.isClosed) controller.close();
     }
@@ -118,7 +132,9 @@ class NetworkDiscoveryService {
     return controller.stream;
   }
 
-  void cancel() => _cancelled = true;
+  void cancel() {
+    _activeToken?.cancel();
+  }
 
   Future<void> _runTcpScan(
     List<String> ips,
@@ -126,6 +142,7 @@ class NetworkDiscoveryService {
     Duration timeout,
     void Function(DiscoveredHost) emit,
     void Function(int, int)? onProgress,
+    _ScanToken token,
   ) async {
     final sem = _Semaphore(_kConcurrency);
     final total = ips.length;
@@ -134,13 +151,13 @@ class NetworkDiscoveryService {
     Future<void> probe(String ip) async {
       await sem.acquire();
       try {
-        if (_cancelled) return;
+        if (token.isCancelled) return;
         final openPorts = <int>[];
         for (final port in ports) {
-          if (_cancelled) break;
+          if (token.isCancelled) break;
           if (await _connector(ip, port, timeout)) openPorts.add(port);
         }
-        if (openPorts.isNotEmpty && !_cancelled) {
+        if (openPorts.isNotEmpty && !token.isCancelled) {
           emit(DiscoveredHost(
               ip: ip, openPorts: openPorts, source: DiscoverySource.tcpScan));
         }
@@ -154,54 +171,16 @@ class NetworkDiscoveryService {
     await Future.wait(ips.map(probe));
   }
 
-  Future<void> _runMdnsScan(void Function(DiscoveredHost) emit) async {
+  Future<void> _runMdnsScan(
+      void Function(DiscoveredHost) emit, _ScanToken token) async {
     MDnsClient? client;
     try {
       client = _mdnsFactory();
       await client.start();
-      for (final serviceType in _kMdnsServiceTypes) {
-        if (_cancelled) break;
-        try {
-          await for (final PtrResourceRecord ptr in client
-              .lookup<PtrResourceRecord>(
-                  ResourceRecordQuery.serverPointer('$serviceType.local'))
-              .timeout(const Duration(seconds: 5))) {
-            if (_cancelled) break;
-            await for (final SrvResourceRecord srv in client
-                .lookup<SrvResourceRecord>(
-                    ResourceRecordQuery.service(ptr.domainName))) {
-              if (_cancelled) break;
-              String? ip;
-              final hostname = srv.target.replaceAll(RegExp(r'\.local\.?$'), '');
-              try {
-                await for (final IPAddressResourceRecord addr in client
-                    .lookup<IPAddressResourceRecord>(
-                        ResourceRecordQuery.addressIPv4(srv.target))) {
-                  ip = addr.address.address;
-                  break;
-                }
-              } catch (_) {}
-              if (ip == null) {
-                try {
-                  final result = await InternetAddress.lookup(srv.target);
-                  if (result.isNotEmpty) ip = result.first.address;
-                } catch (_) {}
-              }
-              if (ip != null && !_cancelled) {
-                emit(DiscoveredHost(
-                  ip: ip,
-                  hostname: hostname.isEmpty ? null : hostname,
-                  openPorts: [srv.port],
-                  source: DiscoverySource.mdns,
-                  mdnsServiceType: serviceType,
-                ));
-              }
-            }
-          }
-        } catch (_) {
-          // timeout or socket error on this service type — continue with next
-        }
-      }
+      // fix #3: scan all three service types in parallel instead of sequentially
+      // (sequential with 5s timeout each = up to 15s; parallel = max 5s)
+      await Future.wait(_kMdnsServiceTypes
+          .map((t) => _scanMdnsServiceType(client!, t, emit, token)));
     } catch (_) {
       // mDNS socket bind failed — TCP scan continues unaffected
     } finally {
@@ -209,15 +188,52 @@ class NetworkDiscoveryService {
     }
   }
 
-  static String _displayName(String name) {
-    final n = name.toLowerCase();
-    if (n == 'en0') return 'Wi-Fi';
-    if (n.startsWith('wlan') || n.startsWith('wlp')) return 'Wi-Fi';
-    if (n.startsWith('en')) return 'Ethernet';
-    if (n.startsWith('eth')) return 'Ethernet';
-    if (n.startsWith('utun') || n.startsWith('tun') || n.startsWith('tap')) {
-      return 'VPN';
+  Future<void> _scanMdnsServiceType(
+    MDnsClient client,
+    String serviceType,
+    void Function(DiscoveredHost) emit,
+    _ScanToken token,
+  ) async {
+    try {
+      await for (final PtrResourceRecord ptr in client
+          .lookup<PtrResourceRecord>(
+              ResourceRecordQuery.serverPointer('$serviceType.local'))
+          .timeout(const Duration(seconds: 5))) {
+        if (token.isCancelled) break;
+        await for (final SrvResourceRecord srv in client
+            .lookup<SrvResourceRecord>(
+                ResourceRecordQuery.service(ptr.domainName))) {
+          if (token.isCancelled) break;
+          String? ip;
+          final hostname =
+              srv.target.replaceAll(RegExp(r'\.local\.?$'), '');
+          try {
+            await for (final IPAddressResourceRecord addr in client
+                .lookup<IPAddressResourceRecord>(
+                    ResourceRecordQuery.addressIPv4(srv.target))) {
+              ip = addr.address.address;
+              break;
+            }
+          } catch (_) {}
+          if (ip == null) {
+            try {
+              final result = await InternetAddress.lookup(srv.target);
+              if (result.isNotEmpty) ip = result.first.address;
+            } catch (_) {}
+          }
+          if (ip != null && !token.isCancelled) {
+            emit(DiscoveredHost(
+              ip: ip,
+              hostname: hostname.isEmpty ? null : hostname,
+              openPorts: [srv.port],
+              source: DiscoverySource.mdns,
+              mdnsServiceType: serviceType,
+            ));
+          }
+        }
+      }
+    } catch (_) {
+      // timeout or socket error on this service type — other types continue
     }
-    return name;
   }
 }

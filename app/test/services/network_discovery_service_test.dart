@@ -70,6 +70,20 @@ void main() {
       expect(hosts.first, '192.168.1.1');
       expect(hosts.last, '192.168.1.254');
     });
+
+    test('produces 126 hosts for /25', () {
+      final hosts = SubnetInfo.hostsInSubnet('192.168.1.0/25');
+      expect(hosts.length, 126);
+      expect(hosts.first, '192.168.1.1');
+      expect(hosts.last, '192.168.1.126');
+    });
+
+    test('produces 510 hosts for /23', () {
+      final hosts = SubnetInfo.hostsInSubnet('192.168.0.0/23');
+      expect(hosts.length, 510);
+      expect(hosts.first, '192.168.0.1');
+      expect(hosts.last, '192.168.1.254');
+    });
   });
 
   group('SubnetInfo.validateSubnet', () {
@@ -82,8 +96,11 @@ void main() {
     test('error for invalid octet', () =>
         expect(SubnetInfo.validateSubnet('192.168.999.0/24'), isNotNull));
 
-    test('error for bad prefix', () =>
+    test('error for bad prefix /33', () =>
         expect(SubnetInfo.validateSubnet('10.0.0.0/33'), isNotNull));
+
+    test('error for prefix /15 (too large to scan)', () =>
+        expect(SubnetInfo.validateSubnet('10.0.0.0/15'), isNotNull));
   });
 
   group('NetworkDiscoveryService TCP scan', () {

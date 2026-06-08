@@ -54,10 +54,21 @@ class NetworkDiscoverySheetState extends State<NetworkDiscoverySheet> {
   bool _scanning = false;
   int _scanned = 0;
   int _total = 0;
-  int _mdnsCount = 0;
-  int _tcpCount = 0;
 
   StreamSubscription<DiscoveredHost>? _sub;
+
+  // fix #8: derive counts from _results instead of maintaining separate counters
+  // that diverge when hosts are merged from multiple sources
+  int get _mdnsCount => _results.values
+      .where((h) =>
+          h.source == DiscoverySource.mdns ||
+          h.source == DiscoverySource.both)
+      .length;
+  int get _tcpCount => _results.values
+      .where((h) =>
+          h.source == DiscoverySource.tcpScan ||
+          h.source == DiscoverySource.both)
+      .length;
 
   @override
   void initState() {
@@ -106,8 +117,6 @@ class NetworkDiscoverySheetState extends State<NetworkDiscoverySheet> {
       _scanning = true;
       _scanned = 0;
       _total = 0;
-      _mdnsCount = 0;
-      _tcpCount = 0;
       _results.clear();
     });
 
@@ -118,17 +127,8 @@ class NetworkDiscoverySheetState extends State<NetworkDiscoverySheet> {
         .listen(
           (h) {
             if (!mounted) return;
-            setState(() {
-              final isNew = !_results.containsKey(h.ip);
-              _results[h.ip] = h;
-              if (isNew) {
-                if (h.source == DiscoverySource.mdns) {
-                  _mdnsCount++;
-                } else {
-                  _tcpCount++;
-                }
-              }
-            });
+            // fix #8: just update _results; counters are derived
+            setState(() => _results[h.ip] = h);
           },
           onDone: () { if (mounted) setState(() => _scanning = false); },
           onError: (_) { if (mounted) setState(() => _scanning = false); },
@@ -142,21 +142,22 @@ class NetworkDiscoverySheetState extends State<NetworkDiscoverySheet> {
   }
 
   void _onAdd(BuildContext context, DiscoveredHost h) {
-    final port =
-        h.isRdp ? 3389 : (h.openPorts.contains(22) ? 22 : h.openPorts.first);
-    // Open HostDetailPanel on top of this sheet; onSave closes both.
+    // fix #6: use the modal's own context (panelCtx) for close navigation
+    // so that if HostDetailPanel opens a sub-dialog, close still targets the panel
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => HostDetailPanel(
+      builder: (panelCtx) => HostDetailPanel(
         existing: null,
         initialHost: h.ip,
-        initialPort: port,
+        initialPort: h.preferredPort, // fix #9
         initialLabel: h.hostname,
         initialProtocol: h.isRdp ? HostProtocol.rdp : HostProtocol.ssh,
-        onClose: () => Navigator.of(context).pop(),
+        onClose: () => Navigator.of(panelCtx).pop(),
         onSave: (host, password) async {
+          // fix #5: check mounted before using context after async gap
+          if (!context.mounted) return;
           await context.read<HostProvider>().addHost(host, password: password);
           if (context.mounted) {
             Navigator.of(context).pop(); // close HostDetailPanel
@@ -168,22 +169,25 @@ class NetworkDiscoverySheetState extends State<NetworkDiscoverySheet> {
   }
 
   Future<void> _onConnect(BuildContext context, DiscoveredHost h) async {
+    // fix #1: capture providers BEFORE pop, move pop AFTER await so
+    // context.mounted is still true when connectAny is called
     final hostProvider = context.read<HostProvider>();
     final sessionProvider = context.read<SessionProvider>();
-    Navigator.of(context).pop();
 
-    final port = h.isRdp ? 3389 : (h.openPorts.contains(22) ? 22 : h.openPorts.first);
     final host = Host(
       id: const Uuid().v4(),
       label: h.hostname ?? h.ip,
       host: h.ip,
-      port: port,
+      port: h.preferredPort, // fix #9
       username: '',
       protocol: h.isRdp ? HostProtocol.rdp : HostProtocol.ssh,
       createdAt: DateTime.now(),
     );
     await hostProvider.addHost(host);
-    if (context.mounted) sessionProvider.connectAny(host);
+    if (context.mounted) {
+      Navigator.of(context).pop();
+      sessionProvider.connectAny(host);
+    }
   }
 
   @override
