@@ -167,3 +167,53 @@ class CsvParser extends ImportParser {
     return (hosts: hosts, warnings: warnings);
   }
 }
+
+// ── PuTTY Registry Export ─────────────────────────────────
+
+class PuttyRegParser extends ImportParser {
+  const PuttyRegParser();
+
+  static final _sectionRe = RegExp(
+    r'^\[HKEY_[^\]]*\\Sessions\\([^\]]+)\]',
+    multiLine: true,
+    caseSensitive: false,
+  );
+  static final _hostRe =
+      RegExp(r'^"HostName"="([^"]*)"', multiLine: true);
+  static final _portRe =
+      RegExp(r'^"PortNumber"=dword:([0-9a-fA-F]+)', multiLine: true);
+  static final _userRe =
+      RegExp(r'^"UserName"="([^"]*)"', multiLine: true);
+
+  @override
+  ParseResult parse(String input) {
+    var text = input;
+    if (text.startsWith('﻿')) text = text.substring(1); // strip UTF-16 BOM
+
+    final hosts = <Host>[];
+    final warnings = <String>[];
+    final sections = _sectionRe.allMatches(text).toList();
+
+    for (var i = 0; i < sections.length; i++) {
+      final rawName = sections[i].group(1)!;
+      final name = Uri.decodeComponent(rawName.replaceAll('+', ' '));
+      final start = sections[i].end;
+      final end =
+          i + 1 < sections.length ? sections[i + 1].start : text.length;
+      final block = text.substring(start, end);
+
+      final hostname = _hostRe.firstMatch(block)?.group(1);
+      if (hostname == null || hostname.isEmpty) {
+        warnings.add('Session "$name": missing HostName, skipped');
+        continue;
+      }
+      final portHex = _portRe.firstMatch(block)?.group(1) ?? '16';
+      final port = int.tryParse(portHex, radix: 16) ?? 22;
+      final user = _userRe.firstMatch(block)?.group(1) ?? 'root';
+
+      hosts.add(Host(label: name, host: hostname, port: port, username: user));
+    }
+
+    return (hosts: hosts, warnings: warnings);
+  }
+}
