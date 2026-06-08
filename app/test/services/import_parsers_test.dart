@@ -275,4 +275,53 @@ void main() {
       expect(result.warnings, isEmpty);
     });
   });
+
+  group('WinScpParser', () {
+    const parser = WinScpParser();
+
+    test('parses a single session', () {
+      const input = '[Sessions\\MyServer]\nHostName=192.168.1.1\nPortNumber=22\nUserName=admin\n';
+      final result = parser.parse(input);
+      expect(result.hosts.length, 1);
+      expect(result.hosts[0].label, 'MyServer');
+      expect(result.hosts[0].host, '192.168.1.1');
+      expect(result.hosts[0].port, 22);
+      expect(result.hosts[0].username, 'admin');
+      expect(result.warnings, isEmpty);
+    });
+
+    test('URL-decodes session name', () {
+      const input =
+          '[Sessions\\My%20Server]\nHostName=10.0.0.1\nPortNumber=22\nUserName=root\n';
+      final result = parser.parse(input);
+      expect(result.hosts[0].label, 'My Server');
+    });
+
+    test('skips root [Sessions\\] section', () {
+      const input = '[Sessions\\]\nHostName=ignored.example.com\n';
+      final result = parser.parse(input);
+      expect(result.hosts, isEmpty);
+    });
+
+    test('nested path: last component is label, parent components join as group', () {
+      const input =
+          '[Sessions\\Production\\WebServer]\nHostName=prod.example.com\nPortNumber=22\nUserName=deploy\n';
+      final result = parser.parse(input);
+      expect(result.hosts[0].label, 'WebServer');
+      expect(result.hosts[0].group, 'Production');
+    });
+
+    test('session missing HostName is skipped silently', () {
+      const input = '[Sessions\\NoHost]\nPortNumber=22\nUserName=admin\n';
+      final result = parser.parse(input);
+      expect(result.hosts, isEmpty);
+      expect(result.warnings, isEmpty);
+    });
+
+    test('empty input returns empty result', () {
+      final result = parser.parse('');
+      expect(result.hosts, isEmpty);
+      expect(result.warnings, isEmpty);
+    });
+  });
 }
