@@ -83,4 +83,57 @@ void main() {
       expect(result.hosts[1].port, 111);
     });
   });
+
+  group('MobaXtermParser', () {
+    const parser = MobaXtermParser();
+
+    test('parses a single SSH session', () {
+      const input = '[Bookmarks]\n'
+          'SubRep=\n'
+          'ImgNum=42\n'
+          'SSH server1 (root) = 0  192.168.1.1  22  root  -1  -1  0\n';
+      final result = parser.parse(input);
+      expect(result.hosts.length, 1);
+      expect(result.hosts[0].label, 'SSH server1 (root)');
+      expect(result.hosts[0].host, '192.168.1.1');
+      expect(result.hosts[0].port, 22);
+      expect(result.hosts[0].username, 'root');
+      expect(result.warnings, isEmpty);
+    });
+
+    test('skips non-SSH sessions (type != 0)', () {
+      const input = '[Bookmarks]\n'
+          'Telnet server = 4  10.0.0.1  23  admin  -1\n'
+          'SSH server = 0  10.0.0.2  22  root  -1\n';
+      final result = parser.parse(input);
+      expect(result.hosts.length, 1);
+      expect(result.hosts[0].host, '10.0.0.2');
+    });
+
+    test('parses sessions across multiple [Bookmarks] sections', () {
+      const input = '[Bookmarks]\n'
+          'Server A = 0  1.1.1.1  22  admin  -1\n'
+          '\n'
+          '[Bookmarks_1]\n'
+          'SubRep=DB\n'
+          'Server B = 0  2.2.2.2  2222  deploy  -1\n';
+      final result = parser.parse(input);
+      expect(result.hosts.length, 2);
+      expect(result.hosts[1].port, 2222);
+    });
+
+    test('malformed SSH line (< 4 tokens in value) produces a warning', () {
+      const input = '[Bookmarks]\nBad = 0  10.0.0.1\n';
+      final result = parser.parse(input);
+      expect(result.hosts, isEmpty);
+      expect(result.warnings.length, 1);
+      expect(result.warnings[0], contains('Bad'));
+    });
+
+    test('empty input returns empty result', () {
+      final result = parser.parse('');
+      expect(result.hosts, isEmpty);
+      expect(result.warnings, isEmpty);
+    });
+  });
 }

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:xml/xml.dart' show XmlDocument, XmlElement, XmlException;
 import 'package:yourssh/models/host.dart';
 
 typedef ParseResult = ({List<Host> hosts, List<String> warnings});
@@ -212,6 +215,55 @@ class PuttyRegParser extends ImportParser {
       final user = _userRe.firstMatch(block)?.group(1) ?? 'root';
 
       hosts.add(Host(label: name, host: hostname, port: port, username: user));
+    }
+
+    return (hosts: hosts, warnings: warnings);
+  }
+}
+
+// ── MobaXterm ─────────────────────────────────────────────
+
+class MobaXtermParser extends ImportParser {
+  const MobaXtermParser();
+
+  @override
+  ParseResult parse(String input) {
+    final hosts = <Host>[];
+    final warnings = <String>[];
+
+    for (final raw in input.split('\n')) {
+      final line = raw.trim();
+      if (line.isEmpty || line.startsWith('[')) continue;
+
+      final eqIdx = line.indexOf('=');
+      if (eqIdx < 0) continue;
+
+      final label = line.substring(0, eqIdx).trim();
+      if (label == 'SubRep' || label == 'ImgNum') continue;
+
+      final valuePart = line.substring(eqIdx + 1).trim();
+      final tokens = valuePart
+          .split(RegExp(r'\s+'))
+          .where((t) => t.isNotEmpty)
+          .toList();
+
+      if (tokens.isEmpty || tokens[0] != '0') continue; // SSH only
+
+      if (tokens.length < 4) {
+        warnings.add('Session "$label": malformed line, skipped');
+        continue;
+      }
+
+      final host = tokens[1];
+      final port = int.tryParse(tokens[2]) ?? 22;
+      final user = tokens[3];
+
+      if (host.isEmpty) {
+        warnings.add('Session "$label": missing host, skipped');
+        continue;
+      }
+
+      hosts.add(Host(label: label, host: host, port: port, username: user));
     }
 
     return (hosts: hosts, warnings: warnings);
