@@ -36,6 +36,24 @@ class KnownHostsProvider extends ChangeNotifier {
   /// Removes [entry] regardless of protocol — SSH rows match on
   /// endpoint+keyType, RDP cert pins on endpoint alone (their keyType is
   /// empty and must not be forced through the SSH identity check).
+  /// Bulk-inserts [incoming] entries, skipping duplicates on host:port:keyType.
+  /// Returns the number of entries actually added.
+  Future<int> importHosts(List<KnownHost> incoming) async {
+    int added = 0;
+    for (final entry in incoming) {
+      final exists = _hosts.any((h) => _matches(h, entry.host, entry.port, entry.keyType));
+      if (!exists) {
+        _hosts.add(entry);
+        added++;
+      }
+    }
+    if (added > 0) {
+      await _storage?.saveKnownHosts(_hosts);
+      notifyListeners();
+    }
+    return added;
+  }
+
   Future<void> remove(KnownHost entry) async {
     _hosts.removeWhere((h) => entry.protocol == KnownHost.protocolRdp
         ? h.protocol == KnownHost.protocolRdp &&

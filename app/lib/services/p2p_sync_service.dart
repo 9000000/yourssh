@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../models/discovered_host.dart';
 
 class NetworkInterfaceInfo {
   final String name;
@@ -8,16 +9,8 @@ class NetworkInterfaceInfo {
 
   const NetworkInterfaceInfo({required this.name, required this.address});
 
-  String get displayName {
-    final n = name.toLowerCase();
-    if (n == 'en0') return 'Wi-Fi';
-    if (n.startsWith('en')) return 'Ethernet';
-    if (n.startsWith('utun') || n.startsWith('tun') || n.startsWith('tap')) return 'VPN / Tailscale';
-    if (n.startsWith('wlan') || n.startsWith('wlp')) return 'Wi-Fi';
-    if (n.startsWith('eth')) return 'Ethernet';
-    if (n.startsWith('bridge')) return 'Bridge';
-    return name;
-  }
+  // fix #10: delegate to SubnetInfo.interfaceDisplayName (single source of truth)
+  String get displayName => SubnetInfo.interfaceDisplayName(name);
 
   @override
   String toString() => '$displayName — $address';

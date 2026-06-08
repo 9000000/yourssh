@@ -430,6 +430,13 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final keywordRules = settings.keywordHighlightingEnabled
+        ? settings.keywordHighlightRules
+            .where((r) => r.enabled)
+            .map((r) => r.toXtermRule())
+            .whereType<KeywordHighlightRule>()
+            .toList()
+        : const <KeywordHighlightRule>[];
     final appearance = _appearance(watch: true);
     final theme = terminalThemeByName(appearance.themeName);
     final showGutter = settings.shellIntegrationEnabled &&
@@ -449,6 +456,7 @@ class _TerminalWidgetState extends State<_TerminalWidget> {
           // Leave room for the gutter so it never occludes column-0 text.
           padding: showGutter ? const EdgeInsets.only(left: 10) : EdgeInsets.zero,
           autofocus: !_searchVisible,
+          keywordRules: keywordRules,
           onKeyEvent: _handleKey,
           onSecondaryTapUp: (details, _) => showTerminalContextMenu(
             context: context,

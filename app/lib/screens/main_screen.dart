@@ -53,6 +53,7 @@ import '../widgets/session_tab.dart';
 import '../models/rdp_session.dart';
 import '../widgets/rdp_workspace.dart';
 import '../services/storage_service.dart';
+import '../widgets/network_discovery_sheet.dart';
 
 enum NavSection { hosts, keychain, portForwarding, sftp, knownHosts, recordings, audit, settings, plugins }
 
@@ -794,7 +795,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           Expanded(
             child: Stack(
               children: [
-                const SplitTerminalView(),
+                SplitTerminalView(
+                  onNavigateToSettings: () => setState(() {
+                    _nav = NavSection.settings;
+                    _viewingTerminal = false;
+                  }),
+                ),
                 Positioned(
                   top: 8,
                   right: showAiChat ? 348 : 8,
@@ -877,6 +883,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           onOpenLocalTerminal: _openLocalTerminal,
           onNewGroup: _openNewGroupPanel,
           onImport: _openImportPanel,
+          onDiscover: () => NetworkDiscoverySheet.show(context),
         ),
       NavSection.keychain => const KeychainScreen(),
       NavSection.portForwarding => const PortForwardingScreen(),

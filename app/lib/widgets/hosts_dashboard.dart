@@ -23,6 +23,7 @@ import 'rdp_badge.dart';
 import 'bulk/bulk_action_bar.dart';
 import 'bulk/bulk_push_dialog.dart';
 import 'bulk/bulk_run_dialog.dart';
+import 'server_monitor_sheet.dart';
 import 'sftp_screen.dart';
 
 class HostsDashboard extends StatefulWidget {
@@ -31,7 +32,8 @@ class HostsDashboard extends StatefulWidget {
   final VoidCallback? onOpenLocalTerminal;
   final VoidCallback? onNewGroup;
   final VoidCallback? onImport;
-  const HostsDashboard({super.key, this.onAddHost, this.onEditHost, this.onOpenLocalTerminal, this.onNewGroup, this.onImport});
+  final VoidCallback? onDiscover;
+  const HostsDashboard({super.key, this.onAddHost, this.onEditHost, this.onOpenLocalTerminal, this.onNewGroup, this.onImport, this.onDiscover});
 
   @override
   State<HostsDashboard> createState() => _HostsDashboardState();
@@ -236,6 +238,7 @@ class _HostsDashboardState extends State<HostsDashboard> {
                   onLocalTerminal: widget.onOpenLocalTerminal,
                   onNewGroup: widget.onNewGroup,
                   onImport: widget.onImport,
+                  onDiscover: widget.onDiscover,
                   onSelect: _enterSelectionMode,
                   sortMode: sortMode,
                   onSortChanged: (m) =>
@@ -328,6 +331,7 @@ class _TopBar extends StatelessWidget {
   final VoidCallback? onLocalTerminal;
   final VoidCallback? onNewGroup;
   final VoidCallback? onImport;
+  final VoidCallback? onDiscover;
   final VoidCallback? onSelect;
   final HostSortMode sortMode;
   final ValueChanged<HostSortMode> onSortChanged;
@@ -343,6 +347,7 @@ class _TopBar extends StatelessWidget {
     this.onLocalTerminal,
     this.onNewGroup,
     this.onImport,
+    this.onDiscover,
     this.onSelect,
     required this.sortMode,
     required this.onSortChanged,
@@ -407,6 +412,12 @@ class _TopBar extends StatelessWidget {
                     _SortBtn(mode: sortMode, onChanged: onSortChanged),
                     const SizedBox(width: 8),
                     _ViewToggle(viewMode: viewMode, onChanged: onViewChanged),
+                    const SizedBox(width: 8),
+                    _OutlinedBtn(
+                      icon: Icons.wifi_find,
+                      label: 'DISCOVER',
+                      onTap: onDiscover ?? () {},
+                    ),
                     const SizedBox(width: 8),
                     _OutlinedBtn(
                       icon: Icons.check_box_outlined,
@@ -1051,6 +1062,11 @@ class _HostCardState extends State<_HostCard> {
           const SizedBox(width: 2),
           _iconBtn(Icons.folder_outlined, 'SFTP', onTap: () => _openSftp(context)),
           const SizedBox(width: 2),
+          if (context.read<SessionProvider>().sshSessions.any((s) => s.host.id == widget.host.id)) ...[
+            _iconBtn(Icons.monitor_heart_outlined, 'Monitor',
+                onTap: () => ServerMonitorSheet.show(context, widget.host)),
+            const SizedBox(width: 2),
+          ],
         ],
         _iconBtn(Icons.more_horiz, 'More', onTapDown: (d) => _showMenu(context, d.globalPosition)),
       ],
@@ -1223,6 +1239,9 @@ class _HostCardState extends State<_HostCard> {
         _menuItem('terminal', Icons.terminal, 'Connect', () => sessionProvider.connectAny(widget.host)),
         if (isSsh)
           _menuItem('sftp', Icons.folder_outlined, 'SFTP', () => _openSftp(context)),
+        if (isSsh)
+          _menuItem('monitor', Icons.monitor_heart_outlined, 'Monitor',
+              () => ServerMonitorSheet.show(context, widget.host)),
         _menuItem('edit', Icons.edit_outlined, 'Edit', () => widget.onEditHost?.call(widget.host)),
         const PopupMenuDivider(),
         _menuItem('duplicate', Icons.copy_outlined, 'Duplicate', () => _duplicate(context, hostProvider)),
