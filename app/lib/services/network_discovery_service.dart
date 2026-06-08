@@ -125,7 +125,8 @@ class NetworkDiscoveryService {
       if (!controller.isClosed) controller.close();
     }
 
-    run().catchError((_) {
+    run().catchError((e, st) {
+      debugPrint('[NetworkDiscoveryService] scan failed: $e\n$st');
       if (!controller.isClosed) controller.close();
     });
 
@@ -181,8 +182,9 @@ class NetworkDiscoveryService {
       // (sequential with 5s timeout each = up to 15s; parallel = max 5s)
       await Future.wait(_kMdnsServiceTypes
           .map((t) => _scanMdnsServiceType(client!, t, emit, token)));
-    } catch (_) {
-      // mDNS socket bind failed — TCP scan continues unaffected
+    } catch (e) {
+      debugPrint('[NetworkDiscoveryService] mDNS scan failed: $e');
+      // TCP scan continues unaffected
     } finally {
       client?.stop();
     }
@@ -214,12 +216,16 @@ class NetworkDiscoveryService {
               ip = addr.address.address;
               break;
             }
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[NetworkDiscoveryService] mDNS A-record lookup failed for ${srv.target}: $e');
+          }
           if (ip == null) {
             try {
               final result = await InternetAddress.lookup(srv.target);
               if (result.isNotEmpty) ip = result.first.address;
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[NetworkDiscoveryService] DNS fallback failed for ${srv.target}: $e');
+            }
           }
           if (ip != null && !token.isCancelled) {
             emit(DiscoveredHost(
@@ -232,7 +238,8 @@ class NetworkDiscoveryService {
           }
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[NetworkDiscoveryService] mDNS service type $serviceType scan failed: $e');
       // timeout or socket error on this service type — other types continue
     }
   }
