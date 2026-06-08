@@ -202,7 +202,48 @@ void main() {
       svc.cancel();
       await Future.delayed(const Duration(milliseconds: 50));
       await sub.cancel();
-      expect(emitted, greaterThanOrEqualTo(0));
+      expect(emitted, lessThan(254)); // scan was cancelled before full completion
+    });
+  });
+
+  group('SubnetInfo.interfaceDisplayName', () {
+    test('en0 → Wi-Fi', () => expect(SubnetInfo.interfaceDisplayName('en0'), 'Wi-Fi'));
+    test('wlan0 → Wi-Fi', () => expect(SubnetInfo.interfaceDisplayName('wlan0'), 'Wi-Fi'));
+    test('eth0 → Ethernet', () => expect(SubnetInfo.interfaceDisplayName('eth0'), 'Ethernet'));
+    test('utun0 → VPN / Tailscale', () => expect(SubnetInfo.interfaceDisplayName('utun0'), 'VPN / Tailscale'));
+    test('bridge0 → Bridge', () => expect(SubnetInfo.interfaceDisplayName('bridge0'), 'Bridge'));
+    test('unknown → returns name', () => expect(SubnetInfo.interfaceDisplayName('docker0'), 'docker0'));
+  });
+
+  group('DiscoveredHost.preferredPort', () {
+    test('returns 3389 for RDP-only host', () {
+      final h = DiscoveredHost(ip: '1.1.1.1', openPorts: [3389], source: DiscoverySource.tcpScan);
+      expect(h.preferredPort, 3389);
+    });
+    test('returns 22 when port 22 open', () {
+      final h = DiscoveredHost(ip: '1.1.1.1', openPorts: [22, 80], source: DiscoverySource.tcpScan);
+      expect(h.preferredPort, 22);
+    });
+    test('returns 2222 when port 2222 open and no 22', () {
+      final h = DiscoveredHost(ip: '1.1.1.1', openPorts: [2222], source: DiscoverySource.tcpScan);
+      expect(h.preferredPort, 2222);
+    });
+    test('returns first port as fallback', () {
+      final h = DiscoveredHost(ip: '1.1.1.1', openPorts: [8022], source: DiscoverySource.tcpScan);
+      expect(h.preferredPort, 8022);
+    });
+  });
+
+  group('DiscoveredHost.merge source', () {
+    test('same source stays same', () {
+      final a = DiscoveredHost(ip: '1.0.0.1', openPorts: [22], source: DiscoverySource.tcpScan);
+      final b = DiscoveredHost(ip: '1.0.0.1', openPorts: [80], source: DiscoverySource.tcpScan);
+      expect(a.merge(b).source, DiscoverySource.tcpScan);
+    });
+    test('different sources → both', () {
+      final a = DiscoveredHost(ip: '1.0.0.1', openPorts: [22], source: DiscoverySource.tcpScan);
+      final b = DiscoveredHost(ip: '1.0.0.1', openPorts: [22], source: DiscoverySource.mdns);
+      expect(a.merge(b).source, DiscoverySource.both);
     });
   });
 

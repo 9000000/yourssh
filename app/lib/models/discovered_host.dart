@@ -21,7 +21,7 @@ class DiscoveredHost {
       ip: ip,
       hostname: hostname ?? other.hostname,
       openPorts: ports,
-      source: DiscoverySource.both,
+      source: source == other.source ? source : DiscoverySource.both,
       mdnsServiceType: mdnsServiceType ?? other.mdnsServiceType,
     );
   }
