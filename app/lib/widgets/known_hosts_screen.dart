@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/known_host.dart';
 import '../providers/known_hosts_provider.dart';
 import '../theme/app_theme.dart';
+import '../util/known_hosts_importer.dart';
 
 class KnownHostsScreen extends StatefulWidget {
   const KnownHostsScreen({super.key});
@@ -21,6 +23,30 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
     });
   }
 
+  Future<void> _importFromSystem() async {
+    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+    final path = '$home/.ssh/known_hosts';
+    final file = File(path);
+
+    if (!await file.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('~/.ssh/known_hosts not found')),
+      );
+      return;
+    }
+
+    final content = await file.readAsString();
+    final parsed = KnownHostsImporter.parse(content);
+
+    if (!mounted) return;
+    final added = await context.read<KnownHostsProvider>().importHosts(parsed);
+
+    if (!mounted) return;
+    final msg = added > 0 ? 'Imported $added ${added == 1 ? 'entry' : 'entries'}' : 'No new entries found';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<KnownHostsProvider>();
@@ -28,7 +54,7 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
       color: AppColors.bg,
       child: Column(
         children: [
-          _TopBar(),
+          _TopBar(onImport: _importFromSystem),
           Expanded(
             child: provider.hosts.isEmpty
                 ? const _EmptyState()
@@ -46,6 +72,9 @@ class _KnownHostsScreenState extends State<KnownHostsScreen> {
 }
 
 class _TopBar extends StatelessWidget {
+  final VoidCallback onImport;
+  const _TopBar({required this.onImport});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -55,13 +84,38 @@ class _TopBar extends StatelessWidget {
         color: AppColors.sidebar,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: const Align(
-        alignment: Alignment.centerLeft,
-        child: Text('Known Hosts',
-            style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600)),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text('Known Hosts',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+          ),
+          GestureDetector(
+            onTap: onImport,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.download_outlined, size: 13, color: AppColors.textSecondary),
+                  SizedBox(width: 6),
+                  Text('IMPORT',
+                      style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          letterSpacing: 0.3)),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
