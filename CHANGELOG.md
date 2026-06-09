@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.34] — 2026-06-08
 
 ### Added
+- **Kubernetes panel** — `KubernetesPanel` widget inside the DevOps plugin: context switcher, streamed `kubectl logs -f` in a scrollable sheet, and 1-click port-forward (`kubectl port-forward`) via `ContainerService.execStream`; namespace filter + all-namespaces toggle
+- **`onOpenBrowser` DevOps callback** — `DevOpsPluginConfig` gains an `onOpenBrowser` callback so the host app can handle in-app browser navigation from DevOps tools without a hard dependency on the WebTools plugin
 - **Keyword highlighting** — user-defined regex rules tint matching terminal output at paint time in the xterm fork; defaults ship with Error/Warning/Fail rules (red/yellow/cyan); toggle + rule list + add/edit dialog + color picker in Settings → Terminal and the terminal config side panel; rules persisted in `SettingsProvider`
 - **Server monitor panel** — per-host live dashboard (CPU / memory / disk / uptime / listening ports / firewall status) in a draggable bottom sheet; access from the host card hover button or right-click context menu; `SystemStatsService` polls every 5 s via a single compound SSH exec with sentinel markers; `FirewallStatusService` polls every 30 s and auto-detects ufw / iptables / nftables; requires an active SSH session
 - **Network discovery** — scan the local network for SSH/RDP hosts without typing an IP; `NetworkDiscoveryService` combines mDNS (`_ssh._tcp`, `_rdp._tcp`) and a configurable TCP port scan on the local subnet; results appear in a bottom sheet with one-tap **Add Host**; also reachable from a **Scan network** link in the Add Host panel
@@ -26,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Server monitor panel: polling services now guard against overlapping exec calls (in-flight guard); errors surface in the sheet instead of showing an infinite spinner
 - Network discovery: silent error catches replaced with `debugPrint` logging; `_loadSubnets` now handles `NetworkInterface.list` failures gracefully; scan errors shown in the UI
 - `DiscoveredHost.merge()` now preserves source when merging two hosts from the same discovery method
+
+### Performance
+- Dashboard sort memoization — `HostsDashboard` no longer re-sorts the full host list on every keystroke; added an `identical`-based memo (`_memoSortedHosts`) and a set-based selection cleanup; O(n log n) per build → amortized O(1) for unchanged inputs
+- External-edit watcher deduplication — `ExternalEditService._startWatcher` cancels any existing watcher for the same (host, remote path) before creating a new one, preventing duplicate poll timers when a file is re-opened
+- K8s port-forward log-line accumulation — `ContainerService.startPodPortForward` listener early-returns after `Forwarding from` is matched instead of accumulating all kubectl output indefinitely
 
 ---
 
