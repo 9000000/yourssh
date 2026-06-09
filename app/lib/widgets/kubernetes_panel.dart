@@ -68,6 +68,10 @@ class _KubernetesPanelState extends State<KubernetesPanel> {
       _pods = [];
       _error = null;
       _closeLogPanel();
+      for (final f in _forwards) {
+        f.stop();
+      }
+      _forwards.clear();
       _loadContexts();
     }
   }
