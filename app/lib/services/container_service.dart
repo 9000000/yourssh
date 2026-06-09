@@ -122,10 +122,14 @@ class ContainerService {
     late StreamSubscription<String> kubectlSub;
     kubectlSub = logStream.listen(
       (line) {
+        // Accumulate only until forwarding is confirmed. `lines` is read solely
+        // for the early-exit error message in onDone, so appending after `ready`
+        // completes would grow the buffer unbounded for the lifetime of the
+        // forward (kubectl logs one line per proxied connection). Keep draining
+        // the stream — just stop holding onto the lines.
+        if (ready.isCompleted) return;
         lines.add(line);
-        if (line.contains('Forwarding from') && !ready.isCompleted) {
-          ready.complete();
-        }
+        if (line.contains('Forwarding from')) ready.complete();
       },
       onError: (e) {
         if (!ready.isCompleted) ready.completeError(e);

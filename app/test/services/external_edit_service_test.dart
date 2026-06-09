@@ -129,6 +129,16 @@ void main() {
     expect(service.activeWatchCount, 0);
   });
 
+  test('re-opening the same file replaces its watcher instead of stacking',
+      () async {
+    await service.openExternal(_host, _entry);
+    await service.openExternal(_host, _entry);
+    await service.openExternal(_host, _entry);
+    // One watcher per (host, remote path) — no duplicate timers polling the
+    // same file.
+    expect(service.activeWatchCount, 1);
+  });
+
   test('openExternalWith launches with the specified app path', () async {
     final launched2 = <(Uri, String?)>[];
     final serviceWithApp = ExternalEditService(
