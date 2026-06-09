@@ -4,13 +4,15 @@ import 'package:provider/provider.dart';
 
 import '../models/container_entry.dart';
 import '../models/host.dart';
+import 'kubernetes_panel.dart';
 import '../providers/session_provider.dart';
 import '../services/container_service.dart';
 import '../services/ssh_service.dart';
 import '../theme/app_theme.dart';
 
 class ContainersScreen extends StatefulWidget {
-  const ContainersScreen({super.key});
+  const ContainersScreen({super.key, this.onOpenBrowser});
+  final void Function(String url)? onOpenBrowser;
 
   @override
   State<ContainersScreen> createState() => _ContainersScreenState();
@@ -25,26 +27,9 @@ class _ContainersScreenState extends State<ContainersScreen> {
 
   RuntimeStatus? _runtimes;
   List<ContainerEntry> _containers = [];
-  List<PodEntry> _pods = [];
-  String _namespace = 'default';
-  bool _allNamespaces = false;
 
   bool _loading = false;
   String? _error;
-
-  late final TextEditingController _nsController;
-
-  @override
-  void initState() {
-    super.initState();
-    _nsController = TextEditingController(text: _namespace);
-  }
-
-  @override
-  void dispose() {
-    _nsController.dispose();
-    super.dispose();
-  }
 
   ContainerService _ensureService() {
     _service ??= ContainerService(context.read<SshService>());
@@ -103,7 +88,6 @@ class _ContainersScreenState extends State<ContainersScreen> {
             const SizedBox(width: 8),
             _tabButton(_Tab.kubernetes, 'Kubernetes'),
           ]),
-          if (_tab == _Tab.kubernetes) _namespaceControls(),
           const SizedBox(height: 8),
           Expanded(child: _body()),
         ],
@@ -119,40 +103,8 @@ class _ContainersScreenState extends State<ContainersScreen> {
       onSelected: (_) => setState(() {
         _tab = tab;
         _containers = [];
-        _pods = [];
         _error = null;
       }),
-    );
-  }
-
-  Widget _namespaceControls() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(children: [
-        SizedBox(
-          width: 200,
-          child: TextField(
-            enabled: !_allNamespaces,
-            decoration: const InputDecoration(labelText: 'Namespace', isDense: true),
-            controller: _nsController,
-            onSubmitted: (v) {
-              _namespace = v.trim().isEmpty ? 'default' : v.trim();
-              _refresh();
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        Row(children: [
-          Checkbox(
-            value: _allNamespaces,
-            onChanged: (v) => setState(() {
-              _allNamespaces = v ?? false;
-              _refresh();
-            }),
-          ),
-          const Text('All namespaces'),
-        ]),
-      ]),
     );
   }
 
@@ -190,7 +142,8 @@ class _ContainersScreenState extends State<ContainersScreen> {
     if (_error != null) {
       return _CenterHint(icon: Icons.error_outline, message: _error!);
     }
-    return _tab == _Tab.docker ? _dockerList() : _podList();
+    if (_tab == _Tab.docker) return _dockerList();
+    return KubernetesPanel(host: host, onOpenBrowser: widget.onOpenBrowser);
   }
 
   Widget _dockerList() {
@@ -215,31 +168,8 @@ class _ContainersScreenState extends State<ContainersScreen> {
     );
   }
 
-  Widget _podList() {
-    if (_pods.isEmpty) {
-      return const _CenterHint(icon: Icons.inbox, message: 'No pods.');
-    }
-    return ListView.separated(
-      itemCount: _pods.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (_, i) {
-        final p = _pods[i];
-        return ListTile(
-          title: Text(p.name),
-          subtitle: Text('${p.namespace}  •  ${p.ready}  •  ${p.status}'),
-          trailing: FilledButton.icon(
-            icon: const Icon(Icons.terminal, size: 16),
-            label: const Text('Exec'),
-            onPressed: () => _execPod(p),
-          ),
-        );
-      },
-    );
-  }
-
   // ── Actions ───────────────────────────────────────────
   Future<void> _refresh() async {
-    _namespace = _nsController.text.trim().isEmpty ? 'default' : _nsController.text.trim();
     final host = _hostForSelected();
     if (host == null) return;
     setState(() {
@@ -249,13 +179,9 @@ class _ContainersScreenState extends State<ContainersScreen> {
     try {
       final svc = _ensureService();
       _runtimes = await svc.detectRuntimes(host);
-      if (_availabilityFor(_runtimes!) == RuntimeAvailability.available) {
-        if (_tab == _Tab.docker) {
-          _containers = await svc.listDockerContainers(host);
-        } else {
-          _pods = await svc.listPods(host,
-              namespace: _namespace, allNamespaces: _allNamespaces);
-        }
+      if (_tab == _Tab.docker &&
+          _availabilityFor(_runtimes!) == RuntimeAvailability.available) {
+        _containers = await svc.listDockerContainers(host);
       }
     } catch (e) {
       _error = e.toString();
@@ -272,38 +198,6 @@ class _ContainersScreenState extends State<ContainersScreen> {
     await sessionProvider.connect(
       host,
       initialCommand: ContainerService.dockerExecCommand(c.id),
-    );
-  }
-
-  Future<void> _execPod(PodEntry p) async {
-    final host = _hostForSelected();
-    if (host == null) return;
-    String? container;
-    final names = await _ensureService().podContainers(host, p.name, p.namespace);
-    if (names.length > 1 && mounted) {
-      container = await showDialog<String>(
-        context: context,
-        builder: (_) => SimpleDialog(
-          title: const Text('Select container'),
-          children: [
-            for (final n in names)
-              SimpleDialogOption(
-                child: Text(n),
-                onPressed: () => Navigator.pop(context, n),
-              ),
-          ],
-        ),
-      );
-      if (container == null) return; // cancelled
-    } else if (names.length == 1) {
-      container = names.first;
-    }
-    if (!mounted) return;
-    final sessionProvider = context.read<SessionProvider>();
-    await sessionProvider.connect(
-      host,
-      initialCommand:
-          ContainerService.kubectlExecCommand(p.name, p.namespace, container),
     );
   }
 

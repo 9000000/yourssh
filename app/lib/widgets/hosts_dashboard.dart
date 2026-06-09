@@ -46,6 +46,35 @@ class _HostsDashboardState extends State<HostsDashboard> {
   bool _selectionMode = false;
   final Set<String> _selectedHostIds = {};
 
+  // Memoized sort. Re-sorting the whole host list on every search keystroke is
+  // wasteful, and sorting is independent of the query (filtering preserves
+  // order). Cache the sorted list and reuse it until the host list or sort mode
+  // changes — invalidated by a cheap per-element identity compare, since
+  // HostProvider replaces Host objects (and the list) on every mutation.
+  List<Host> _sortedCache = const [];
+  List<Host>? _sortedInput;
+  HostSortMode? _sortedMode;
+
+  List<Host> _memoSortedHosts(List<Host> hosts, HostSortMode mode) {
+    final prev = _sortedInput;
+    final unchanged = prev != null &&
+        _sortedMode == mode &&
+        prev.length == hosts.length &&
+        _identicalElements(prev, hosts);
+    if (unchanged) return _sortedCache;
+    _sortedInput = hosts;
+    _sortedMode = mode;
+    _sortedCache = sortHosts(hosts, mode);
+    return _sortedCache;
+  }
+
+  static bool _identicalElements(List<Host> a, List<Host> b) {
+    for (var i = 0; i < a.length; i++) {
+      if (!identical(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onSelectionKey);
@@ -192,13 +221,20 @@ class _HostsDashboardState extends State<HostsDashboard> {
   Widget build(BuildContext context) {
     final hostProvider = context.watch<HostProvider>();
     final hosts = hostProvider.allHosts;
-    _selectedHostIds.removeWhere((id) => !hosts.any((h) => h.id == id));
+    // Prune stale selections in O(n) via a Set (only when a selection exists).
+    if (_selectedHostIds.isNotEmpty) {
+      final liveIds = {for (final h in hosts) h.id};
+      _selectedHostIds.removeWhere((id) => !liveIds.contains(id));
+    }
     final query = HostQuery.parse(_search);
-    final filtered =
-        query.isEmpty ? hosts : hosts.where(query.matches).toList();
     final settings = context.watch<SettingsProvider>();
     final sortMode = HostSortMode.fromKey(settings.dashboardSort);
-    final sorted = sortHosts(filtered, sortMode);
+    // Sort the full list once (memoized), then filter the sorted result — the
+    // filter preserves order, so this avoids an O(n log n) re-sort per keystroke.
+    final sortedAll = _memoSortedHosts(hosts, sortMode);
+    final sorted =
+        query.isEmpty ? sortedAll : sortedAll.where(query.matches).toList();
+    final filtered = sorted;
     final listView = settings.dashboardViewMode == 'list';
     final facets = HostQuery.availableFacets(hosts);
 

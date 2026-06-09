@@ -94,6 +94,9 @@ class ExternalEditService {
   }
 
   void _startWatcher(Host host, SftpEntry entry, File localFile) {
+    // Re-opening the same remote file replaces its watcher rather than stacking
+    // a second timer that polls the same path for the lifetime of the screen.
+    _stopWatching(host.id, entry.path);
     final session = _WatchSession(
       host: host,
       entry: entry,
@@ -102,6 +105,16 @@ class ExternalEditService {
     );
     session.timer = Timer.periodic(pollInterval, (_) => _poll(session));
     _sessions.add(session);
+  }
+
+  void _stopWatching(String hostId, String remotePath) {
+    _sessions.removeWhere((s) {
+      if (s.host.id == hostId && s.entry.path == remotePath) {
+        s.timer?.cancel();
+        return true;
+      }
+      return false;
+    });
   }
 
   Future<bool> _launchWithApp(String filePath, String appPath) =>

@@ -131,4 +131,22 @@ void main() {
       expect(cmd, isNot(matches(RegExp(r'-c \w'))));
     });
   });
+
+  group('parseContextNames', () {
+    test('parses newline-separated context names', () {
+      const out = 'minikube\nprod-cluster\ndev-cluster\n';
+      expect(ContainerService.parseContextNames(out),
+          ['minikube', 'prod-cluster', 'dev-cluster']);
+    });
+
+    test('ignores blank lines and whitespace', () {
+      const out = '  minikube  \n\n  prod  \n';
+      expect(ContainerService.parseContextNames(out), ['minikube', 'prod']);
+    });
+
+    test('empty output returns empty list', () {
+      expect(ContainerService.parseContextNames(''), isEmpty);
+      expect(ContainerService.parseContextNames('  \n  \n'), isEmpty);
+    });
+  });
 }

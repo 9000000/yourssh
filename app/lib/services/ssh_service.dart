@@ -1012,6 +1012,55 @@ class SshService {
     return execResult;
   }
 
+  /// Opens a persistent SSH exec channel and yields stdout lines.
+  /// Cancelling the returned stream's subscription closes the channel —
+  /// the remote process receives SIGHUP.
+  Stream<String> execStream(
+    Host host,
+    String command, {
+    String? auditSource,
+  }) {
+    final controller = StreamController<String>();
+    _ensureClient(host).then((client) async {
+      final SSHSession session;
+      try {
+        session = await client.execute(command);
+      } catch (e) {
+        controller.addError(e);
+        unawaited(controller.close());
+        return;
+      }
+      if (auditSource != null) {
+        audit?.record(AuditEvent.now(
+          type: AuditEventType.exec,
+          host: host,
+          command: command,
+          meta: {'source': auditSource},
+        ));
+      }
+      final sub = session.stdout
+          .cast<List<int>>()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            controller.add,
+            onError: controller.addError,
+            onDone: () {
+              session.close();
+              if (!controller.isClosed) unawaited(controller.close());
+            },
+            cancelOnError: false,
+          );
+      controller.onCancel = () async {
+        await sub.cancel();
+        session.close();
+      };
+    }).catchError((Object e, StackTrace st) {
+      controller.addError(e, st);
+    });
+    return controller.stream;
+  }
+
   // ── SFTP ───────────────────────────────────────────────
 
   Future<SftpClient> openSftp(Host host, {bool interactive = true}) async {
