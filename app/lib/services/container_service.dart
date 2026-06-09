@@ -42,6 +42,31 @@ class ContainerService {
     return parseContainerNames(r.stdout);
   }
 
+  // ── Contexts ──────────────────────────────────────────
+
+  Future<List<String>> listContexts(Host host) async {
+    final r = await ssh.exec(host, 'kubectl config get-contexts -o name',
+        auditSource: 'devops');
+    if (r.exitCode != 0) return const [];
+    return parseContextNames(r.stdout);
+  }
+
+  Future<String?> currentContext(Host host) async {
+    final r = await ssh.exec(host, 'kubectl config current-context',
+        auditSource: 'devops');
+    if (r.exitCode != 0) return null;
+    final name = r.stdout.trim();
+    return name.isEmpty ? null : name;
+  }
+
+  static List<String> parseContextNames(String stdout) {
+    return stdout
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+  }
+
   static List<PodEntry> parsePods(
     String stdout, {
     String namespace = 'default',
