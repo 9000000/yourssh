@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/assets/app_icon.png" alt="YourSSH" width="120" />
+  <img width="120" src="app/assets/logo-readme.png" alt="YourSSH" />
   <h1 align="center">YourSSH</h1>
   <p align="center">
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
@@ -101,7 +101,7 @@ sudo dpkg -r yourssh
 ### Credentials & Security
 - **4 auth methods**: password, SSH private key, SSH certificate (CA-signed), SSH agent (`SSH_AUTH_SOCK` on macOS/Linux; `\\.\pipe\openssh-ssh-agent` on Windows 10+)
 - **OS-level secure storage**: credentials encrypted in macOS Keychain / Windows Credential Manager via `flutter_secure_storage`
-- **Known hosts verification**: interactive fingerprint trust dialog on first connect; persistent known-hosts database; import existing entries from `~/.ssh/known_hosts` via the Known Hosts screen (skips duplicates and hashed entries)
+- **Known hosts verification**: interactive fingerprint trust dialog on first connect; persistent known-hosts database
 - **Zero-knowledge cloud sync**: host configs encrypted client-side (AES-256-GCM) with a 12-character sync code that never leaves your devices — the Supabase anon key alone cannot decrypt anything
 - **P2P QR sync**: transfer all hosts and passwords to another device via QR code over LAN or Tailscale — no cloud required
 
@@ -114,8 +114,6 @@ sudo dpkg -r yourssh
 - **Host groups** — organize connection profiles into logical folders
 - **Bulk actions** — select multiple hosts on the dashboard and connect to all, run one command on every host in parallel (per-host results plus a diff view that groups identical outputs), or push files to the same path everywhere
 - **Dashboard grid & list view** — switch between host cards and a compact list, with persistent sorting (name, creation date, or hostname)
-- **Network discovery** — scan the local network for SSH/RDP hosts without typing an IP: mDNS (`_ssh._tcp`, `_rdp._tcp`) + configurable TCP subnet scan; results in a bottom sheet with one-tap **Add Host**; also reachable from a **Scan network** link in the Add Host panel
-- **Import sources** (9 formats) — SSH config, JSON, CSV, PuTTY `.reg`, MobaXterm `.mxtsessions`, SecureCRT XML, Ansible INI inventory, WinSCP `.ini`, Termius JSON, and SSH URIs; source-picker grid with per-host include toggles
 - **Broadcast mode** — send the same input to multiple sessions at once
 - **Code editor** — edit remote files inline with a Monaco-powered editor
 - **Session recording** — record terminal output to Asciinema v2 (`.cast`) files; per-host auto-record setting; manual start/stop from the toolbar; Recording Library with in-app playback (play/pause, speed control 0.5×–5×)
@@ -129,8 +127,7 @@ sudo dpkg -r yourssh
 - Minimum window size enforced (800×600); fully resizable
 
 ### DevOps & Developer Tools
-- **Containers (Docker / Kubernetes)** — list running containers (`docker ps`) and pods (`kubectl get pods`) on the active SSH session, then **Exec** into any of them in a new terminal tab; **Kubernetes panel** adds a context switcher, streamed `logs -f`, and 1-click `kubectl port-forward`; namespace filter + all-namespaces toggle, and an install/permission hint when the runtime is missing
-- **Server monitor panel** — per-host live dashboard (CPU, memory, disk, uptime, listening ports, firewall status) in a draggable bottom sheet; open from the host card hover button or right-click menu; polls every 5 s via a single SSH exec; requires an active SSH session
+- **Containers (Docker / Kubernetes)** — list running containers (`docker ps`) and pods (`kubectl get pods`) on the active SSH session, then **Exec** into any of them in a new terminal tab; namespace filter + all-namespaces toggle for Kubernetes, and an install/permission hint when the runtime is missing
 - **Network Tools** — ping, cURL, DNS lookup, traceroute, port scan, whois, netstat, disk usage, memory info, HTTP headers, SSL certificate inspection — all run on the active SSH session
 - **Cloudflare Tunnel manager** — start/stop quick tunnels via `cloudflared` on the remote host; public URL displayed instantly
 - **LAN Share** — serve any local file over HTTP for one-click download on the same network
@@ -563,7 +560,7 @@ Include a short description of **what** changed and **why**. Screenshots for UI 
 
 ### 🔜 Phase 4 — DevOps tooling
 
-- [x] **Docker / Kubernetes exec** — list containers/pods on the remote host and exec into them directly; Kubernetes panel adds context switcher, `logs -f`, and port-forward
+- [ ] **Docker / Kubernetes exec** — list containers/pods on the remote host and exec into them directly
 - [ ] **Remote process manager** — `htop`-style process list with kill support
 - [ ] **Log tail viewer** — real-time `tail -f` panel with regex filter and highlight
 
