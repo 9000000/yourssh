@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 /// One running Docker container (subset of `docker ps`).
 class ContainerEntry {
   final String id;
@@ -37,4 +40,38 @@ class RuntimeStatus {
   final RuntimeAvailability kubectl;
 
   const RuntimeStatus({required this.docker, required this.kubectl});
+}
+
+/// Tracks a running `kubectl port-forward` process and the matching local
+/// TCP server. Call [stop] to tear both down.
+class K8sForwardHandle {
+  K8sForwardHandle({
+    required this.pod,
+    required this.namespace,
+    required this.podPort,
+    required this.localPort,
+    required this._kubectlSub,
+    required this._server,
+    required this._serverSub,
+    required this._closers,
+  });
+
+  final String pod;
+  final String namespace;
+  final int podPort;
+  final int localPort;
+
+  final StreamSubscription<String> _kubectlSub;
+  final ServerSocket _server;
+  final StreamSubscription<Socket> _serverSub;
+  final List<void Function()> _closers;
+
+  Future<void> stop() async {
+    await _serverSub.cancel();
+    await _server.close();
+    for (final c in List.of(_closers)) {
+      c();
+    }
+    await _kubectlSub.cancel();
+  }
 }
