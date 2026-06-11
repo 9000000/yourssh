@@ -56,9 +56,13 @@ jobs:
         working-directory: app
         run: flutter pub get
 
+      # --split-debug-info strips Dart symbols from the AOT snapshot into
+      # build/symbols (20-30% smaller binary). Crash stack traces become raw
+      # offsets — symbolicate with: flutter symbolize -d <unzipped symbols>.
+      # The per-release *-symbols.zip attached below is the only copy; keep it.
       - name: Build macOS
         working-directory: app
-        run: flutter build macos --release
+        run: flutter build macos --release --split-debug-info=build/symbols
 
       - name: Bundle RDP library into app
         run: |
@@ -77,6 +81,11 @@ jobs:
         run: |
           APP=$(find "app/build/macos/Build/Products/Release" -name "*.app" -maxdepth 1 | head -1)
           zip -r "YourSSH-${{ steps.version.outputs.version }}-macOS-arm64.zip" "$APP"
+
+      - name: Zip debug symbols
+        run: |
+          cd app/build/symbols
+          zip -r "$GITHUB_WORKSPACE/YourSSH-${{ steps.version.outputs.version }}-macOS-arm64-symbols.zip" .
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -98,6 +107,7 @@ jobs:
           path: |
             YourSSH-${{ steps.version.outputs.version }}-macOS-arm64.zip
             YourSSH-${{ steps.version.outputs.version }}-macOS-arm64.dmg
+            YourSSH-${{ steps.version.outputs.version }}-macOS-arm64-symbols.zip
 
   # ── Windows ────────────────────────────────────────────────────────────────
   # x64 is the standard target. arm64 (Windows on ARM / Snapdragon) is
@@ -144,9 +154,10 @@ jobs:
         working-directory: app
         run: flutter pub get
 
+      # Dart symbols split out for size — see the macOS build step comment.
       - name: Build Windows
         working-directory: app
-        run: flutter build windows --release
+        run: flutter build windows --release --split-debug-info=build/symbols
 
       - name: Bundle RDP library into release
         shell: pwsh
@@ -188,6 +199,14 @@ jobs:
           Compress-Archive -Path "app\build\windows\$arch\runner\Release\*" `
             -DestinationPath "YourSSH-${ver}-Windows-${arch}-portable.zip"
 
+      - name: Zip debug symbols
+        shell: pwsh
+        run: |
+          $ver  = "${{ steps.version.outputs.version }}"
+          $arch = "${{ matrix.arch }}"
+          Compress-Archive -Path "app\build\symbols\*" `
+            -DestinationPath "YourSSH-${ver}-Windows-${arch}-symbols.zip"
+
       - name: Install Inno Setup (ARM64 runner only)
         if: matrix.arch == 'arm64'
         shell: pwsh
@@ -225,6 +244,7 @@ jobs:
           path: |
             YourSSH-${{ steps.version.outputs.version }}-Windows-${{ matrix.arch }}-portable.zip
             YourSSH.Setup.${{ steps.version.outputs.version }}-Windows-${{ matrix.arch }}.exe
+            YourSSH-${{ steps.version.outputs.version }}-Windows-${{ matrix.arch }}-symbols.zip
 
   # ── Linux ──────────────────────────────────────────────────────────────────
   # Produces a .deb package and a portable tar.gz for both x86_64 and arm64.
@@ -281,9 +301,10 @@ jobs:
         working-directory: app
         run: flutter pub get
 
+      # Dart symbols split out for size — see the macOS build step comment.
       - name: Build Linux
         working-directory: app
-        run: flutter build linux --release
+        run: flutter build linux --release --split-debug-info=build/symbols
 
       - name: Extract version
         id: version
@@ -347,12 +368,18 @@ jobs:
           tar -czf "YourSSH-${VERSION}-Linux-${ARCH}.tar.gz" \
             -C "$(dirname "$BUNDLE")" "$(basename "$BUNDLE")"
 
+      - name: Zip debug symbols
+        run: |
+          cd app/build/symbols
+          zip -r "$GITHUB_WORKSPACE/YourSSH-${{ steps.version.outputs.version }}-Linux-${{ matrix.arch }}-symbols.zip" .
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.arch }}
           path: |
             yourssh_${{ steps.version.outputs.version }}_${{ matrix.deb_arch }}.deb
             YourSSH-${{ steps.version.outputs.version }}-Linux-${{ matrix.arch }}.tar.gz
+            YourSSH-${{ steps.version.outputs.version }}-Linux-${{ matrix.arch }}-symbols.zip
 
   # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
@@ -399,3 +426,4 @@ jobs:
             YourSSH-${{ steps.version.outputs.version }}-Linux-x86_64.tar.gz
             yourssh_${{ steps.version.outputs.version }}_arm64.deb
             YourSSH-${{ steps.version.outputs.version }}-Linux-arm64.tar.gz
+            YourSSH-${{ steps.version.outputs.version }}-*-symbols.zip
