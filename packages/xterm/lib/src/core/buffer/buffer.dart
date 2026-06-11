@@ -1,5 +1,6 @@
 import 'dart:math' show max, min;
 
+import 'package:unorm_dart/unorm_dart.dart' as unorm;
 import 'package:xterm/src/core/buffer/cell_offset.dart';
 import 'package:xterm/src/core/buffer/line.dart';
 import 'package:xterm/src/core/buffer/range_line.dart';
@@ -110,6 +111,17 @@ class Buffer {
     codePoint = charset.translate(codePoint);
 
     final cellWidth = unicodeV11.wcwidth(codePoint);
+
+    // YOURSSH PATCH: a zero-width combining mark merges into the preceding
+    // cell when a precomposed (NFC) form exists. Decomposed Vietnamese text
+    // (macOS filenames in ls output, many tools) was unreadable otherwise:
+    // every mark occupied its own cell, displacing the diacritics and the
+    // cursor. Marks with no precomposed form keep the legacy own-cell
+    // behavior (the cell model stores a single codepoint).
+    if (cellWidth == 0 && _tryComposeMark(codePoint)) {
+      return;
+    }
+
     if (_cursorX >= terminal.viewWidth) {
       index();
       setCursorX(0);
@@ -128,6 +140,36 @@ class Buffer {
     if (cellWidth == 2) {
       writeChar(0);
     }
+  }
+
+  /// Tries to canonically compose the combining [mark] with the codepoint in
+  /// the cell preceding the cursor. Returns true when the cell was rewritten
+  /// with the precomposed character (the mark must then NOT be written).
+  bool _tryComposeMark(int mark) {
+    var x = _cursorX - 1;
+    final line = currentLine;
+    if (x < 0 || x >= line.length) {
+      return false; // column 0 — nothing to attach to
+    }
+    var base = line.getCodePoint(x);
+    // Skip the continuation cell of a wide character.
+    if (base == 0 && x >= 1 && line.getWidth(x - 1) == 2) {
+      x -= 1;
+      base = line.getCodePoint(x);
+    }
+    if (base == 0) {
+      return false;
+    }
+    final composed =
+        unorm.nfc(String.fromCharCode(base) + String.fromCharCode(mark));
+    final runes = composed.runes;
+    if (runes.length != 1) {
+      return false; // no precomposed form exists
+    }
+    // setCodePoint preserves the cell's own fg/bg/attrs — the mark belongs
+    // to the base character's style, not the current cursor style.
+    line.setCodePoint(x, runes.first);
+    return true;
   }
 
   /// The line at the current cursor position.
