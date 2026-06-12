@@ -5,21 +5,24 @@ enum TerminalMouseButton {
 
   right(id: 2),
 
-  wheelUp(id: 64 + 4, isWheel: true),
+  // YOURSSH PATCH: wheel buttons are X11 buttons 4-7, encoded as flag 64 plus
+  // the LOW TWO BITS of the button index (4→0, 5→1, 6→2, 7→3), i.e. 64-67.
+  // The previous ids (64+4 … 64+7 = 68-71) produced reports no application
+  // recognizes, so mouse-wheel scrolling was dead inside every mouse-aware
+  // TUI (claude, htop, vim mouse=a, lazygit, tmux with mouse on, …).
+  wheelUp(id: 64 + 0, isWheel: true),
 
-  wheelDown(id: 64 + 5, isWheel: true),
+  wheelDown(id: 64 + 1, isWheel: true),
 
-  wheelLeft(id: 64 + 6, isWheel: true),
+  wheelLeft(id: 64 + 2, isWheel: true),
 
-  wheelRight(id: 64 + 7, isWheel: true),
+  wheelRight(id: 64 + 3, isWheel: true),
   ;
 
   /// The id that is used to report a button press or release to the terminal.
   ///
-  /// Mouse wheel up / down use button IDs 4 = 0100 (binary) and 5 = 0101 (binary).
-  /// The bits three and four of the button are transposed by 64 and 128
-  /// respectively, when reporting the id of the button and have have to be
-  /// adjusted correspondingly.
+  /// Mouse wheel up / down are X11 buttons 4 and 5; in reports they are
+  /// encoded as 64 (the wheel flag) plus their low two bits (0 and 1).
   final int id;
 
   /// Whether this button is a mouse wheel button.
