@@ -29,10 +29,12 @@ abstract class MouseReporter {
                 (reportMode == MouseReportMode.utf && x > 2015)
             ? '\x00'
             : String.fromCharCode(32 + x);
+        // YOURSSH PATCH: y is already 1-based here — the extra +1 reported
+        // every event one row below the pointer.
         final row = (reportMode == MouseReportMode.normal && y > 223) ||
                 (reportMode == MouseReportMode.utf && y > 2015)
             ? '\x00'
-            : String.fromCharCode(32 + y + 1);
+            : String.fromCharCode(32 + y);
         return "\x1b[M$btn$col$row";
       case MouseReportMode.sgr:
         final buttonID = button.id;
