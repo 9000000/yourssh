@@ -173,3 +173,88 @@ Future<Uint8List> httpConnectHandshake(
   }
   return reader.takeLeftover();
 }
+
+/// SOCKS5 handshake: greeting (no-auth + optional user/pass), optional RFC 1929
+/// auth, then a CONNECT request with the target as a domain address (ATYP 0x03 →
+/// remote DNS). Returns any over-read tail.
+Future<Uint8List> socks5Handshake(
+  ByteReader reader,
+  StreamSink<List<int>> sink, {
+  required String targetHost,
+  required int targetPort,
+  String? username,
+  String? password,
+}) async {
+  final hasAuth = username != null && username.isNotEmpty;
+  final methods = hasAuth ? [0x00, 0x02] : [0x00];
+  sink.add(Uint8List.fromList([0x05, methods.length, ...methods]));
+
+  final sel = await reader.readExactly(2);
+  if (sel[0] != 0x05) throw const ProxyException('not a SOCKS5 proxy');
+  final method = sel[1];
+  if (method == 0xFF) {
+    throw const ProxyException('SOCKS5 proxy rejected all auth methods');
+  }
+  if (method == 0x02) {
+    if (!hasAuth) {
+      throw const ProxyException('SOCKS5 proxy requires username/password');
+    }
+    final u = utf8.encode(username);
+    final p = utf8.encode(password ?? '');
+    sink.add(Uint8List.fromList([0x01, u.length, ...u, p.length, ...p]));
+    final authResp = await reader.readExactly(2);
+    if (authResp[1] != 0x00) {
+      throw const ProxyException('SOCKS5 authentication failed');
+    }
+  } else if (method != 0x00) {
+    throw ProxyException('SOCKS5 proxy selected unsupported method $method');
+  }
+
+  final hostBytes = utf8.encode(targetHost);
+  if (hostBytes.length > 255) {
+    throw const ProxyException('hostname too long for SOCKS5');
+  }
+  sink.add(Uint8List.fromList([
+    0x05, 0x01, 0x00, 0x03, hostBytes.length, ...hostBytes,
+    (targetPort >> 8) & 0xff, targetPort & 0xff,
+  ]));
+
+  final head = await reader.readExactly(4); // VER, REP, RSV, ATYP
+  if (head[1] != 0x00) throw ProxyException(_socksReplyMessage(head[1]));
+  final atyp = head[3];
+  int addrLen;
+  if (atyp == 0x01) {
+    addrLen = 4;
+  } else if (atyp == 0x04) {
+    addrLen = 16;
+  } else if (atyp == 0x03) {
+    addrLen = (await reader.readExactly(1))[0];
+  } else {
+    throw ProxyException('SOCKS5 unsupported address type $atyp');
+  }
+  await reader.readExactly(addrLen + 2); // bound address + port
+  return reader.takeLeftover();
+}
+
+String _socksReplyMessage(int rep) {
+  switch (rep) {
+    case 0x01:
+      return 'SOCKS5 general failure';
+    case 0x02:
+      return 'SOCKS5 connection not allowed by ruleset';
+    case 0x03:
+      return 'SOCKS5 network unreachable';
+    case 0x04:
+      return 'SOCKS5 host unreachable';
+    case 0x05:
+      return 'SOCKS5 connection refused';
+    case 0x06:
+      return 'SOCKS5 TTL expired';
+    case 0x07:
+      return 'SOCKS5 command not supported';
+    case 0x08:
+      return 'SOCKS5 address type not supported';
+    default:
+      return 'SOCKS5 failed (code $rep)';
+  }
+}
