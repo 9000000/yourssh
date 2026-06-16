@@ -78,6 +78,8 @@ dependencies:
     path: ../packages/yourssh_script_engine
   yourssh_rdp:
     path: ../packages/yourssh_rdp
+  yourssh_vnc:
+    path: ../packages/yourssh_vnc
 
   # Cryptography utilities
   cryptography: ^2.7.0

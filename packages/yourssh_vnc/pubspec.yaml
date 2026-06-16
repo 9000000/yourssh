@@ -1,0 +1,22 @@
+name: yourssh_vnc
+description: In-app VNC (RFB) client for yourssh (vnc-rs via flutter_rust_bridge).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_rust_bridge: ^2.12.0
+  ffi: ^2.1.3
+  freezed_annotation: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  freezed: ^2.0.0
+  build_runner: ^2.0.0
