@@ -23,18 +23,13 @@ pub fn set_opaque(rgba: &mut [u8]) {
 /// Maps a `vnc-rs` error to a graceful disconnect reason, or `None` if it is a
 /// real error that should surface as `VncEvent::Error`.
 ///
-/// `VncError` in 0.5.3 has no dedicated "server closed" variant; clean
-/// server-side shutdowns surface as `IoError` wrapping `ConnectionReset`,
-/// `BrokenPipe`, or `UnexpectedEof`.
+/// In vnc-rs 0.5.3, `recv_event()` only ever fails with `ClientNotRunning` once
+/// the session ends: a clean server EOF is swallowed by the decode thread, which
+/// then closes the event channel. Mid-stream protocol/IO failures arrive
+/// separately as `Ok(VncEvent::Error(_))` and never reach this function.
 pub fn disconnect_reason(e: &VncError) -> Option<String> {
     match e {
         VncError::ClientNotRunning => Some("connection closed".to_string()),
-        VncError::IoError(io_err) => match io_err.kind() {
-            std::io::ErrorKind::ConnectionReset
-            | std::io::ErrorKind::BrokenPipe
-            | std::io::ErrorKind::UnexpectedEof => Some("server closed the connection".to_string()),
-            _ => None,
-        },
         _ => None,
     }
 }
@@ -59,6 +54,9 @@ async fn run_session_inner(
 
     let mut connected = false;
     let mut refresh = tokio::time::interval(Duration::from_millis(REFRESH_INTERVAL_MS));
+    // Don't replay refresh ticks that piled up while the loop was busy decoding a
+    // burst of frames — one incremental request on resume is enough.
+    refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
         tokio::select! {
@@ -67,13 +65,15 @@ async fn run_session_inner(
             biased;
 
             cmd = cmd_rx.recv() => {
-                match cmd {
-                    None | Some(SessionCmd::Disconnect) => {
-                        // error = already closed; still emit Disconnected
-                        let _ = vnc.close().await;
-                        return Ok("disconnected by user".into());
-                    }
-                }
+                // `Disconnect` = Dart asked us to stop; `None` = every command
+                // sender was dropped (session torn down). Both close the client.
+                let reason = match cmd {
+                    Some(SessionCmd::Disconnect) => "disconnected by user",
+                    None => "session closed",
+                };
+                // error = already closed; still emit Disconnected
+                let _ = vnc.close().await;
+                return Ok(reason.into());
             }
             ev = vnc.recv_event() => {
                 match ev {
