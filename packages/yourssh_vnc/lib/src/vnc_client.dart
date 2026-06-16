@@ -90,6 +90,9 @@ class VncClient {
       },
       onError: (Object err) {
         _sessionId = null;
+        _sub?.cancel();
+        _sub = null;
+        if (!_eventCtrl.isClosed) _eventCtrl.close();
         if (!_done.isCompleted) _done.completeError(err);
         if (!connectedCompleter.isCompleted) connectedCompleter.completeError(err);
       },
@@ -105,9 +108,10 @@ class VncClient {
     String reason,
   ) {
     _sessionId = null;
-    _eventCtrl.add(event);
     _sub?.cancel();
     _sub = null;
+    _eventCtrl.add(event);
+    if (!_eventCtrl.isClosed) _eventCtrl.close();
     if (!_done.isCompleted) _done.complete();
     if (!connectedCompleter.isCompleted) {
       connectedCompleter.completeError(
@@ -119,6 +123,7 @@ class VncClient {
   Future<void> disconnect() async {
     final id = _sessionId;
     if (id == null) {
+      if (_done.isCompleted) return; // already fully torn down
       // Started not yet observed — flag the intent so the session is torn
       // down as soon as its id arrives (instead of orphaning the Rust loop).
       _disconnectRequested = true;
@@ -131,6 +136,6 @@ class VncClient {
   void dispose() {
     _sub?.cancel();
     _sub = null;
-    _eventCtrl.close();
+    if (!_eventCtrl.isClosed) _eventCtrl.close();
   }
 }
