@@ -62,6 +62,19 @@ async fn run_session_inner(
 
     loop {
         tokio::select! {
+            // `biased` ensures cmd_rx is checked first every iteration so a
+            // Disconnect command is never starved by a high-frequency frame stream.
+            biased;
+
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    None | Some(SessionCmd::Disconnect) => {
+                        // error = already closed; still emit Disconnected
+                        let _ = vnc.close().await;
+                        return Ok("disconnected by user".into());
+                    }
+                }
+            }
             ev = vnc.recv_event() => {
                 match ev {
                     Ok(vnc::VncEvent::SetResolution(screen)) => {
@@ -83,6 +96,14 @@ async fn run_session_inner(
                     Ok(vnc::VncEvent::Error(msg)) => {
                         return Err(anyhow::anyhow!("{msg}"));
                     }
+                    // SetPixelFormat: we called set_pixel_format(rgba()) on the
+                    // connector, so this variant should never arrive. Ignore if it does.
+                    Ok(vnc::VncEvent::SetPixelFormat(_)) => {}
+                    // CopyRect / Tight-JPEG / cursor: encodings not negotiated; ignore.
+                    Ok(vnc::VncEvent::Copy(..))
+                    | Ok(vnc::VncEvent::JpegImage(..))
+                    | Ok(vnc::VncEvent::SetCursor(..)) => {}
+                    // Catch-all for any variants added in future vnc-rs releases.
                     Ok(_) => {}
                     Err(e) => {
                         return match disconnect_reason(&e) {
@@ -92,15 +113,9 @@ async fn run_session_inner(
                     }
                 }
             }
-            cmd = cmd_rx.recv() => {
-                match cmd {
-                    None | Some(SessionCmd::Disconnect) => {
-                        let _ = vnc.close().await;
-                        return Ok("disconnected by user".into());
-                    }
-                }
-            }
             _ = refresh.tick() => {
+                // Ignore send errors — if the client is closed, recv_event() will
+                // surface it on the next iteration.
                 let _ = vnc.input(vnc::X11Event::Refresh).await;
             }
         }
