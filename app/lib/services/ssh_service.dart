@@ -9,9 +9,12 @@ import 'osc52_clipboard.dart';
 import '../providers/shell_integration_provider.dart';
 import '../models/agent_forwarding_state.dart';
 import '../models/host.dart';
+import '../models/proxy_settings.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
 import 'certificate_key_pair.dart';
+import 'connection_proxy.dart';
+import 'proxy_handshake.dart';
 import 'injection_gate.dart';
 import '../models/audit_event.dart';
 import 'audit_service.dart';
@@ -134,6 +137,57 @@ class SshService {
     }
   }
 
+  /// Direct TCP dialer; injectable for tests. Defaults to the native socket.
+  @visibleForTesting
+  Future<SSHSocket> Function(String host, int port, {Duration? timeout})
+      directDialer = SSHSocket.connect;
+
+  /// Proxied dialer; injectable for tests. Defaults to [ConnectionProxy.connect].
+  @visibleForTesting
+  Future<SSHSocket> Function({
+    required ProxySettings settings,
+    required String targetHost,
+    required int targetPort,
+    Duration? timeout,
+  }) proxyDialer = ConnectionProxy.connect;
+
+  Future<String?> loadProxyPassword(String hostId) =>
+      _storage.loadGenericSecret('proxy_pw_$hostId');
+
+  Future<void> saveProxyPassword(String hostId, String password) =>
+      password.isEmpty
+          ? _storage.deleteGenericSecret('proxy_pw_$hostId')
+          : _storage.saveGenericSecret('proxy_pw_$hostId', password);
+
+  /// Opens the first local-originated TCP transport for [host], routing through
+  /// the host's configured proxy when set. Used for a direct connect, the first
+  /// bastion hop, and test-connection.
+  @visibleForTesting
+  Future<SSHSocket> localDial(Host host, {Duration? timeout}) async {
+    if (host.proxyType == ProxyType.none) {
+      return directDialer(host.host, host.port, timeout: timeout);
+    }
+    if (host.proxyHost == null ||
+        host.proxyHost!.isEmpty ||
+        host.proxyPort == null) {
+      throw const ProxyException('Proxy enabled but proxy host/port is missing');
+    }
+    final pw = await loadProxyPassword(host.id);
+    return proxyDialer(
+      settings: ProxySettings(
+        type: host.proxyType,
+        host: host.proxyHost!,
+        port: host.proxyPort!,
+        username:
+            (host.proxyUsername?.isEmpty ?? true) ? null : host.proxyUsername,
+        password: (pw?.isEmpty ?? true) ? null : pw,
+      ),
+      targetHost: host.host,
+      targetPort: host.port,
+      timeout: timeout,
+    );
+  }
+
   /// Test-only: register a (fake) client so shell/exec paths can run without
   /// a real network connection.
   @visibleForTesting
@@ -245,7 +299,7 @@ class SshService {
             verifyHopHostKey: verifyHopHostKey);
         socket = await lastHop.forwardLocal(host.host, host.port);
       } else {
-        socket = await SSHSocket.connect(host.host, host.port);
+        socket = await localDial(host);
       }
       client = SSHClient(
         socket,
@@ -327,7 +381,7 @@ class SshService {
     final resolution =
         await _resolveIdentities(hop, keyEntry, jumpHostLabel: hop.label);
     final client = SSHClient(
-      over ?? await SSHSocket.connect(hop.host, hop.port),
+      over ?? await localDial(hop),
       username: hop.username,
       onPasswordRequest: () => password ?? '',
       identities:
@@ -518,8 +572,7 @@ class SshService {
             .forwardLocal(host.host, host.port)
             .timeout(const Duration(seconds: 10));
       } else {
-        socket = await SSHSocket.connect(host.host, host.port)
-            .timeout(const Duration(seconds: 10));
+        socket = await localDial(host, timeout: const Duration(seconds: 10));
       }
 
       final resolution = await _resolveIdentities(host, keyEntry);

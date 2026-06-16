@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/host.dart';
+import '../models/proxy_settings.dart';
 import '../providers/host_provider.dart';
 import '../providers/key_provider.dart';
 import '../providers/settings_provider.dart' show kTermTypes;
@@ -69,6 +70,12 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
   bool _shellIntegration = true;
   bool _agentForwarding = false;
   bool _osc52Clipboard = false;
+  ProxyType _proxyType = ProxyType.none;
+  bool _obscureProxyPassword = true;
+  late final TextEditingController _proxyHostCtrl;
+  late final TextEditingController _proxyPortCtrl;
+  late final TextEditingController _proxyUsernameCtrl;
+  late final TextEditingController _proxyPasswordCtrl;
   late final TextEditingController _workingDirCtrl;
   late final TextEditingController _startupSnippetCtrl;
   late final TextEditingController _fontSizeCtrl;
@@ -110,6 +117,12 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
     _shellIntegration = h?.shellIntegration ?? true;
     _agentForwarding = h?.agentForwarding ?? false;
     _osc52Clipboard = h?.osc52Clipboard ?? false;
+    _proxyType = h?.proxyType ?? ProxyType.none;
+    _proxyHostCtrl = TextEditingController(text: h?.proxyHost ?? '');
+    _proxyPortCtrl =
+        TextEditingController(text: h?.proxyPort?.toString() ?? '');
+    _proxyUsernameCtrl = TextEditingController(text: h?.proxyUsername ?? '');
+    _proxyPasswordCtrl = TextEditingController();
     _workingDirCtrl = TextEditingController(text: h?.workingDir ?? '');
     _startupSnippetCtrl = TextEditingController(text: h?.startupSnippet ?? '');
     _fontSizeCtrl = TextEditingController(text: _fmtFontSize(h?.fontSize));
@@ -129,16 +142,29 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
     for (final c in [_hostCtrl, _portCtrl, _usernameCtrl, _passwordCtrl]) {
       c.addListener(_clearTestResult);
     }
-    if (h != null && _authType == AuthType.password) {
+    if (h != null &&
+        (_authType == AuthType.password || _proxyType != ProxyType.none)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadExistingPassword(h.id));
     }
   }
 
   Future<void> _loadExistingPassword(String hostId) async {
     if (!mounted) return;
-    final pw = await context.read<SshService>().loadPassword(hostId);
-    if (mounted && pw != null && pw.isNotEmpty && _passwordCtrl.text.isEmpty) {
-      setState(() => _passwordCtrl.text = pw);
+    final ssh = context.read<SshService>();
+    if (_authType == AuthType.password) {
+      final pw = await ssh.loadPassword(hostId);
+      if (mounted && pw != null && pw.isNotEmpty && _passwordCtrl.text.isEmpty) {
+        setState(() => _passwordCtrl.text = pw);
+      }
+    }
+    if (_proxyType != ProxyType.none) {
+      final proxyPw = await ssh.loadProxyPassword(hostId);
+      if (mounted &&
+          proxyPw != null &&
+          proxyPw.isNotEmpty &&
+          _proxyPasswordCtrl.text.isEmpty) {
+        setState(() => _proxyPasswordCtrl.text = proxyPw);
+      }
     }
   }
 
@@ -196,7 +222,8 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
     for (final c in [
       _hostCtrl, _labelCtrl, _groupCtrl, _tagsCtrl, _portCtrl, _usernameCtrl,
       _passwordCtrl, _sftpCommand, _workingDirCtrl, _startupSnippetCtrl,
-      _fontSizeCtrl, _domainCtrl,
+      _fontSizeCtrl, _domainCtrl, _proxyHostCtrl, _proxyPortCtrl,
+      _proxyUsernameCtrl, _proxyPasswordCtrl,
     ]) {
       c.dispose();
     }
@@ -232,6 +259,18 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
       shellIntegration: _shellIntegration,
       agentForwarding: !_isRdp && _agentForwarding,
       osc52Clipboard: !_isRdp && _osc52Clipboard,
+      proxyType: _isRdp ? ProxyType.none : _proxyType,
+      proxyHost: _isRdp || _proxyType == ProxyType.none
+          ? null
+          : _proxyHostCtrl.text.trim(),
+      proxyPort: _isRdp || _proxyType == ProxyType.none
+          ? null
+          : int.tryParse(_proxyPortCtrl.text.trim()),
+      proxyUsername: _isRdp ||
+              _proxyType == ProxyType.none ||
+              _proxyUsernameCtrl.text.trim().isEmpty
+          ? null
+          : _proxyUsernameCtrl.text.trim(),
       jumpHostIds: _jumpHostIds,
       sftpMode: _isRdp ? SftpMode.normal : _sftpMode,
       sftpServerCommand: !_isRdp && _sftpMode == SftpMode.custom
@@ -253,7 +292,11 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
       termType: _templateTermType,
       tmuxOverride: _tmuxOverride,
     );
+    final ssh = context.read<SshService>();
     try {
+      if (!_isRdp && _proxyType != ProxyType.none) {
+        await ssh.saveProxyPassword(host.id, _proxyPasswordCtrl.text);
+      }
       await widget.onSave(host, _passwordCtrl.text);
       if (mounted) widget.onClose();
     } finally {
@@ -660,6 +703,65 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                       ),
                     );
                   }),
+
+                  const SizedBox(height: 16),
+                  _sectionLabel('PROXY'),
+                  const SizedBox(height: 6),
+                  _Card(children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      child: Row(children: [
+                        const Text('Type',
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 13)),
+                        const SizedBox(width: 12),
+                        DropdownButton<ProxyType>(
+                          key: const ValueKey('proxy-type-dropdown'),
+                          value: _proxyType,
+                          dropdownColor: AppColors.card,
+                          underline: const SizedBox.shrink(),
+                          items: const [
+                            DropdownMenuItem(
+                                value: ProxyType.none, child: Text('None')),
+                            DropdownMenuItem(
+                                value: ProxyType.http,
+                                child: Text('HTTP CONNECT')),
+                            DropdownMenuItem(
+                                value: ProxyType.socks5, child: Text('SOCKS5')),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _proxyType = v ?? ProxyType.none),
+                        ),
+                      ]),
+                    ),
+                    if (_proxyType != ProxyType.none) ...[
+                      _PanelField(
+                        key: const ValueKey('proxy-host-field'),
+                        controller: _proxyHostCtrl,
+                        hint: 'Proxy host',
+                        icon: Icons.dns,
+                      ),
+                      _PanelField(
+                        key: const ValueKey('proxy-port-field'),
+                        controller: _proxyPortCtrl,
+                        hint: 'Proxy port',
+                        icon: Icons.numbers,
+                        keyboardType: TextInputType.number,
+                      ),
+                      _PanelField(
+                        controller: _proxyUsernameCtrl,
+                        hint: 'Proxy username (optional)',
+                        icon: Icons.person_outline,
+                      ),
+                      _PasswordField(
+                        controller: _proxyPasswordCtrl,
+                        obscure: _obscureProxyPassword,
+                        onToggle: () => setState(() =>
+                            _obscureProxyPassword = !_obscureProxyPassword),
+                      ),
+                    ],
+                  ]),
 
                   const SizedBox(height: 16),
                   _sectionLabel('SFTP MODE'),
@@ -1267,7 +1369,14 @@ class _PanelField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
   final IconData icon;
-  const _PanelField({required this.controller, required this.hint, required this.icon});
+  final TextInputType? keyboardType;
+  const _PanelField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.icon,
+    this.keyboardType,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1280,6 +1389,7 @@ class _PanelField extends StatelessWidget {
           Expanded(
             child: TextFormField(
               controller: controller,
+              keyboardType: keyboardType,
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               decoration: InputDecoration(
                 hintText: hint,

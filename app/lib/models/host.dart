@@ -1,5 +1,7 @@
 import 'package:uuid/uuid.dart';
 
+import 'proxy_settings.dart';
+
 enum AuthType { password, privateKey, certificate, agent }
 
 /// How SFTP sessions are started on this host. [normal] requests the
@@ -47,6 +49,13 @@ class Host {
   bool shellIntegration;
   bool agentForwarding;
   bool osc52Clipboard;
+
+  // ── Connection proxy (per-host outbound proxy for the first TCP dial) ──
+  ProxyType proxyType;
+  String? proxyHost;
+  int? proxyPort;
+  String? proxyUsername;
+
   SftpMode sftpMode;
   String? sftpServerCommand;
 
@@ -85,6 +94,10 @@ class Host {
     this.shellIntegration = true,
     this.agentForwarding = false,
     this.osc52Clipboard = false,
+    this.proxyType = ProxyType.none,
+    this.proxyHost,
+    this.proxyPort,
+    this.proxyUsername,
     this.sftpMode = SftpMode.normal,
     this.sftpServerCommand,
     this.protocol = HostProtocol.ssh,
@@ -136,6 +149,10 @@ class Host {
         'shellIntegration': shellIntegration,
         'agentForwarding': agentForwarding,
         'osc52Clipboard': osc52Clipboard,
+        'proxyType': proxyType.name,
+        'proxyHost': proxyHost,
+        'proxyPort': proxyPort,
+        'proxyUsername': proxyUsername,
         'sftpMode': sftpMode.name,
         'sftpServerCommand': sftpServerCommand,
         'protocol': protocol.name,
@@ -190,6 +207,11 @@ class Host {
       final name = json['rdpSecurity'] as String?;
       return RdpSecurityMode.values.asNameMap()[name] ?? RdpSecurityMode.auto;
     }
+    ProxyType parseProxyType() {
+      final name = json['proxyType'] as String?;
+      if (name == null) return ProxyType.none;
+      return ProxyType.values.asNameMap()[name] ?? ProxyType.none;
+    }
     Map<String, String> parseEnvVars() {
       final raw = json['envVars'];
       // Malformed/forward-compat values degrade to empty rather than
@@ -227,6 +249,10 @@ class Host {
       shellIntegration: (json['shellIntegration'] as bool?) ?? true,
       agentForwarding: (json['agentForwarding'] as bool?) ?? false,
       osc52Clipboard: (json['osc52Clipboard'] as bool?) ?? false,
+      proxyType: parseProxyType(),
+      proxyHost: json['proxyHost'] as String?,
+      proxyPort: (json['proxyPort'] as num?)?.toInt(),
+      proxyUsername: json['proxyUsername'] as String?,
       sftpMode: parseSftpMode(),
       sftpServerCommand: json['sftpServerCommand'] as String?,
       protocol: parseProtocol(),
@@ -258,6 +284,10 @@ class Host {
     bool? shellIntegration,
     bool? agentForwarding,
     bool? osc52Clipboard,
+    ProxyType? proxyType,
+    String? proxyHost,
+    int? proxyPort,
+    String? proxyUsername,
     SftpMode? sftpMode,
     Object? sftpServerCommand = const _Unset(),
     HostProtocol? protocol,
@@ -290,6 +320,10 @@ class Host {
         shellIntegration: shellIntegration ?? this.shellIntegration,
         agentForwarding: agentForwarding ?? this.agentForwarding,
         osc52Clipboard: osc52Clipboard ?? this.osc52Clipboard,
+        proxyType: proxyType ?? this.proxyType,
+        proxyHost: proxyHost ?? this.proxyHost,
+        proxyPort: proxyPort ?? this.proxyPort,
+        proxyUsername: proxyUsername ?? this.proxyUsername,
         sftpMode: sftpMode ?? this.sftpMode,
         sftpServerCommand: sftpServerCommand is _Unset
             ? this.sftpServerCommand
