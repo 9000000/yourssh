@@ -14,6 +14,7 @@ const REFRESH_INTERVAL_MS: u64 = 16;
 /// pixels with the padding (alpha) byte zeroed; rendered as RGBA8888 that is
 /// fully transparent, so the patch must be made opaque before it reaches Dart.
 pub fn set_opaque(rgba: &mut [u8]) {
+    debug_assert!(rgba.len() % 4 == 0, "set_opaque: buffer length must be a multiple of 4 (RGBA pixels)");
     for i in (3..rgba.len()).step_by(4) {
         rgba[i] = 0xFF;
     }
@@ -21,9 +22,19 @@ pub fn set_opaque(rgba: &mut [u8]) {
 
 /// Maps a `vnc-rs` error to a graceful disconnect reason, or `None` if it is a
 /// real error that should surface as `VncEvent::Error`.
+///
+/// `VncError` in 0.5.3 has no dedicated "server closed" variant; clean
+/// server-side shutdowns surface as `IoError` wrapping `ConnectionReset`,
+/// `BrokenPipe`, or `UnexpectedEof`.
 pub fn disconnect_reason(e: &VncError) -> Option<String> {
     match e {
         VncError::ClientNotRunning => Some("connection closed".to_string()),
+        VncError::IoError(io_err) => match io_err.kind() {
+            std::io::ErrorKind::ConnectionReset
+            | std::io::ErrorKind::BrokenPipe
+            | std::io::ErrorKind::UnexpectedEof => Some("server closed the connection".to_string()),
+            _ => None,
+        },
         _ => None,
     }
 }
