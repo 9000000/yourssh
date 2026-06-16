@@ -90,9 +90,6 @@ class VncClient {
       },
       onError: (Object err) {
         _sessionId = null;
-        _sub?.cancel();
-        _sub = null;
-        if (!_eventCtrl.isClosed) _eventCtrl.close();
         if (!_done.isCompleted) _done.completeError(err);
         if (!connectedCompleter.isCompleted) connectedCompleter.completeError(err);
       },
@@ -108,10 +105,9 @@ class VncClient {
     String reason,
   ) {
     _sessionId = null;
+    _eventCtrl.add(event);
     _sub?.cancel();
     _sub = null;
-    _eventCtrl.add(event);
-    if (!_eventCtrl.isClosed) _eventCtrl.close();
     if (!_done.isCompleted) _done.complete();
     if (!connectedCompleter.isCompleted) {
       connectedCompleter.completeError(
