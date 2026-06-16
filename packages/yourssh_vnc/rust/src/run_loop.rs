@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use tokio::sync::mpsc::UnboundedReceiver;
-use vnc::{PixelFormat, VncEncoding, VncError, VncEvent, X11Event};
+use vnc::VncError;
 
 use crate::api::{VncConfig, VncEvent as ApiEvent};
 use crate::connect::vnc_connect_stage;
@@ -36,6 +36,74 @@ pub fn disconnect_reason(e: &VncError) -> Option<String> {
             _ => None,
         },
         _ => None,
+    }
+}
+
+pub async fn run_session(
+    cfg: VncConfig,
+    mut cmd_rx: UnboundedReceiver<SessionCmd>,
+    sink: impl Fn(ApiEvent) + Send + Sync + 'static,
+) {
+    match run_session_inner(cfg, &mut cmd_rx, &sink).await {
+        Ok(reason) => sink(ApiEvent::Disconnected { reason }),
+        Err(e) => sink(ApiEvent::Error { message: format!("{e:#}") }),
+    }
+}
+
+async fn run_session_inner(
+    cfg: VncConfig,
+    cmd_rx: &mut UnboundedReceiver<SessionCmd>,
+    sink: &(impl Fn(ApiEvent) + Send + Sync),
+) -> anyhow::Result<String> {
+    let vnc = vnc_connect_stage(&cfg).await?;
+
+    let mut connected = false;
+    let mut refresh = tokio::time::interval(Duration::from_millis(REFRESH_INTERVAL_MS));
+
+    loop {
+        tokio::select! {
+            ev = vnc.recv_event() => {
+                match ev {
+                    Ok(vnc::VncEvent::SetResolution(screen)) => {
+                        if !connected {
+                            connected = true;
+                            sink(ApiEvent::Connected { width: screen.width, height: screen.height });
+                        } else {
+                            sink(ApiEvent::Resize { width: screen.width, height: screen.height });
+                        }
+                    }
+                    Ok(vnc::VncEvent::RawImage(rect, mut data)) => {
+                        set_opaque(&mut data);
+                        sink(ApiEvent::FrameUpdate {
+                            x: rect.x, y: rect.y, width: rect.width, height: rect.height, rgba: data,
+                        });
+                    }
+                    Ok(vnc::VncEvent::Text(text)) => sink(ApiEvent::ClipboardText { text }),
+                    Ok(vnc::VncEvent::Bell) => sink(ApiEvent::Bell),
+                    Ok(vnc::VncEvent::Error(msg)) => {
+                        return Err(anyhow::anyhow!("{msg}"));
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        return match disconnect_reason(&e) {
+                            Some(reason) => Ok(reason),
+                            None => Err(e.into()),
+                        };
+                    }
+                }
+            }
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    None | Some(SessionCmd::Disconnect) => {
+                        let _ = vnc.close().await;
+                        return Ok("disconnected by user".into());
+                    }
+                }
+            }
+            _ = refresh.tick() => {
+                let _ = vnc.input(vnc::X11Event::Refresh).await;
+            }
+        }
     }
 }
 
