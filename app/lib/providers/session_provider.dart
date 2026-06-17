@@ -333,27 +333,45 @@ class SessionProvider extends ChangeNotifier {
   }
 
   /// Opens a VNC tab. Mirrors [connectRdp] but with no TLS/cert pinning (plain
-  /// VNC has none) and no SSH tunnel yet (direct connections only).
+  /// VNC has none).
   Future<VncSession?> connectVnc(Host host) async {
     final password = await _ssh.loadPassword(host.id) ?? '';
 
+    var targetHost = host.host;
+    var targetPort = host.port;
+    LoopbackTunnelProxy? proxy;
+    VncSession? session;
     String? setupError;
+
     try {
       // Lazy bridge init: a missing/corrupt dylib surfaces as an error tab
       // instead of an uncatchable LateInitializationError in the bindings.
       await VncClient.ensureInitialized();
+      if (host.jumpHostId != null) {
+        proxy = LoopbackTunnelProxy(onClosed: () => session?.markTunnelClosed());
+        final port = await proxy.start(() async {
+          final sshSocket = await _ssh.openTunnelSocket(
+              host.jumpHostId!, host.host, host.port, host.id);
+          return TunnelEnd(
+              stream: sshSocket.stream,
+              sink: sshSocket.sink,
+              close: sshSocket.destroy);
+        });
+        targetHost = '127.0.0.1';
+        targetPort = port;
+      }
     } catch (e) {
       setupError = '$e';
     }
 
     final config = VncConfig(
-      targetHost: host.host,
-      targetPort: host.port,
+      targetHost: targetHost,
+      targetPort: targetPort,
       username: host.username,
       password: password,
     );
     final client = VncClient(config);
-    final session = VncSession(host: host, client: client);
+    session = VncSession(host: host, client: client, tunnelProxy: proxy);
 
     await _applyTabMetadata(session, host.id);
 

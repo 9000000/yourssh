@@ -108,4 +108,15 @@ void main() {
     s.customLabel = 'My VM';
     expect(s.tabLabel, 'My VM');
   });
+
+  test('tunnel-closed marks the disconnect reason', () async {
+    final events = StreamController<frb.VncEvent>();
+    final s = VncSession(host: _host(), client: _client());
+    s.attach(events.stream);
+    s.markTunnelClosed();
+    events.add(const frb.VncEvent.disconnected(reason: 'connection closed'));
+    await Future<void>.delayed(Duration.zero);
+    expect(s.lastMessage, 'SSH tunnel closed');
+    await events.close();
+  });
 }

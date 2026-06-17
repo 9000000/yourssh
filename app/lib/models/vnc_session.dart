@@ -6,19 +6,24 @@ import 'package:yourssh_vnc/yourssh_vnc.dart';
 // ignore: implementation_imports
 import 'package:yourssh_vnc/src/generated/api.dart' as frb;
 
+import '../services/loopback_tunnel_proxy.dart';
 import 'app_session.dart';
 import 'host.dart';
 
 enum VncSessionStatus { connecting, connected, disconnected, error }
 
 /// One VNC tab. Mirrors [RdpSession] but with no TLS/cert layer (plain VNC has
-/// none — security is the SSH tunnel, added in a later milestone) and no
-/// tunnel proxy yet (direct connections only in this milestone).
+/// none — security is the SSH tunnel).
 class VncSession extends ChangeNotifier implements AppSession {
-  VncSession({required this.host, required this.client});
+  VncSession({required this.host, required this.client, this.tunnelProxy});
 
   final Host host;
   final VncClient client;
+
+  /// Non-null when this session runs through an SSH tunnel; owned by the
+  /// session and stopped on [close].
+  final LoopbackTunnelProxy? tunnelProxy;
+  bool _tunnelClosed = false;
 
   /// Desktop size. Starts at 0×0; replaced by the server's framebuffer size
   /// from the Connected event and any later Resize (frame coordinates arrive
@@ -53,6 +58,10 @@ class VncSession extends ChangeNotifier implements AppSession {
   @override
   String get tabLabel => customLabel ?? host.label;
 
+  /// Called by the tunnel proxy when the SSH side collapsed, so the
+  /// disconnect message names the real cause.
+  void markTunnelClosed() => _tunnelClosed = true;
+
   void attach(Stream<frb.VncEvent> events) {
     _sub = events.listen(_onEvent, onError: (Object e) {
       status = VncSessionStatus.error;
@@ -84,10 +93,10 @@ class VncSession extends ChangeNotifier implements AppSession {
         return; // no visual state change
       case frb.VncEvent_Disconnected(:final reason):
         status = VncSessionStatus.disconnected;
-        lastMessage = reason;
+        lastMessage = _tunnelClosed ? 'SSH tunnel closed' : reason;
       case frb.VncEvent_Error(:final message):
         status = VncSessionStatus.error;
-        lastMessage = message;
+        lastMessage = _tunnelClosed ? 'SSH tunnel closed' : message;
     }
     notifyListeners();
   }
@@ -154,6 +163,7 @@ class VncSession extends ChangeNotifier implements AppSession {
       // Rust side will die with the process; nothing more to do.
     } finally {
       client.dispose();
+      await tunnelProxy?.stop();
       image?.dispose();
       image = null;
     }
