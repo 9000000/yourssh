@@ -1,10 +1,14 @@
 # Rust
 /core/target/
 /packages/yourssh_rdp/rust/target/
+/packages/yourssh_vnc/rust/target/
 
 # Built native RDP libraries — rebuilt locally via packages/yourssh_rdp/build.sh
 # (build.ps1 on Windows); CI builds them fresh in pr-test.yml / release.yml.
 /packages/yourssh_rdp/assets/native/
+
+# Built native VNC libraries — rebuilt locally via packages/yourssh_vnc/build.sh
+/packages/yourssh_vnc/assets/native/
 
 # Xcode (scope to core/ only — app/macos/ xcodeproj must be tracked for CI)
 core/*.xcodeproj/

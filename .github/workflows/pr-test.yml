@@ -19,15 +19,23 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/yourssh_rdp/rust
+          workspaces: |
+            packages/yourssh_rdp/rust
+            packages/yourssh_vnc/rust
 
       # --release so the test build and build.sh's `cargo build --release`
       # share one compiled profile instead of compiling the IronRDP tree twice.
       - name: Rust tests (yourssh_rdp)
         run: cargo test --release --manifest-path packages/yourssh_rdp/rust/Cargo.toml
 
+      - name: Rust tests (yourssh_vnc)
+        run: cargo test --release --manifest-path packages/yourssh_vnc/rust/Cargo.toml
+
       - name: Build RDP native library for Dart tests
         run: bash packages/yourssh_rdp/build.sh
+
+      - name: Build VNC native library for Dart tests
+        run: bash packages/yourssh_vnc/build.sh
 
       - name: Install Linux build dependencies
         run: |
@@ -52,4 +60,8 @@ jobs:
 
       - name: Dart tests (yourssh_rdp)
         working-directory: packages/yourssh_rdp
+        run: flutter test
+
+      - name: Dart tests (yourssh_vnc)
+        working-directory: packages/yourssh_vnc
         run: flutter test

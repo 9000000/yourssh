@@ -1,0 +1,22 @@
+[package]
+name = "yourssh_vnc"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+
+[dependencies]
+flutter_rust_bridge = "=2.12.0"
+vnc-rs = "0.5.3"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros", "time"] }
+anyhow = "1"
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
