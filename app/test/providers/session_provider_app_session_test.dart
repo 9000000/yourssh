@@ -10,6 +10,9 @@ import 'package:yourssh/services/ssh_service.dart';
 import 'package:yourssh/services/storage_service.dart';
 import 'package:yourssh/services/tab_metadata_service.dart';
 import 'package:yourssh_rdp/yourssh_rdp.dart' show RdpClient, RdpConfig;
+import 'package:yourssh/models/app_session.dart';
+import 'package:yourssh/models/vnc_session.dart';
+import 'package:yourssh_vnc/yourssh_vnc.dart' show VncClient, VncConfig;
 
 // port 1 on localhost → quick connection-refused (mirrors other provider tests)
 Host _sshHost() => Host(
@@ -33,6 +36,17 @@ RdpClient _rdpClient() => RdpClient(RdpConfig(
     width: 1280,
     height: 800,
     security: 'auto'));
+
+Host _vncHost() => Host(
+    id: 'vnc1',
+    label: 'desktop',
+    host: '10.0.0.5',
+    port: 5900,
+    username: 'u',
+    protocol: HostProtocol.vnc);
+
+VncClient _vncClient() => VncClient(VncConfig(
+    targetHost: '10.0.0.5', targetPort: 5900, username: 'u', password: ''));
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +75,16 @@ void main() {
       final s = RdpSession(
           host: _rdpHost(), client: _rdpClient(), width: 1280, height: 800);
       expect(s is TerminalSession, isFalse);
+    });
+
+    test('VncSession is not a TerminalSession', () {
+      final s = VncSession(host: _vncHost(), client: _vncClient());
+      expect(s is TerminalSession, isFalse);
+    });
+
+    test('VncSession is an AppSession', () {
+      final s = VncSession(host: _vncHost(), client: _vncClient());
+      expect(s, isA<AppSession>());
     });
   });
 

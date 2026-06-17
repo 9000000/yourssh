@@ -2,11 +2,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:yourssh_rdp/yourssh_rdp.dart';
+import 'package:yourssh_vnc/yourssh_vnc.dart';
 import '../models/agent_forwarding_state.dart';
 import '../models/audit_event.dart';
 import '../models/host.dart';
 import '../models/local_session.dart';
 import '../models/rdp_session.dart';
+import '../models/vnc_session.dart';
 import '../models/shell_profile.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
@@ -175,6 +177,7 @@ class SessionProvider extends ChangeNotifier {
   /// Routes to [connectRdp] or [connect] based on [host.protocol].
   Future<AppSession?> connectAny(Host host, {String? initialCommand}) {
     if (host.protocol == HostProtocol.rdp) return connectRdp(host);
+    if (host.protocol == HostProtocol.vnc) return connectVnc(host);
     return connect(host, initialCommand: initialCommand).then((_) => null);
   }
 
@@ -327,6 +330,103 @@ class SessionProvider extends ChangeNotifier {
     // tab-metadata pass — no manual carry-over needed.
     closeSession(old.id);
     await connectRdp(old.host);
+  }
+
+  /// Opens a VNC tab. Mirrors [connectRdp] but with no TLS/cert pinning (plain
+  /// VNC has none) and no SSH tunnel yet (direct connections only).
+  Future<VncSession?> connectVnc(Host host) async {
+    final password = await _ssh.loadPassword(host.id) ?? '';
+
+    String? setupError;
+    try {
+      // Lazy bridge init: a missing/corrupt dylib surfaces as an error tab
+      // instead of an uncatchable LateInitializationError in the bindings.
+      await VncClient.ensureInitialized();
+    } catch (e) {
+      setupError = '$e';
+    }
+
+    final config = VncConfig(
+      targetHost: host.host,
+      targetPort: host.port,
+      username: host.username,
+      password: password,
+    );
+    final client = VncClient(config);
+    final session = VncSession(host: host, client: client);
+
+    await _applyTabMetadata(session, host.id);
+
+    if (setupError != null) {
+      session.status = VncSessionStatus.error;
+      session.lastMessage = setupError;
+    } else {
+      session.attach(client.events);
+      // Failures surface through the event stream (status/lastMessage);
+      // swallow the future's mirror error so it can't hit the root zone.
+      unawaited(client.connect().then((_) {}, onError: (_) {}));
+    }
+
+    _watchVncStatus(session);
+    session.addListener(_safeNotify);
+    _sessions.add(session);
+    _activeSessionId = session.id;
+    if (session.isPinned) _sortSessions();
+    _safeNotify();
+    return session;
+  }
+
+  /// Audits VNC connect/disconnect transitions and feeds the notification
+  /// bell — parity with [_watchRdpStatus] (no cert flows to special-case).
+  void _watchVncStatus(VncSession session) {
+    var last = session.status;
+    session.addListener(() {
+      final now = session.status;
+      if (now == last) return;
+      final was = last;
+      last = now;
+      final host = session.host;
+      if (was == VncSessionStatus.connecting &&
+          now == VncSessionStatus.connected) {
+        audit?.record(AuditEvent.now(
+            type: AuditEventType.connect,
+            host: host,
+            sessionId: session.id,
+            meta: const {'source': 'vnc'}));
+      } else if (was == VncSessionStatus.connecting &&
+          (now == VncSessionStatus.error ||
+              now == VncSessionStatus.disconnected)) {
+        audit?.record(AuditEvent.now(
+            type: AuditEventType.connect,
+            host: host,
+            sessionId: session.id,
+            meta: {
+              'source': 'vnc',
+              'error': session.lastMessage ?? 'connection failed',
+            }));
+        onSessionDropped?.call(session, session.lastMessage);
+      } else if (was == VncSessionStatus.connected) {
+        final userClosed = session.lastMessage == 'disconnected by user';
+        audit?.record(AuditEvent.now(
+            type: AuditEventType.disconnect,
+            host: host,
+            sessionId: session.id,
+            meta: {
+              'source': 'vnc',
+              'reason': userClosed ? 'user-closed' : 'dropped',
+            }));
+        if (!userClosed) {
+          onSessionDropped?.call(session, session.lastMessage);
+        }
+      }
+    });
+  }
+
+  Future<void> reconnectVnc(VncSession old) async {
+    // Label/color/pin are persisted on every edit and reloaded by connectVnc's
+    // tab-metadata pass — no manual carry-over needed.
+    closeSession(old.id);
+    await connectVnc(old.host);
   }
 
   Future<void> _doConnect(SshSession session, Host host, {required int attempt}) async {
@@ -529,6 +629,31 @@ class SessionProvider extends ChangeNotifier {
       _safeNotify();
       return;
     }
+    if (session is VncSession) {
+      final hostId = session.host.id;
+      // Mirror the SSH/RDP path: a live tab the user closes gets its own row
+      // (a dead tab was already audited on the drop/error transition).
+      if (session.status == VncSessionStatus.connected) {
+        audit?.record(AuditEvent.now(
+            type: AuditEventType.disconnect,
+            host: session.host,
+            sessionId: sessionId,
+            meta: const {'source': 'vnc', 'reason': 'user-closed'}));
+      }
+      session.removeListener(_safeNotify);
+      unawaited(session.close());
+      _sessions.remove(session);
+      if (_activeSessionId == sessionId) {
+        _activeSessionId = _sessions.isNotEmpty ? _sessions.last.id : null;
+      }
+      // No-op for direct VNC; releases the SSH tunnel client once tunneling
+      // lands in a later milestone (parity with the RDP branch).
+      if (!_sessions.any((s) => s is VncSession && s.host.id == hostId)) {
+        _ssh.disconnect(hostId);
+      }
+      _safeNotify();
+      return;
+    }
     if (session is LocalSession) {
       localShell?.closeSession(sessionId);
       _sessions.remove(session);
@@ -611,6 +736,7 @@ class SessionProvider extends ChangeNotifier {
   String? _metadataHostId(AppSession s) => switch (s) {
         SshSession ssh => ssh.isWatch ? null : ssh.host.id,
         RdpSession rdp => rdp.host.id,
+        VncSession vnc => vnc.host.id,
         _ => null,
       };
 
