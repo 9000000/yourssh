@@ -4,10 +4,14 @@ use std::sync::Mutex;
 
 use tokio::sync::mpsc::UnboundedSender;
 
-/// Commands Dart can push into a running session loop. Milestone 1 only needs
-/// Disconnect; input/clipboard-send commands are added in later milestones.
+/// Commands Dart can push into a running session loop.
 #[derive(Debug)]
 pub enum SessionCmd {
+    /// Pointer move/press/release. `button_mask` is the RFB bitmask
+    /// (bit0 left, bit1 middle, bit2 right, bit3 wheel-up, bit4 wheel-down).
+    Pointer { x: u16, y: u16, button_mask: u8 },
+    /// Key press/release. `keysym` is an X11 keysym.
+    Key { keysym: u32, down: bool },
     Disconnect,
 }
 
