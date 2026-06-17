@@ -15,4 +15,8 @@ void main() {
   test('sendKey is a no-op before connect', () {
     expect(() => client().sendKey(keysym: 0xFF0D, down: true), returnsNormally);
   });
+
+  test('sendClipboardText is a no-op before connect', () {
+    expect(() => client().sendClipboardText('x'), returnsNormally);
+  });
 }

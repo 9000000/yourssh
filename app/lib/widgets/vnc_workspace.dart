@@ -31,6 +31,7 @@ class _VncWorkspaceState extends State<VncWorkspace> {
   // events are dropped so a fast-moving mouse doesn't flood the session
   // command channel (and starve frame decode behind the biased run-loop).
   (int, int, int)? _lastPointer;
+  String? _lastPushedClipboard;
 
   @override
   void initState() {
@@ -115,6 +116,17 @@ class _VncWorkspaceState extends State<VncWorkspace> {
           return Focus(
             focusNode: _focusNode,
             autofocus: true,
+            onFocusChange: (gained) async {
+              if (!gained) return;
+              final data = await Clipboard.getData(Clipboard.kTextPlain);
+              final text = data?.text;
+              if (text != null &&
+                  text.isNotEmpty &&
+                  text != _lastPushedClipboard) {
+                _lastPushedClipboard = text;
+                session.client.sendClipboardText(text);
+              }
+            },
             onKeyEvent: (node, event) {
               // Let app-level hotkeys win over the remote.
               if (HotkeyService().shouldSwallowKeyEvent(event)) {
@@ -189,6 +201,11 @@ class _Toolbar extends StatelessWidget {
         Text(session.tabLabel, style: Theme.of(context).textTheme.labelMedium),
         const Spacer(),
         IconButton(
+          tooltip: 'Push clipboard to remote',
+          icon: const Icon(Icons.content_paste_go, size: 16),
+          onPressed: () => _pushClipboard(session),
+        ),
+        IconButton(
           tooltip: 'Disconnect',
           icon: const Icon(Icons.power_settings_new, size: 16),
           onPressed: () => session.client.disconnect(),
@@ -226,6 +243,13 @@ class _FramePainter extends CustomPainter {
       old.scale != scale ||
       old.offX != offX ||
       old.offY != offY;
+}
+
+Future<void> _pushClipboard(VncSession session) async {
+  final data = await Clipboard.getData(Clipboard.kTextPlain);
+  if (data?.text != null) {
+    session.client.sendClipboardText(data!.text!);
+  }
 }
 
 /// Flutter's pressed-buttons bitfield -> RFB button bitmask

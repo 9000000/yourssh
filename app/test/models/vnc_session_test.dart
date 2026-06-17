@@ -109,6 +109,18 @@ void main() {
     expect(s.tabLabel, 'My VM');
   });
 
+  test('server cut-text invokes the clipboard callback (no repaint)', () async {
+    final events = StreamController<frb.VncEvent>();
+    final s = VncSession(host: _host(), client: _client());
+    String? got;
+    s.onRemoteClipboardText = (t) => got = t;
+    s.attach(events.stream);
+    events.add(const frb.VncEvent.clipboardText(text: 'hello'));
+    await Future<void>.delayed(Duration.zero);
+    expect(got, 'hello');
+    await events.close();
+  });
+
   test('tunnel-closed marks the disconnect reason', () async {
     final events = StreamController<frb.VncEvent>();
     final s = VncSession(host: _host(), client: _client());

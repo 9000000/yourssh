@@ -43,6 +43,10 @@ class VncSession extends ChangeNotifier implements AppSession {
   String? lastMessage;
   bool _closed = false;
 
+  /// Called when the remote sends a ServerCutText event. Wire this to the
+  /// system clipboard (e.g. [Clipboard.setData]) in the provider.
+  void Function(String text)? onRemoteClipboardText;
+
   /// Latest decoded frame for painting; rebuilt lazily after patches.
   ui.Image? image;
   bool _decodeInFlight = false;
@@ -87,8 +91,9 @@ class VncSession extends ChangeNotifier implements AppSession {
           :final rgba
         ):
         _patch(x, y, width, height, rgba);
-      case frb.VncEvent_ClipboardText():
-        return; // clipboard handling is a later milestone; ignore for now
+      case frb.VncEvent_ClipboardText(:final text):
+        onRemoteClipboardText?.call(text);
+        return; // no repaint needed
       case frb.VncEvent_Bell():
         return; // no visual state change
       case frb.VncEvent_Disconnected(:final reason):

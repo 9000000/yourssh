@@ -372,6 +372,8 @@ class SessionProvider extends ChangeNotifier {
     );
     final client = VncClient(config);
     session = VncSession(host: host, client: client, tunnelProxy: proxy);
+    session.onRemoteClipboardText =
+        (t) => Clipboard.setData(ClipboardData(text: t));
 
     await _applyTabMetadata(session, host.id);
 

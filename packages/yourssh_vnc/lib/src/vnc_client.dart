@@ -145,6 +145,13 @@ class VncClient {
     vncSendKey(sessionId: id, keysym: keysym, down: down);
   }
 
+  /// Send local clipboard text to the remote. No-op until started.
+  void sendClipboardText(String text) {
+    final id = _sessionId;
+    if (id == null) return;
+    vncSendClipboardText(sessionId: id, text: text);
+  }
+
   void dispose() {
     _sub?.cancel();
     _sub = null;
