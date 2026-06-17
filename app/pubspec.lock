@@ -1356,6 +1356,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  yourssh_vnc:
+    dependency: "direct main"
+    description:
+      path: "../packages/yourssh_vnc"
+      relative: true
+    source: path
+    version: "0.1.0"
   yourssh_web_tools:
     dependency: "direct main"
     description:
