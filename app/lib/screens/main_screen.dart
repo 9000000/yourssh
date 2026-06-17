@@ -90,6 +90,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   bool _rdpCertDialogShowing = false;
   bool _consentDialogShowing = false;
   bool _rdpFullscreen = false;
+  bool _vncFullscreen = false;
 
   @override
   void initState() {
@@ -572,6 +573,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Enters/exits VNC fullscreen: mirrors _setRdpFullscreen exactly.
+  Future<void> _setVncFullscreen(bool on) async {
+    if (_vncFullscreen == on || !mounted) return;
+    setState(() => _vncFullscreen = on);
+    try {
+      await windowManager.setFullScreen(on);
+    } catch (_) {
+      // Window manager unavailable (tests/headless) — chrome state applied.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionProvider = context.watch<SessionProvider>();
@@ -590,6 +602,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       });
     }
     if (rdpFullscreenActive) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        body: _buildForeground(activeSession),
+      );
+    }
+
+    final vncFullscreenActive =
+        _vncFullscreen && _viewingTerminal && activeSession is VncSession;
+    if (_vncFullscreen && !vncFullscreenActive) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_setVncFullscreen(false));
+      });
+    }
+    if (vncFullscreenActive) {
       return Scaffold(
         backgroundColor: AppColors.bg,
         body: _buildForeground(activeSession),
@@ -790,6 +816,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       return VncWorkspace(
         session: active,
         onReconnect: () => _retryVnc(active),
+        isFullscreen: _vncFullscreen,
+        onFullscreenChanged: (on) => unawaited(_setVncFullscreen(on)),
       );
     }
     if (_viewingTerminal && active != null) {

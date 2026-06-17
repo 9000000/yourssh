@@ -21,6 +21,26 @@ VncClient _client() => VncClient(VncConfig(
     targetHost: '10.0.0.5', targetPort: 5900, username: 'u', password: ''));
 
 void main() {
+  testWidgets('fullscreen button fires onFullscreenChanged when connected',
+      (tester) async {
+    final events = StreamController<frb.VncEvent>();
+    final session = VncSession(host: _host(), client: _client());
+    session.attach(events.stream);
+    var fs = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: VncWorkspace(
+            session: session, onFullscreenChanged: (v) => fs = v),
+      ),
+    ));
+    events.add(const frb.VncEvent.connected(width: 800, height: 600));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Fullscreen'));
+    await tester.pump();
+    expect(fs, isTrue);
+    await events.close();
+  });
+
   testWidgets('shows connecting overlay, then error overlay with retry',
       (tester) async {
     final events = StreamController<frb.VncEvent>();

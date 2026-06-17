@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -10,15 +11,26 @@ import '../services/hotkey_service.dart';
 import '../theme/app_theme.dart';
 import '../util/vnc_input_mapping.dart';
 
-/// View-only VNC framebuffer surface. Mirrors RdpWorkspace's render pipeline:
-/// the widget rebuilds only on status change, while frames repaint through the
-/// painter's `repaint: session` listenable. Input/clipboard/fullscreen are
-/// later milestones.
+/// Full workspace for an active VNC tab: rendered remote framebuffer,
+/// input capture, slim toolbar, and status overlays.
+///
+/// In fullscreen ([isFullscreen]) the toolbar is replaced by an auto-hiding
+/// pill revealed by hovering the top screen edge (mirrors RdpWorkspace);
+/// the widget reports enter/exit intents via [onFullscreenChanged] — the
+/// caller owns the actual window state and collapses the app chrome.
 class VncWorkspace extends StatefulWidget {
-  const VncWorkspace({super.key, required this.session, this.onReconnect});
+  const VncWorkspace({
+    super.key,
+    required this.session,
+    this.onReconnect,
+    this.isFullscreen = false,
+    this.onFullscreenChanged,
+  });
 
   final VncSession session;
   final VoidCallback? onReconnect;
+  final bool isFullscreen;
+  final ValueChanged<bool>? onFullscreenChanged;
 
   @override
   State<VncWorkspace> createState() => _VncWorkspaceState();
@@ -32,11 +44,14 @@ class _VncWorkspaceState extends State<VncWorkspace> {
   // command channel (and starve frame decode behind the biased run-loop).
   (int, int, int)? _lastPointer;
   String? _lastPushedClipboard;
+  bool _hoverBarVisible = false;
+  Timer? _hoverBarTimer;
 
   @override
   void initState() {
     super.initState();
     session.addListener(_onSessionChanged);
+    if (widget.isFullscreen) _flashHoverBar();
   }
 
   @override
@@ -47,10 +62,19 @@ class _VncWorkspaceState extends State<VncWorkspace> {
       session.addListener(_onSessionChanged);
       _lastPointer = null;
     }
+    // Entering fullscreen: show the pill briefly so the exit affordance is
+    // discoverable, then auto-hide until the user hovers the top edge.
+    if (widget.isFullscreen && !old.isFullscreen) _flashHoverBar();
+    if (widget.isFullscreen && session.status != VncSessionStatus.connected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onFullscreenChanged?.call(false);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _hoverBarTimer?.cancel();
     _focusNode.dispose();
     session.removeListener(_onSessionChanged);
     super.dispose();
@@ -60,10 +84,73 @@ class _VncWorkspaceState extends State<VncWorkspace> {
     if (mounted) setState(() {});
   }
 
+  void _flashHoverBar() {
+    setState(() => _hoverBarVisible = true);
+    _hoverBarTimer?.cancel();
+    _hoverBarTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _hoverBarVisible = false);
+    });
+  }
+
+  void _showHoverBar() {
+    _hoverBarTimer?.cancel();
+    if (!_hoverBarVisible) setState(() => _hoverBarVisible = true);
+  }
+
+  void _hideHoverBarSoon() {
+    _hoverBarTimer?.cancel();
+    _hoverBarTimer = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _hoverBarVisible = false);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.isFullscreen) {
+      return Stack(children: [
+        Positioned.fill(child: _buildBody()),
+        // Invisible reveal strip along the top screen edge.
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 8,
+          child: MouseRegion(
+            opaque: false,
+            onEnter: (_) => _showHoverBar(),
+            child: const SizedBox.expand(),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: AnimatedOpacity(
+              opacity: _hoverBarVisible ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: IgnorePointer(
+                ignoring: !_hoverBarVisible,
+                child: MouseRegion(
+                  onEnter: (_) => _showHoverBar(),
+                  onExit: (_) => _hideHoverBarSoon(),
+                  child: _ExitFullscreenPill(
+                    onExit: () => widget.onFullscreenChanged?.call(false),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ]);
+    }
     return Column(children: [
-      _Toolbar(session: session),
+      _Toolbar(
+        session: session,
+        onEnterFullscreen: widget.onFullscreenChanged == null
+            ? null
+            : () => widget.onFullscreenChanged!.call(true),
+      ),
       Expanded(child: _buildBody()),
     ]);
   }
@@ -188,8 +275,9 @@ class _VncWorkspaceState extends State<VncWorkspace> {
 }
 
 class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.session});
+  const _Toolbar({required this.session, this.onEnterFullscreen});
   final VncSession session;
+  final VoidCallback? onEnterFullscreen;
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +293,14 @@ class _Toolbar extends StatelessWidget {
           icon: const Icon(Icons.content_paste_go, size: 16),
           onPressed: () => _pushClipboard(session),
         ),
+        if (onEnterFullscreen != null)
+          IconButton(
+            tooltip: 'Fullscreen',
+            icon: const Icon(Icons.fullscreen, size: 16),
+            onPressed: session.status == VncSessionStatus.connected
+                ? onEnterFullscreen
+                : null,
+          ),
         IconButton(
           tooltip: 'Disconnect',
           icon: const Icon(Icons.power_settings_new, size: 16),
@@ -212,6 +308,31 @@ class _Toolbar extends StatelessWidget {
         ),
         const SizedBox(width: 4),
       ]),
+    );
+  }
+}
+
+class _ExitFullscreenPill extends StatelessWidget {
+  const _ExitFullscreenPill({required this.onExit});
+  final VoidCallback onExit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.card,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onExit,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.fullscreen_exit, size: 16),
+            SizedBox(width: 6),
+            Text('Exit fullscreen'),
+          ]),
+        ),
+      ),
     );
   }
 }
