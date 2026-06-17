@@ -20,7 +20,7 @@ import '../services/os_detection.dart';
 import '../services/ssh_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
-import 'rdp_badge.dart';
+import 'protocol_badge.dart';
 import 'bulk/bulk_action_bar.dart';
 import 'bulk/bulk_push_dialog.dart';
 import 'bulk/bulk_run_dialog.dart';
@@ -1171,9 +1171,9 @@ class _HostCardState extends State<_HostCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (widget.host.protocol == HostProtocol.rdp) ...[
+                  if (widget.host.protocol != HostProtocol.ssh) ...[
                     const SizedBox(width: 6),
-                    const RdpBadge(),
+                    ProtocolBadge(widget.host.protocol),
                   ],
                 ],
               ),
@@ -1227,9 +1227,9 @@ class _HostCardState extends State<_HostCard> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (widget.host.protocol == HostProtocol.rdp) ...[
+        if (widget.host.protocol != HostProtocol.ssh) ...[
           const SizedBox(width: 6),
-          const RdpBadge(),
+          ProtocolBadge(widget.host.protocol),
         ],
         const SizedBox(width: 12),
         Expanded(

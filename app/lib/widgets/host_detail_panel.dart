@@ -14,7 +14,7 @@ import '../theme/terminal_themes.dart';
 import 'agent_status_line.dart';
 import 'host_chain_editor.dart';
 import 'network_discovery_sheet.dart';
-import 'rdp_badge.dart';
+import 'protocol_badge.dart';
 import 'terminal_appearance_controls.dart' show kBundledTerminalFonts;
 
 class HostDetailPanel extends StatefulWidget {
@@ -1284,9 +1284,9 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                   _isNew ? 'New Host' : 'Edit Host',
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
-                if (_isRdp) ...[
+                if (_isGraphical) ...[
                   const SizedBox(width: 8),
-                  const RdpBadge(),
+                  ProtocolBadge(_protocol),
                 ],
               ],
             ),
