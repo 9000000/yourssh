@@ -13,9 +13,10 @@ class TunnelEnd {
 
 /// One-shot loopback proxy: binds 127.0.0.1 on a random port, accepts exactly
 /// one connection, pipes it to a freshly opened tunnel end, then refuses
-/// further connections. Dies with the session ([stop]).
-class RdpTunnelProxy {
-  RdpTunnelProxy({this.onClosed});
+/// further connections. Used for SSH-tunneled RDP/VNC connections. Dies with
+/// the session ([stop]).
+class LoopbackTunnelProxy {
+  LoopbackTunnelProxy({this.onClosed});
 
   /// Fired when the tunnel side ends before [stop] — lets the session report
   /// "SSH tunnel closed" instead of a generic disconnect.

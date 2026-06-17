@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yourssh/services/rdp_tunnel_proxy.dart';
+import 'package:yourssh/services/loopback_tunnel_proxy.dart';
 
 void main() {
   test('pipes bytes both ways through one accepted connection', () async {
@@ -10,7 +10,7 @@ void main() {
     final echo = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     echo.listen((s) => s.listen(s.add));
 
-    final proxy = RdpTunnelProxy();
+    final proxy = LoopbackTunnelProxy();
     final port = await proxy.start(() async {
       final socket = await Socket.connect('127.0.0.1', echo.port);
       return TunnelEnd(stream: socket, sink: socket, close: socket.destroy);
@@ -33,7 +33,7 @@ void main() {
     echo.listen((s) => remoteSide = s);
 
     final closed = Completer<void>();
-    final proxy = RdpTunnelProxy(onClosed: () {
+    final proxy = LoopbackTunnelProxy(onClosed: () {
       if (!closed.isCompleted) closed.complete();
     });
     final port = await proxy.start(() async {
@@ -58,7 +58,7 @@ void main() {
     echo.listen((s) => s.listen(s.add));
 
     final closed = Completer<void>();
-    final proxy = RdpTunnelProxy(onClosed: () {
+    final proxy = LoopbackTunnelProxy(onClosed: () {
       if (!closed.isCompleted) closed.complete();
     });
     final port = await proxy.start(() async {
@@ -82,7 +82,7 @@ void main() {
     echo.listen((s) => s.listen(s.add));
 
     var fired = false;
-    final proxy = RdpTunnelProxy(onClosed: () => fired = true);
+    final proxy = LoopbackTunnelProxy(onClosed: () => fired = true);
     final port = await proxy.start(() async {
       final socket = await Socket.connect('127.0.0.1', echo.port);
       return TunnelEnd(stream: socket, sink: socket, close: socket.destroy);

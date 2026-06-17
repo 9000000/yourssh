@@ -16,7 +16,7 @@ import '../models/app_session.dart';
 import '../models/terminal_session.dart';
 import '../services/audit_service.dart';
 import '../services/local_shell_service.dart';
-import '../services/rdp_tunnel_proxy.dart';
+import '../services/loopback_tunnel_proxy.dart';
 import '../services/ssh_service.dart';
 import '../services/tab_metadata_service.dart';
 
@@ -187,7 +187,7 @@ class SessionProvider extends ChangeNotifier {
 
     var targetHost = host.host;
     var targetPort = host.port;
-    RdpTunnelProxy? proxy;
+    LoopbackTunnelProxy? proxy;
     RdpSession? session;
     String? setupError;
 
@@ -198,7 +198,7 @@ class SessionProvider extends ChangeNotifier {
       await RdpClient.ensureInitialized();
 
       if (host.jumpHostId != null) {
-        proxy = RdpTunnelProxy(onClosed: () => session?.markTunnelClosed());
+        proxy = LoopbackTunnelProxy(onClosed: () => session?.markTunnelClosed());
         final port = await proxy.start(() async {
           final sshSocket = await _ssh.openTunnelSocket(
               host.jumpHostId!, host.host, host.port, host.id);
