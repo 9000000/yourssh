@@ -8,6 +8,7 @@ import '../models/host.dart';
 import '../models/rdp_session.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
+import '../models/vnc_session.dart';
 import '../util/bulk_connect.dart';
 import '../util/host_query.dart';
 import '../util/host_sort.dart';
@@ -138,6 +139,11 @@ class _HostsDashboardState extends State<HostsDashboard> {
       for (final s in sessionProvider.sessions.whereType<RdpSession>())
         if (s.status == RdpSessionStatus.connecting ||
             s.status == RdpSessionStatus.connected)
+          s.host.id,
+      // VNC tabs likewise — same dedup as RDP.
+      for (final s in sessionProvider.sessions.whereType<VncSession>())
+        if (s.status == VncSessionStatus.connecting ||
+            s.status == VncSessionStatus.connected)
           s.host.id,
     };
     final plan =
