@@ -37,16 +37,19 @@ pub fn disconnect_reason(e: &VncError) -> Option<String> {
 /// Translates an input `SessionCmd` into the `vnc-rs` event to feed
 /// `client.input()`. Returns `None` for non-input commands (Disconnect).
 pub fn input_event(cmd: &SessionCmd) -> Option<vnc::X11Event> {
-    match *cmd {
+    match cmd {
         SessionCmd::Pointer { x, y, button_mask } => {
             Some(vnc::X11Event::PointerEvent(vnc::ClientMouseEvent {
-                position_x: x,
-                position_y: y,
-                bottons: button_mask,
+                position_x: *x,
+                position_y: *y,
+                bottons: *button_mask,
             }))
         }
-        SessionCmd::Key { keysym, down } => {
-            Some(vnc::X11Event::KeyEvent(vnc::ClientKeyEvent { keycode: keysym, down }))
+        SessionCmd::Key { keysym, down } => Some(vnc::X11Event::KeyEvent(
+            vnc::ClientKeyEvent { keycode: *keysym, down: *down },
+        )),
+        SessionCmd::ClipboardText(text) => {
+            Some(vnc::X11Event::CopyText(text.clone()))
         }
         SessionCmd::Disconnect => None,
     }
@@ -207,5 +210,13 @@ mod tests {
     #[test]
     fn input_event_none_for_disconnect() {
         assert!(input_event(&SessionCmd::Disconnect).is_none());
+    }
+
+    #[test]
+    fn input_event_maps_clipboard() {
+        match input_event(&SessionCmd::ClipboardText("hi".into())) {
+            Some(vnc::X11Event::CopyText(t)) => assert_eq!(t, "hi"),
+            other => panic!("expected CopyText, got {other:?}"),
+        }
     }
 }

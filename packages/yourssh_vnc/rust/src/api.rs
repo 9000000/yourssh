@@ -87,3 +87,7 @@ pub fn vnc_send_pointer(session_id: u32, x: u16, y: u16, button_mask: u8) {
 pub fn vnc_send_key(session_id: u32, keysym: u32, down: bool) {
     registry::send(session_id, SessionCmd::Key { keysym, down });
 }
+
+pub fn vnc_send_clipboard_text(session_id: u32, text: String) {
+    registry::send(session_id, SessionCmd::ClipboardText(text));
+}

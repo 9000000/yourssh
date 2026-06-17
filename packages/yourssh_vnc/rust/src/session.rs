@@ -12,6 +12,8 @@ pub enum SessionCmd {
     Pointer { x: u16, y: u16, button_mask: u8 },
     /// Key press/release. `keysym` is an X11 keysym.
     Key { keysym: u32, down: bool },
+    /// Send local clipboard text to the server (RFB ClientCutText).
+    ClipboardText(String),
     Disconnect,
 }
 

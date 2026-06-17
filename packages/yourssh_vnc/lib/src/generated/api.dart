@@ -42,6 +42,14 @@ Future<void> vncSendKey({
   down: down,
 );
 
+Future<void> vncSendClipboardText({
+  required int sessionId,
+  required String text,
+}) => RustLib.instance.api.crateApiVncSendClipboardText(
+  sessionId: sessionId,
+  text: text,
+);
+
 class VncConfig {
   final String targetHost;
   final int targetPort;
