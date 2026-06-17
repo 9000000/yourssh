@@ -1,0 +1,50 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:yourssh/models/host.dart';
+import 'package:yourssh/models/vnc_session.dart';
+import 'package:yourssh/widgets/vnc_workspace.dart';
+import 'package:yourssh_vnc/yourssh_vnc.dart' show VncClient, VncConfig;
+// ignore: implementation_imports
+import 'package:yourssh_vnc/src/generated/api.dart' as frb;
+
+Host _host() => Host(
+    id: 'v1',
+    label: 'desktop',
+    host: '10.0.0.5',
+    port: 5900,
+    username: 'u',
+    protocol: HostProtocol.vnc);
+
+VncClient _client() => VncClient(VncConfig(
+    targetHost: '10.0.0.5', targetPort: 5900, username: 'u', password: ''));
+
+void main() {
+  testWidgets('shows connecting overlay, then error overlay with retry',
+      (tester) async {
+    final events = StreamController<frb.VncEvent>();
+    final session = VncSession(host: _host(), client: _client());
+    session.attach(events.stream);
+    var retried = false;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: VncWorkspace(
+          session: session,
+          onReconnect: () => retried = true,
+        ),
+      ),
+    ));
+    expect(find.textContaining('Connecting'), findsOneWidget);
+
+    events.add(const frb.VncEvent.error(message: 'connection refused'));
+    await tester.pump();
+    expect(find.textContaining('connection refused'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    expect(retried, isTrue);
+    await events.close();
+  });
+}
