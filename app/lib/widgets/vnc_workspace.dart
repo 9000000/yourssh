@@ -27,6 +27,10 @@ class VncWorkspace extends StatefulWidget {
 class _VncWorkspaceState extends State<VncWorkspace> {
   VncSession get session => widget.session;
   final FocusNode _focusNode = FocusNode();
+  // Last pointer state sent (fb-x, fb-y, button mask). Identical consecutive
+  // events are dropped so a fast-moving mouse doesn't flood the session
+  // command channel (and starve frame decode behind the biased run-loop).
+  (int, int, int)? _lastPointer;
 
   @override
   void initState() {
@@ -40,6 +44,7 @@ class _VncWorkspaceState extends State<VncWorkspace> {
     if (!identical(old.session, widget.session)) {
       old.session.removeListener(_onSessionChanged);
       session.addListener(_onSessionChanged);
+      _lastPointer = null;
     }
   }
 
@@ -102,6 +107,8 @@ class _VncWorkspaceState extends State<VncWorkspace> {
 
           void sendPointer(Offset local, int mask) {
             final (x, y) = toFb(local);
+            if (_lastPointer == (x, y, mask)) return; // drop duplicate events
+            _lastPointer = (x, y, mask);
             session.client.sendPointer(x: x, y: y, buttonMask: mask);
           }
 
@@ -143,11 +150,23 @@ class _VncWorkspaceState extends State<VncWorkspace> {
                   session.client
                       .sendPointer(x: x, y: y, buttonMask: mask | wheel);
                   session.client.sendPointer(x: x, y: y, buttonMask: mask);
+                  _lastPointer = (x, y, mask);
                 }
               },
-              child: CustomPaint(
-                size: Size(constraints.maxWidth, constraints.maxHeight),
-                painter: _FramePainter(session, offX, offY, scale),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CustomPaint(
+                    size: Size(constraints.maxWidth, constraints.maxHeight),
+                    painter: _FramePainter(session, offX, offY, scale),
+                  ),
+                  // Connected but no frame decoded yet — keep the surface
+                  // interactive while showing the cue (restored from M2).
+                  if (session.image == null)
+                    const Center(
+                        child: Text('Waiting for first frame…',
+                            style: TextStyle(color: AppColors.textSecondary))),
+                ],
               ),
             ),
           );

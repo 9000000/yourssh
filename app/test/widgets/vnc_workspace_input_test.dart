@@ -22,7 +22,7 @@ VncClient _client() => VncClient(VncConfig(
     targetHost: '10.0.0.5', targetPort: 5900, username: 'u', password: ''));
 
 void main() {
-  testWidgets('connected workspace exposes an input surface and handles keys',
+  testWidgets('connect swaps the status view for an interactive surface',
       (tester) async {
     final events = StreamController<frb.VncEvent>();
     final session = VncSession(host: _host(), client: _client());
@@ -31,12 +31,30 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VncWorkspace(session: session)),
     ));
+    expect(find.textContaining('Connecting'), findsOneWidget);
 
+    // Move to connected (server framebuffer 800x600); no frame decoded yet.
     events.add(const frb.VncEvent.connected(width: 800, height: 600));
     await tester.pump();
 
-    expect(find.byType(Listener), findsWidgets);
+    // The connecting status view is gone, replaced by the interactive surface.
+    expect(find.textContaining('Connecting'), findsNothing);
 
+    // The input surface is owned BY the workspace (scoped to its subtree, so
+    // this does NOT match the Listener widgets MaterialApp/Scaffold inject as
+    // ancestors — the bug the original assertion missed).
+    expect(
+      find.descendant(
+          of: find.byType(VncWorkspace), matching: find.byType(Listener)),
+      findsWidgets,
+    );
+
+    // Before the first frame the workspace shows the waiting affordance while
+    // staying interactive (regression guard for the M2->M3 rewrite).
+    expect(find.textContaining('Waiting for first frame'), findsOneWidget);
+
+    // A key event reaches the workspace's Focus handler without throwing
+    // (sendKey no-ops at the bridge because the client has no live session id).
     await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
     await tester.pump();
 
