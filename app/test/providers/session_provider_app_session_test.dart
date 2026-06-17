@@ -10,7 +10,6 @@ import 'package:yourssh/services/ssh_service.dart';
 import 'package:yourssh/services/storage_service.dart';
 import 'package:yourssh/services/tab_metadata_service.dart';
 import 'package:yourssh_rdp/yourssh_rdp.dart' show RdpClient, RdpConfig;
-import 'package:yourssh/models/app_session.dart';
 import 'package:yourssh/models/vnc_session.dart';
 import 'package:yourssh_vnc/yourssh_vnc.dart' show VncClient, VncConfig;
 
