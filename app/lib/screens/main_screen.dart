@@ -52,6 +52,8 @@ import '../widgets/notification_bell.dart';
 import '../widgets/session_tab.dart';
 import '../models/rdp_session.dart';
 import '../widgets/rdp_workspace.dart';
+import '../models/vnc_session.dart';
+import '../widgets/vnc_workspace.dart';
 import '../services/storage_service.dart';
 import '../widgets/network_discovery_sheet.dart';
 
@@ -784,6 +786,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         onFullscreenChanged: (on) => unawaited(_setRdpFullscreen(on)),
       );
     }
+    if (_viewingTerminal && active is VncSession) {
+      return VncWorkspace(
+        session: active,
+        onReconnect: () => _retryVnc(active),
+      );
+    }
     if (_viewingTerminal && active != null) {
       // Hide the AI toggle (and any open chat panel) when no AI provider
       // has an API key configured — it appears once a key is saved.
@@ -910,6 +918,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     await provider.reconnectRdp(old);
+  }
+
+  Future<void> _retryVnc(VncSession old) async {
+    if (!mounted) return;
+    await context.read<SessionProvider>().reconnectVnc(old);
   }
 }
 
