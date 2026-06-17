@@ -34,6 +34,24 @@ pub fn disconnect_reason(e: &VncError) -> Option<String> {
     }
 }
 
+/// Translates an input `SessionCmd` into the `vnc-rs` event to feed
+/// `client.input()`. Returns `None` for non-input commands (Disconnect).
+pub fn input_event(cmd: &SessionCmd) -> Option<vnc::X11Event> {
+    match *cmd {
+        SessionCmd::Pointer { x, y, button_mask } => {
+            Some(vnc::X11Event::PointerEvent(vnc::ClientMouseEvent {
+                position_x: x,
+                position_y: y,
+                bottons: button_mask,
+            }))
+        }
+        SessionCmd::Key { keysym, down } => {
+            Some(vnc::X11Event::KeyEvent(vnc::ClientKeyEvent { keycode: keysym, down }))
+        }
+        SessionCmd::Disconnect => None,
+    }
+}
+
 pub async fn run_session(
     cfg: VncConfig,
     mut cmd_rx: UnboundedReceiver<SessionCmd>,
@@ -65,15 +83,24 @@ async fn run_session_inner(
             biased;
 
             cmd = cmd_rx.recv() => {
-                // `Disconnect` = Dart asked us to stop; `None` = every command
-                // sender was dropped (session torn down). Both close the client.
-                let reason = match cmd {
-                    Some(SessionCmd::Disconnect) => "disconnected by user",
-                    None => "session closed",
-                };
-                // error = already closed; still emit Disconnected
-                let _ = vnc.close().await;
-                return Ok(reason.into());
+                match cmd {
+                    None => {
+                        let _ = vnc.close().await;
+                        return Ok("session closed".into());
+                    }
+                    Some(SessionCmd::Disconnect) => {
+                        // error = already closed; still emit Disconnected
+                        let _ = vnc.close().await;
+                        return Ok("disconnected by user".into());
+                    }
+                    Some(input) => {
+                        // Ignore send errors — if the client is closed,
+                        // recv_event() surfaces it on the next iteration.
+                        if let Some(ev) = input_event(&input) {
+                            let _ = vnc.input(ev).await;
+                        }
+                    }
+                }
             }
             ev = vnc.recv_event() => {
                 match ev {
@@ -152,5 +179,33 @@ mod tests {
     fn disconnect_reason_none_on_real_error() {
         assert!(disconnect_reason(&VncError::General("boom".into())).is_none());
         assert!(disconnect_reason(&VncError::WrongPassword).is_none());
+    }
+
+    #[test]
+    fn input_event_maps_pointer() {
+        match input_event(&SessionCmd::Pointer { x: 10, y: 20, button_mask: 0x05 }) {
+            Some(vnc::X11Event::PointerEvent(m)) => {
+                assert_eq!(m.position_x, 10);
+                assert_eq!(m.position_y, 20);
+                assert_eq!(m.bottons, 0x05);
+            }
+            other => panic!("expected PointerEvent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn input_event_maps_key() {
+        match input_event(&SessionCmd::Key { keysym: 0xFF0D, down: true }) {
+            Some(vnc::X11Event::KeyEvent(k)) => {
+                assert_eq!(k.keycode, 0xFF0D);
+                assert!(k.down);
+            }
+            other => panic!("expected KeyEvent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn input_event_none_for_disconnect() {
+        assert!(input_event(&SessionCmd::Disconnect).is_none());
     }
 }

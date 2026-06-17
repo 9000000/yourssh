@@ -20,6 +20,28 @@ Stream<VncEvent> vncConnect({required VncConfig config}) =>
 Future<void> vncDisconnect({required int sessionId}) =>
     RustLib.instance.api.crateApiVncDisconnect(sessionId: sessionId);
 
+Future<void> vncSendPointer({
+  required int sessionId,
+  required int x,
+  required int y,
+  required int buttonMask,
+}) => RustLib.instance.api.crateApiVncSendPointer(
+  sessionId: sessionId,
+  x: x,
+  y: y,
+  buttonMask: buttonMask,
+);
+
+Future<void> vncSendKey({
+  required int sessionId,
+  required int keysym,
+  required bool down,
+}) => RustLib.instance.api.crateApiVncSendKey(
+  sessionId: sessionId,
+  keysym: keysym,
+  down: down,
+);
+
 class VncConfig {
   final String targetHost;
   final int targetPort;

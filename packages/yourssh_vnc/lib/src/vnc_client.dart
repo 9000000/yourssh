@@ -129,6 +129,22 @@ class VncClient {
     await done;
   }
 
+  /// Send a pointer event. [buttonMask] is the RFB bitmask
+  /// (bit0 left, bit1 middle, bit2 right, bit3 wheel-up, bit4 wheel-down).
+  /// No-op until the session has started.
+  void sendPointer({required int x, required int y, required int buttonMask}) {
+    final id = _sessionId;
+    if (id == null) return;
+    vncSendPointer(sessionId: id, x: x, y: y, buttonMask: buttonMask);
+  }
+
+  /// Send a key event. [keysym] is an X11 keysym. No-op until started.
+  void sendKey({required int keysym, required bool down}) {
+    final id = _sessionId;
+    if (id == null) return;
+    vncSendKey(sessionId: id, keysym: keysym, down: down);
+  }
+
   void dispose() {
     _sub?.cancel();
     _sub = null;
