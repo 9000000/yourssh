@@ -1,0 +1,65 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:yourssh/models/host.dart';
+import 'package:yourssh/providers/host_provider.dart';
+import 'package:yourssh/providers/key_provider.dart';
+import 'package:yourssh/services/agent_probe.dart';
+import 'package:yourssh/services/ssh_service.dart';
+import 'package:yourssh/services/storage_service.dart';
+import 'package:yourssh/widgets/host_detail_panel.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  Future<void> pumpPanel(WidgetTester tester, {Host? existing}) async {
+    await tester.binding.setSurfaceSize(const Size(500, 3600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final hostProvider = HostProvider(StorageService());
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<KeyProvider>(create: (_) => KeyProvider()),
+          ChangeNotifierProvider<HostProvider>.value(value: hostProvider),
+          Provider<SshService>(create: (_) => SshService(StorageService())),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: HostDetailPanel(
+              existing: existing,
+              initialProtocol: existing == null ? HostProtocol.vnc : null,
+              agentProbe: () async => const AgentProbeSystem(1),
+              onClose: () {},
+              onSave: (host, _) async {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Host vncHost() => Host(
+        id: 'vnc-1',
+        label: 'desktop',
+        host: '10.0.0.5',
+        port: 5900,
+        username: 'u',
+        protocol: HostProtocol.vnc,
+      );
+
+  testWidgets('VNC mode hides SSH-only and RDP-only sections', (tester) async {
+    await pumpPanel(tester, existing: vncHost());
+    expect(find.text('VNC on'), findsOneWidget);
+    expect(find.text('AUTH METHOD'), findsNothing);
+    expect(find.text('RDP SECURITY'), findsNothing);
+  });
+
+  testWidgets('panel exposes a VNC protocol segment', (tester) async {
+    await pumpPanel(tester);
+    expect(find.text('VNC'), findsWidgets);
+  });
+}

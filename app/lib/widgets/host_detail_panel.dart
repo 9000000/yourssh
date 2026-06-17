@@ -86,6 +86,9 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
 
   bool get _isNew => widget.existing == null;
   bool get _isRdp => _protocol == HostProtocol.rdp;
+  /// True for any graphical (non-SSH) protocol — these share password-only
+  /// auth and hide all SSH-only sections.
+  bool get _isGraphical => _protocol != HostProtocol.ssh;
 
   @override
   void initState() {
@@ -180,8 +183,8 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
       if (int.tryParse(_portCtrl.text) == old.defaultPort) {
         _portCtrl.text = next.defaultPort.toString();
       }
-      if (next == HostProtocol.rdp) {
-        // RDP supports password auth only.
+      if (next != HostProtocol.ssh) {
+        // RDP and VNC support password auth only.
         _authType = AuthType.password;
         _selectedKeyId = null;
       }
@@ -221,17 +224,17 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
           ? _domainCtrl.text.trim()
           : null,
       rdpSecurity: _rdpSecurity,
-      authType: _isRdp ? AuthType.password : _authType,
-      keyId: !_isRdp && _authType == AuthType.privateKey ? _selectedKeyId : null,
+      authType: _isGraphical ? AuthType.password : _authType,
+      keyId: !_isGraphical && _authType == AuthType.privateKey ? _selectedKeyId : null,
       group: _groupCtrl.text.trim(),
       tags: tags,
-      autoRecord: !_isRdp && _autoRecord,
+      autoRecord: !_isGraphical && _autoRecord,
       recordingRedaction: _recordingRedaction,
       shellIntegration: _shellIntegration,
-      agentForwarding: !_isRdp && _agentForwarding,
+      agentForwarding: !_isGraphical && _agentForwarding,
       jumpHostIds: _jumpHostIds,
-      sftpMode: _isRdp ? SftpMode.normal : _sftpMode,
-      sftpServerCommand: !_isRdp && _sftpMode == SftpMode.custom
+      sftpMode: _isGraphical ? SftpMode.normal : _sftpMode,
+      sftpServerCommand: !_isGraphical && _sftpMode == SftpMode.custom
           ? _sftpCommand.text.trim()
           : null,
       workingDir: _workingDirCtrl.text.trim().isEmpty
@@ -340,6 +343,11 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         label: Text('RDP'),
                         icon: Icon(Icons.desktop_windows_outlined, size: 14),
                       ),
+                      ButtonSegment(
+                        value: HostProtocol.vnc,
+                        label: Text('VNC'),
+                        icon: Icon(Icons.cast_outlined, size: 14),
+                      ),
                     ],
                     selected: {_protocol},
                     onSelectionChanged: (s) => _onProtocolChanged(s.first),
@@ -430,7 +438,14 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                   // Port row
                   Row(
                     children: [
-                      Text(_isRdp ? 'RDP on' : 'SSH on', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      Text(
+                          switch (_protocol) {
+                            HostProtocol.ssh => 'SSH on',
+                            HostProtocol.rdp => 'RDP on',
+                            HostProtocol.vnc => 'VNC on',
+                          },
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 13)),
                       const SizedBox(width: 10),
                       SizedBox(
                         width: 56,
@@ -569,7 +584,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                     }),
                   ],
 
-                  if (!_isRdp) ...[
+                  if (!_isGraphical) ...[
                   const SizedBox(height: 16),
                   _sectionLabel('AUTH METHOD'),
                   const SizedBox(height: 6),
@@ -1086,7 +1101,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                       ),
                     ),
                   ],
-                  ], // end !_isRdp (SSH-only sections)
+                  ], // end !_isGraphical (SSH-only sections)
                   if (_isRdp) const SizedBox(height: 24),
                   const SizedBox(height: 8),
                   // Connect button
