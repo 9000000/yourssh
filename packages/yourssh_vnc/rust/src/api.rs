@@ -79,3 +79,11 @@ pub fn vnc_connect(config: VncConfig, sink: StreamSink<VncEvent>) {
 pub fn vnc_disconnect(session_id: u32) {
     registry::send(session_id, SessionCmd::Disconnect);
 }
+
+pub fn vnc_send_pointer(session_id: u32, x: u16, y: u16, button_mask: u8) {
+    registry::send(session_id, SessionCmd::Pointer { x, y, button_mask });
+}
+
+pub fn vnc_send_key(session_id: u32, keysym: u32, down: bool) {
+    registry::send(session_id, SessionCmd::Key { keysym, down });
+}
