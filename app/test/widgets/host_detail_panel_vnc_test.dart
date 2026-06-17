@@ -15,10 +15,14 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  Future<void> pumpPanel(WidgetTester tester, {Host? existing}) async {
+  Future<void> pumpPanel(WidgetTester tester,
+      {Host? existing, List<Host> allHosts = const []}) async {
     await tester.binding.setSurfaceSize(const Size(500, 3600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final hostProvider = HostProvider(StorageService());
+    for (final h in allHosts) {
+      await hostProvider.addHost(h);
+    }
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -61,5 +65,12 @@ void main() {
   testWidgets('panel exposes a VNC protocol segment', (tester) async {
     await pumpPanel(tester);
     expect(find.text('VNC'), findsWidgets);
+  });
+
+  testWidgets('VNC mode shows the SSH TUNNEL dropdown', (tester) async {
+    final bastion = Host(
+        id: 'b1', label: 'bastion', host: '10.0.0.1', port: 22, username: 'u');
+    await pumpPanel(tester, existing: vncHost(), allHosts: [bastion]);
+    expect(find.text('SSH TUNNEL'), findsOneWidget);
   });
 }

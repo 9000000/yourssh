@@ -578,57 +578,58 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         ),
                       ),
                     ]),
-
-                    Builder(builder: (context) {
-                      final sshHosts = context
-                          .watch<HostProvider>()
-                          .allHosts
-                          .where((h) =>
-                              h.protocol == HostProtocol.ssh &&
-                              h.id != widget.existing?.id)
-                          .toList();
-                      if (sshHosts.isEmpty) return const SizedBox.shrink();
-                      // A deleted bastion leaves a stale id — show "direct"
-                      // instead of tripping the dropdown's value assert.
-                      final current = _jumpHostIds.firstOrNull;
-                      final valid =
-                          sshHosts.any((h) => h.id == current) ? current : null;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 16),
-                          _sectionLabel('SSH TUNNEL'),
-                          const SizedBox(height: 6),
-                          _Card(children: [
-                            _DropdownRow(
-                              icon: Icons.alt_route,
-                              child: DropdownButton<String?>(
-                                value: valid,
-                                isExpanded: true,
-                                style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 13),
-                                dropdownColor: AppColors.card,
-                                underline: const SizedBox(),
-                                items: [
-                                  const DropdownMenuItem<String?>(
-                                      value: null,
-                                      child: Text('Direct connection')),
-                                  for (final h in sshHosts)
-                                    DropdownMenuItem<String?>(
-                                        value: h.id,
-                                        child: Text(
-                                            'via ${h.label.isEmpty ? h.host : h.label}')),
-                                ],
-                                onChanged: (v) => setState(() =>
-                                    _jumpHostIds = v == null ? [] : [v]),
-                              ),
-                            ),
-                          ]),
-                        ],
-                      );
-                    }),
                   ],
+
+                  // SSH tunnel applies to any graphical protocol (RDP + VNC).
+                  if (_isGraphical) Builder(builder: (context) {
+                    final sshHosts = context
+                        .watch<HostProvider>()
+                        .allHosts
+                        .where((h) =>
+                            h.protocol == HostProtocol.ssh &&
+                            h.id != widget.existing?.id)
+                        .toList();
+                    if (sshHosts.isEmpty) return const SizedBox.shrink();
+                    // A deleted bastion leaves a stale id — show "direct"
+                    // instead of tripping the dropdown's value assert.
+                    final current = _jumpHostIds.firstOrNull;
+                    final valid =
+                        sshHosts.any((h) => h.id == current) ? current : null;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        _sectionLabel('SSH TUNNEL'),
+                        const SizedBox(height: 6),
+                        _Card(children: [
+                          _DropdownRow(
+                            icon: Icons.alt_route,
+                            child: DropdownButton<String?>(
+                              value: valid,
+                              isExpanded: true,
+                              style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13),
+                              dropdownColor: AppColors.card,
+                              underline: const SizedBox(),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text('Direct connection')),
+                                for (final h in sshHosts)
+                                  DropdownMenuItem<String?>(
+                                      value: h.id,
+                                      child: Text(
+                                          'via ${h.label.isEmpty ? h.host : h.label}')),
+                              ],
+                              onChanged: (v) => setState(() =>
+                                  _jumpHostIds = v == null ? [] : [v]),
+                            ),
+                          ),
+                        ]),
+                      ],
+                    );
+                  }),
 
                   if (!_isGraphical) ...[
                   const SizedBox(height: 16),
