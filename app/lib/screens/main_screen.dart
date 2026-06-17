@@ -296,6 +296,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   static String? _restorableHostId(AppSession s) => switch (s) {
         SshSession ssh => ssh.isWatch ? null : ssh.host.id,
         RdpSession rdp => rdp.host.id,
+        VncSession vnc => vnc.host.id,
         _ => null,
       };
 

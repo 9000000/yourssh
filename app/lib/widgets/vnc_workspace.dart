@@ -46,6 +46,12 @@ class _VncWorkspaceState extends State<VncWorkspace> {
   String? _lastPushedClipboard;
   bool _hoverBarVisible = false;
   Timer? _hoverBarTimer;
+  // Frame updates repaint via the painter's `repaint:` listenable; the widget
+  // tree only rebuilds on a status change or the first-frame transition (which
+  // toggles the "waiting for first frame" overlay). Without this guard the whole
+  // toolbar/layout/input tree would rebuild on every decoded frame.
+  VncSessionStatus? _builtStatus;
+  bool _builtHasImage = false;
 
   @override
   void initState() {
@@ -61,15 +67,11 @@ class _VncWorkspaceState extends State<VncWorkspace> {
       old.session.removeListener(_onSessionChanged);
       session.addListener(_onSessionChanged);
       _lastPointer = null;
+      _builtStatus = null;
     }
     // Entering fullscreen: show the pill briefly so the exit affordance is
     // discoverable, then auto-hide until the user hovers the top edge.
     if (widget.isFullscreen && !old.isFullscreen) _flashHoverBar();
-    if (widget.isFullscreen && session.status != VncSessionStatus.connected) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onFullscreenChanged?.call(false);
-      });
-    }
   }
 
   @override
@@ -81,7 +83,19 @@ class _VncWorkspaceState extends State<VncWorkspace> {
   }
 
   void _onSessionChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // Don't trap the user in a chrome-less fullscreen error screen — drop back
+    // to windowed the moment the session leaves connected (synchronous, like
+    // RDP, so there's no deferred flash through the parent-rebuild path).
+    if (widget.isFullscreen &&
+        session.status != VncSessionStatus.connected &&
+        session.status != _builtStatus) {
+      widget.onFullscreenChanged?.call(false);
+    }
+    if (session.status != _builtStatus ||
+        (session.image != null) != _builtHasImage) {
+      setState(() {});
+    }
   }
 
   void _flashHoverBar() {
@@ -106,6 +120,8 @@ class _VncWorkspaceState extends State<VncWorkspace> {
 
   @override
   Widget build(BuildContext context) {
+    _builtStatus = session.status;
+    _builtHasImage = session.image != null;
     if (widget.isFullscreen) {
       return Stack(children: [
         Positioned.fill(child: _buildBody()),
@@ -135,6 +151,7 @@ class _VncWorkspaceState extends State<VncWorkspace> {
                   onEnter: (_) => _showHoverBar(),
                   onExit: (_) => _hideHoverBarSoon(),
                   child: _ExitFullscreenPill(
+                    session: session,
                     onExit: () => widget.onFullscreenChanged?.call(false),
                   ),
                 ),
@@ -313,7 +330,8 @@ class _Toolbar extends StatelessWidget {
 }
 
 class _ExitFullscreenPill extends StatelessWidget {
-  const _ExitFullscreenPill({required this.onExit});
+  const _ExitFullscreenPill({required this.session, required this.onExit});
+  final VncSession session;
   final VoidCallback onExit;
 
   @override
@@ -321,18 +339,25 @@ class _ExitFullscreenPill extends StatelessWidget {
     return Material(
       color: AppColors.card,
       borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onExit,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.fullscreen_exit, size: 16),
-            SizedBox(width: 6),
-            Text('Exit fullscreen'),
-          ]),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(
+          tooltip: 'Push clipboard to remote',
+          icon: const Icon(Icons.content_paste_go, size: 16),
+          onPressed: () => _pushClipboard(session),
         ),
-      ),
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onExit,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.fullscreen_exit, size: 16),
+              SizedBox(width: 6),
+              Text('Exit fullscreen'),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }

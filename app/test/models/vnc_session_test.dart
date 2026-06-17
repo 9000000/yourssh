@@ -114,10 +114,14 @@ void main() {
     final s = VncSession(host: _host(), client: _client());
     String? got;
     s.onRemoteClipboardText = (t) => got = t;
+    var notifies = 0;
+    s.addListener(() => notifies++);
     s.attach(events.stream);
     events.add(const frb.VncEvent.clipboardText(text: 'hello'));
     await Future<void>.delayed(Duration.zero);
     expect(got, 'hello');
+    expect(notifies, 0,
+        reason: 'clipboard cut-text must not trigger a repaint');
     await events.close();
   });
 

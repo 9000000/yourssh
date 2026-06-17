@@ -1228,7 +1228,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                     ),
                   ],
                   ], // end !_isGraphical (SSH-only sections)
-                  if (_isRdp) const SizedBox(height: 24),
+                  if (_isGraphical) const SizedBox(height: 24),
                   const SizedBox(height: 8),
                   // Connect button
                   GestureDetector(
