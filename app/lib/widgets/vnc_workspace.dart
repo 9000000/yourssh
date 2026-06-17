@@ -257,7 +257,7 @@ class _VncWorkspaceState extends State<VncWorkspace> {
                 children: [
                   CustomPaint(
                     size: Size(constraints.maxWidth, constraints.maxHeight),
-                    painter: _FramePainter(session, offX, offY, scale),
+                    painter: _FramePainter(session),
                   ),
                   // Connected but no frame decoded yet — keep the surface
                   // interactive while showing the cue (restored from M2).
@@ -340,30 +340,29 @@ class _ExitFullscreenPill extends StatelessWidget {
 class _FramePainter extends CustomPainter {
   /// `repaint: session` redraws on every decoded frame without rebuilding the
   /// surrounding widget tree (the workspace only rebuilds on status changes).
-  _FramePainter(this.session, this.offX, this.offY, this.scale)
-      : super(repaint: session);
+  _FramePainter(this.session) : super(repaint: session);
 
   final VncSession session;
-  final double offX, offY, scale;
 
   @override
   void paint(Canvas canvas, Size size) {
     final ui.Image? img = session.image;
     if (img == null) return;
+    // Fit by the IMAGE's own dimensions, not the session-negotiated size, so a
+    // server resize doesn't stretch the still-old frame for a few ms.
+    final s = math.min(size.width / img.width, size.height / img.height);
+    final dw = img.width * s, dh = img.height * s;
+    final ox = (size.width - dw) / 2, oy = (size.height - dh) / 2;
     canvas.drawImageRect(
       img,
       Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
-      Rect.fromLTWH(offX, offY, img.width * scale, img.height * scale),
+      Rect.fromLTWH(ox, oy, dw, dh),
       Paint()..filterQuality = FilterQuality.medium,
     );
   }
 
   @override
-  bool shouldRepaint(_FramePainter old) =>
-      !identical(old.session, session) ||
-      old.scale != scale ||
-      old.offX != offX ||
-      old.offY != offY;
+  bool shouldRepaint(_FramePainter old) => !identical(old.session, session);
 }
 
 Future<void> _pushClipboard(VncSession session) async {

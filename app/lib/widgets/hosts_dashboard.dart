@@ -189,7 +189,7 @@ class _HostsDashboardState extends State<HostsDashboard> {
     final skipped = hosts.length - ssh.length;
     if (skipped > 0) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('$skipped RDP host(s) skipped — $action is SSH-only'),
+        content: Text('$skipped non-SSH host(s) skipped — $action is SSH-only'),
       ));
     }
     return ssh;
@@ -1287,7 +1287,7 @@ class _HostCardState extends State<_HostCard> {
         _menuItem('edit', Icons.edit_outlined, 'Edit', () => widget.onEditHost?.call(widget.host)),
         const PopupMenuDivider(),
         _menuItem('duplicate', Icons.copy_outlined, 'Duplicate', () => _duplicate(context, hostProvider)),
-        _menuItem('copy_url', Icons.link_outlined, isSsh ? 'Copy SSH URL' : 'Copy RDP URL', () => _copyHostUrl(context)),
+        _menuItem('copy_url', Icons.link_outlined, 'Copy ${widget.host.protocol.name.toUpperCase()} URL', () => _copyHostUrl(context)),
         _menuItem('move_group', Icons.drive_file_move_outlined, 'Move to Group', () => _moveToGroup(context, hostProvider)),
         _menuItem('export', Icons.upload_outlined, 'Export', () => _export(context)),
         const PopupMenuDivider(),
@@ -1312,7 +1312,11 @@ class _HostCardState extends State<_HostCard> {
   }
 
   Future<void> _copyHostUrl(BuildContext context) async {
-    final scheme = widget.host.protocol == HostProtocol.rdp ? 'rdp' : 'ssh';
+    final scheme = switch (widget.host.protocol) {
+      HostProtocol.rdp => 'rdp',
+      HostProtocol.vnc => 'vnc',
+      HostProtocol.ssh => 'ssh',
+    };
     final url = '$scheme://${widget.host.username}@${widget.host.host}:${widget.host.port}';
     await Clipboard.setData(ClipboardData(text: url));
     if (!context.mounted) return;
