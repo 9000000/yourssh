@@ -42,6 +42,11 @@ cd packages/yourssh_rdp && flutter test
 # permission (frames captured from the Flutter render tree). Prereqs in the
 # test file header.
 cd app && flutter test integration_test/rdp_screenshots_test.dart -d macos
+
+# Regenerate the VNC feature screenshots — drives the real app against a local
+# x11vnc/TigerVNC container on :5900 (password demo12345; see the test header).
+# Manual run, not CI.
+cd app && flutter test integration_test/vnc_screenshots_test.dart -d macos
 ```
 
 ## Architecture

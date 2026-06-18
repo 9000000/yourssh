@@ -52,6 +52,8 @@ import '../widgets/notification_bell.dart';
 import '../widgets/session_tab.dart';
 import '../models/rdp_session.dart';
 import '../widgets/rdp_workspace.dart';
+import '../models/vnc_session.dart';
+import '../widgets/vnc_workspace.dart';
 import '../services/storage_service.dart';
 import '../widgets/network_discovery_sheet.dart';
 
@@ -88,6 +90,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   bool _rdpCertDialogShowing = false;
   bool _consentDialogShowing = false;
   bool _rdpFullscreen = false;
+  bool _vncFullscreen = false;
 
   @override
   void initState() {
@@ -293,6 +296,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   static String? _restorableHostId(AppSession s) => switch (s) {
         SshSession ssh => ssh.isWatch ? null : ssh.host.id,
         RdpSession rdp => rdp.host.id,
+        VncSession vnc => vnc.host.id,
         _ => null,
       };
 
@@ -570,6 +574,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Enters/exits VNC fullscreen: mirrors _setRdpFullscreen exactly.
+  Future<void> _setVncFullscreen(bool on) async {
+    if (_vncFullscreen == on || !mounted) return;
+    setState(() => _vncFullscreen = on);
+    try {
+      await windowManager.setFullScreen(on);
+    } catch (_) {
+      // Window manager unavailable (tests/headless) — chrome state applied.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionProvider = context.watch<SessionProvider>();
@@ -588,6 +603,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       });
     }
     if (rdpFullscreenActive) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        body: _buildForeground(activeSession),
+      );
+    }
+
+    final vncFullscreenActive =
+        _vncFullscreen && _viewingTerminal && activeSession is VncSession;
+    if (_vncFullscreen && !vncFullscreenActive) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_setVncFullscreen(false));
+      });
+    }
+    if (vncFullscreenActive) {
       return Scaffold(
         backgroundColor: AppColors.bg,
         body: _buildForeground(activeSession),
@@ -784,6 +813,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         onFullscreenChanged: (on) => unawaited(_setRdpFullscreen(on)),
       );
     }
+    if (_viewingTerminal && active is VncSession) {
+      return VncWorkspace(
+        session: active,
+        onReconnect: () => _retryVnc(active),
+        isFullscreen: _vncFullscreen,
+        onFullscreenChanged: (on) => unawaited(_setVncFullscreen(on)),
+      );
+    }
     if (_viewingTerminal && active != null) {
       // Hide the AI toggle (and any open chat panel) when no AI provider
       // has an API key configured — it appears once a key is saved.
@@ -910,6 +947,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     await provider.reconnectRdp(old);
+  }
+
+  Future<void> _retryVnc(VncSession old) async {
+    if (!mounted) return;
+    await context.read<SessionProvider>().reconnectVnc(old);
   }
 }
 

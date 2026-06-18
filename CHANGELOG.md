@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.37] — 2026-06-18
+
+### Added
+- **In-app VNC client** — Linux VNC servers (TigerVNC / x11vnc / TightVNC) as first-class tabs alongside SSH and RDP. New `packages/yourssh_vnc` Rust crate over `vnc-rs` via flutter_rust_bridge v2: RFB handshake with None / VNC-password (DES) auth, framebuffer-update rendering with one-at-a-time latest-wins decode, mouse + keyboard input (X11 keysym map + pointer-coordinate transform), bidirectional clipboard (`ServerCutText` / `ClientCutText`), server-driven auto-resize, SSH tunneling through the shared loopback proxy, fullscreen with an mstsc-style auto-hide hover pill, `HostProtocol.vnc` (default port 5900) with a VNC mode in the host panel, `ProtocolBadge` (RDP + VNC), protocol-aware dashboard actions and `vnc://` copy-url, and tab parity (rename / color / pin / restore / audit / notification bell)
+- **OSC 52 clipboard** — remote apps (tmux, vim, …) can write to the local system clipboard through the OSC 52 escape sequence; write-only and per-host opt-in (`Host.osc52Clipboard`) for safety
+
+### Changed
+- **`RdpTunnelProxy` → `LoopbackTunnelProxy`** — the one-shot loopback tunnel proxy is now protocol-neutral and shared by both RDP and VNC SSH-tunneled connections
+
+---
+
 ## [0.1.36] — 2026-06-12
 
 ### Added
@@ -636,6 +647,7 @@ Initial release of YourSSH — a cross-platform SSH client for macOS, Windows, a
 - **Host management** — CRUD for SSH host profiles with `StorageService`
 - **Known hosts** — TOFU dialog for host-key verification; `KnownHostsProvider`
 
+[0.1.37]: https://github.com/YoursshLabs/yourssh/compare/v0.1.36...v0.1.37
 [0.1.36]: https://github.com/YoursshLabs/yourssh/compare/v0.1.35...v0.1.36
 [0.1.35]: https://github.com/YoursshLabs/yourssh/compare/v0.1.34...v0.1.35
 [0.1.34]: https://github.com/YoursshLabs/yourssh/compare/v0.1.33...v0.1.34

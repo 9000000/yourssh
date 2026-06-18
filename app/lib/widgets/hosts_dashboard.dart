@@ -8,6 +8,7 @@ import '../models/host.dart';
 import '../models/rdp_session.dart';
 import '../models/ssh_key.dart';
 import '../models/ssh_session.dart';
+import '../models/vnc_session.dart';
 import '../util/bulk_connect.dart';
 import '../util/host_query.dart';
 import '../util/host_sort.dart';
@@ -19,7 +20,7 @@ import '../services/os_detection.dart';
 import '../services/ssh_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
-import 'rdp_badge.dart';
+import 'protocol_badge.dart';
 import 'bulk/bulk_action_bar.dart';
 import 'bulk/bulk_push_dialog.dart';
 import 'bulk/bulk_run_dialog.dart';
@@ -139,6 +140,11 @@ class _HostsDashboardState extends State<HostsDashboard> {
         if (s.status == RdpSessionStatus.connecting ||
             s.status == RdpSessionStatus.connected)
           s.host.id,
+      // VNC tabs likewise — same dedup as RDP.
+      for (final s in sessionProvider.sessions.whereType<VncSession>())
+        if (s.status == VncSessionStatus.connecting ||
+            s.status == VncSessionStatus.connected)
+          s.host.id,
     };
     final plan =
         planConnectAll(selected: _selectedHosts(), liveHostIds: live);
@@ -183,7 +189,7 @@ class _HostsDashboardState extends State<HostsDashboard> {
     final skipped = hosts.length - ssh.length;
     if (skipped > 0) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('$skipped RDP host(s) skipped — $action is SSH-only'),
+        content: Text('$skipped non-SSH host(s) skipped — $action is SSH-only'),
       ));
     }
     return ssh;
@@ -1165,9 +1171,9 @@ class _HostCardState extends State<_HostCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (widget.host.protocol == HostProtocol.rdp) ...[
+                  if (widget.host.protocol != HostProtocol.ssh) ...[
                     const SizedBox(width: 6),
-                    const RdpBadge(),
+                    ProtocolBadge(widget.host.protocol),
                   ],
                 ],
               ),
@@ -1221,9 +1227,9 @@ class _HostCardState extends State<_HostCard> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (widget.host.protocol == HostProtocol.rdp) ...[
+        if (widget.host.protocol != HostProtocol.ssh) ...[
           const SizedBox(width: 6),
-          const RdpBadge(),
+          ProtocolBadge(widget.host.protocol),
         ],
         const SizedBox(width: 12),
         Expanded(
@@ -1281,7 +1287,7 @@ class _HostCardState extends State<_HostCard> {
         _menuItem('edit', Icons.edit_outlined, 'Edit', () => widget.onEditHost?.call(widget.host)),
         const PopupMenuDivider(),
         _menuItem('duplicate', Icons.copy_outlined, 'Duplicate', () => _duplicate(context, hostProvider)),
-        _menuItem('copy_url', Icons.link_outlined, isSsh ? 'Copy SSH URL' : 'Copy RDP URL', () => _copyHostUrl(context)),
+        _menuItem('copy_url', Icons.link_outlined, 'Copy ${widget.host.protocol.name.toUpperCase()} URL', () => _copyHostUrl(context)),
         _menuItem('move_group', Icons.drive_file_move_outlined, 'Move to Group', () => _moveToGroup(context, hostProvider)),
         _menuItem('export', Icons.upload_outlined, 'Export', () => _export(context)),
         const PopupMenuDivider(),
@@ -1306,7 +1312,11 @@ class _HostCardState extends State<_HostCard> {
   }
 
   Future<void> _copyHostUrl(BuildContext context) async {
-    final scheme = widget.host.protocol == HostProtocol.rdp ? 'rdp' : 'ssh';
+    final scheme = switch (widget.host.protocol) {
+      HostProtocol.rdp => 'rdp',
+      HostProtocol.vnc => 'vnc',
+      HostProtocol.ssh => 'ssh',
+    };
     final url = '$scheme://${widget.host.username}@${widget.host.host}:${widget.host.port}';
     await Clipboard.setData(ClipboardData(text: url));
     if (!context.mounted) return;

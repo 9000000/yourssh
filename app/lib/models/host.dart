@@ -13,7 +13,8 @@ enum SftpMode { normal, sudo, custom }
 /// Transport protocol. Legacy hosts without the field parse as [ssh].
 enum HostProtocol {
   ssh(defaultPort: 22),
-  rdp(defaultPort: 3389);
+  rdp(defaultPort: 3389),
+  vnc(defaultPort: 5900);
 
   const HostProtocol({required this.defaultPort});
 

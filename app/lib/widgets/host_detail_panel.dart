@@ -14,7 +14,7 @@ import '../theme/terminal_themes.dart';
 import 'agent_status_line.dart';
 import 'host_chain_editor.dart';
 import 'network_discovery_sheet.dart';
-import 'rdp_badge.dart';
+import 'protocol_badge.dart';
 import 'terminal_appearance_controls.dart' show kBundledTerminalFonts;
 
 class HostDetailPanel extends StatefulWidget {
@@ -94,6 +94,9 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
 
   bool get _isNew => widget.existing == null;
   bool get _isRdp => _protocol == HostProtocol.rdp;
+  /// True for any graphical (non-SSH) protocol — these share password-only
+  /// auth and hide all SSH-only sections.
+  bool get _isGraphical => _protocol != HostProtocol.ssh;
 
   @override
   void initState() {
@@ -208,8 +211,8 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
       if (int.tryParse(_portCtrl.text) == old.defaultPort) {
         _portCtrl.text = next.defaultPort.toString();
       }
-      if (next == HostProtocol.rdp) {
-        // RDP supports password auth only.
+      if (next != HostProtocol.ssh) {
+        // RDP and VNC support password auth only.
         _authType = AuthType.password;
         _selectedKeyId = null;
       }
@@ -250,30 +253,30 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
           ? _domainCtrl.text.trim()
           : null,
       rdpSecurity: _rdpSecurity,
-      authType: _isRdp ? AuthType.password : _authType,
-      keyId: !_isRdp && _authType == AuthType.privateKey ? _selectedKeyId : null,
+      authType: _isGraphical ? AuthType.password : _authType,
+      keyId: !_isGraphical && _authType == AuthType.privateKey ? _selectedKeyId : null,
       group: _groupCtrl.text.trim(),
       tags: tags,
-      autoRecord: !_isRdp && _autoRecord,
+      autoRecord: !_isGraphical && _autoRecord,
       recordingRedaction: _recordingRedaction,
       shellIntegration: _shellIntegration,
-      agentForwarding: !_isRdp && _agentForwarding,
-      osc52Clipboard: !_isRdp && _osc52Clipboard,
-      proxyType: _isRdp ? ProxyType.none : _proxyType,
-      proxyHost: _isRdp || _proxyType == ProxyType.none
+      agentForwarding: !_isGraphical && _agentForwarding,
+      osc52Clipboard: !_isGraphical && _osc52Clipboard,
+      proxyType: _isGraphical ? ProxyType.none : _proxyType,
+      proxyHost: _isGraphical || _proxyType == ProxyType.none
           ? null
           : _proxyHostCtrl.text.trim(),
-      proxyPort: _isRdp || _proxyType == ProxyType.none
+      proxyPort: _isGraphical || _proxyType == ProxyType.none
           ? null
           : int.tryParse(_proxyPortCtrl.text.trim()),
-      proxyUsername: _isRdp ||
+      proxyUsername: _isGraphical ||
               _proxyType == ProxyType.none ||
               _proxyUsernameCtrl.text.trim().isEmpty
           ? null
           : _proxyUsernameCtrl.text.trim(),
       jumpHostIds: _jumpHostIds,
-      sftpMode: _isRdp ? SftpMode.normal : _sftpMode,
-      sftpServerCommand: !_isRdp && _sftpMode == SftpMode.custom
+      sftpMode: _isGraphical ? SftpMode.normal : _sftpMode,
+      sftpServerCommand: !_isGraphical && _sftpMode == SftpMode.custom
           ? _sftpCommand.text.trim()
           : null,
       workingDir: _workingDirCtrl.text.trim().isEmpty
@@ -294,7 +297,7 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
     );
     final ssh = context.read<SshService>();
     try {
-      if (!_isRdp && _proxyType != ProxyType.none) {
+      if (!_isGraphical && _proxyType != ProxyType.none) {
         await ssh.saveProxyPassword(host.id, _proxyPasswordCtrl.text);
       }
       await widget.onSave(host, _passwordCtrl.text);
@@ -386,6 +389,11 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         label: Text('RDP'),
                         icon: Icon(Icons.desktop_windows_outlined, size: 14),
                       ),
+                      ButtonSegment(
+                        value: HostProtocol.vnc,
+                        label: Text('VNC'),
+                        icon: Icon(Icons.cast_outlined, size: 14),
+                      ),
                     ],
                     selected: {_protocol},
                     onSelectionChanged: (s) => _onProtocolChanged(s.first),
@@ -476,7 +484,14 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                   // Port row
                   Row(
                     children: [
-                      Text(_isRdp ? 'RDP on' : 'SSH on', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      Text(
+                          switch (_protocol) {
+                            HostProtocol.ssh => 'SSH on',
+                            HostProtocol.rdp => 'RDP on',
+                            HostProtocol.vnc => 'VNC on',
+                          },
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 13)),
                       const SizedBox(width: 10),
                       SizedBox(
                         width: 56,
@@ -563,59 +578,60 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                         ),
                       ),
                     ]),
-
-                    Builder(builder: (context) {
-                      final sshHosts = context
-                          .watch<HostProvider>()
-                          .allHosts
-                          .where((h) =>
-                              h.protocol == HostProtocol.ssh &&
-                              h.id != widget.existing?.id)
-                          .toList();
-                      if (sshHosts.isEmpty) return const SizedBox.shrink();
-                      // A deleted bastion leaves a stale id — show "direct"
-                      // instead of tripping the dropdown's value assert.
-                      final current = _jumpHostIds.firstOrNull;
-                      final valid =
-                          sshHosts.any((h) => h.id == current) ? current : null;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 16),
-                          _sectionLabel('SSH TUNNEL'),
-                          const SizedBox(height: 6),
-                          _Card(children: [
-                            _DropdownRow(
-                              icon: Icons.alt_route,
-                              child: DropdownButton<String?>(
-                                value: valid,
-                                isExpanded: true,
-                                style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 13),
-                                dropdownColor: AppColors.card,
-                                underline: const SizedBox(),
-                                items: [
-                                  const DropdownMenuItem<String?>(
-                                      value: null,
-                                      child: Text('Direct connection')),
-                                  for (final h in sshHosts)
-                                    DropdownMenuItem<String?>(
-                                        value: h.id,
-                                        child: Text(
-                                            'via ${h.label.isEmpty ? h.host : h.label}')),
-                                ],
-                                onChanged: (v) => setState(() =>
-                                    _jumpHostIds = v == null ? [] : [v]),
-                              ),
-                            ),
-                          ]),
-                        ],
-                      );
-                    }),
                   ],
 
-                  if (!_isRdp) ...[
+                  // SSH tunnel applies to any graphical protocol (RDP + VNC).
+                  if (_isGraphical) Builder(builder: (context) {
+                    final sshHosts = context
+                        .watch<HostProvider>()
+                        .allHosts
+                        .where((h) =>
+                            h.protocol == HostProtocol.ssh &&
+                            h.id != widget.existing?.id)
+                        .toList();
+                    if (sshHosts.isEmpty) return const SizedBox.shrink();
+                    // A deleted bastion leaves a stale id — show "direct"
+                    // instead of tripping the dropdown's value assert.
+                    final current = _jumpHostIds.firstOrNull;
+                    final valid =
+                        sshHosts.any((h) => h.id == current) ? current : null;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        _sectionLabel('SSH TUNNEL'),
+                        const SizedBox(height: 6),
+                        _Card(children: [
+                          _DropdownRow(
+                            icon: Icons.alt_route,
+                            child: DropdownButton<String?>(
+                              value: valid,
+                              isExpanded: true,
+                              style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13),
+                              dropdownColor: AppColors.card,
+                              underline: const SizedBox(),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text('Direct connection')),
+                                for (final h in sshHosts)
+                                  DropdownMenuItem<String?>(
+                                      value: h.id,
+                                      child: Text(
+                                          'via ${h.label.isEmpty ? h.host : h.label}')),
+                              ],
+                              onChanged: (v) => setState(() =>
+                                  _jumpHostIds = v == null ? [] : [v]),
+                            ),
+                          ),
+                        ]),
+                      ],
+                    );
+                  }),
+
+                  if (!_isGraphical) ...[
                   const SizedBox(height: 16),
                   _sectionLabel('AUTH METHOD'),
                   const SizedBox(height: 6),
@@ -1211,8 +1227,8 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                       ),
                     ),
                   ],
-                  ], // end !_isRdp (SSH-only sections)
-                  if (_isRdp) const SizedBox(height: 24),
+                  ], // end !_isGraphical (SSH-only sections)
+                  if (_isGraphical) const SizedBox(height: 24),
                   const SizedBox(height: 8),
                   // Connect button
                   GestureDetector(
@@ -1269,9 +1285,9 @@ class _HostDetailPanelState extends State<HostDetailPanel> {
                   _isNew ? 'New Host' : 'Edit Host',
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
-                if (_isRdp) ...[
+                if (_isGraphical) ...[
                   const SizedBox(width: 8),
-                  const RdpBadge(),
+                  ProtocolBadge(_protocol),
                 ],
               ],
             ),

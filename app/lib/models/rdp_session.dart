@@ -6,7 +6,7 @@ import 'package:yourssh_rdp/yourssh_rdp.dart';
 // ignore: implementation_imports
 import 'package:yourssh_rdp/src/generated/api.dart' as frb;
 
-import '../services/rdp_tunnel_proxy.dart';
+import '../services/loopback_tunnel_proxy.dart';
 import 'app_session.dart';
 import 'host.dart';
 
@@ -40,7 +40,7 @@ class RdpSession extends ChangeNotifier implements AppSession {
 
   /// Non-null when this session runs through an SSH tunnel; owned by the
   /// session and stopped on [close].
-  final RdpTunnelProxy? tunnelProxy;
+  final LoopbackTunnelProxy? tunnelProxy;
 
   @override
   String get id => _id;
