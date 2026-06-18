@@ -2,7 +2,7 @@
 
 A professional, open-source SSH client for **macOS**, **Windows**, and **Linux** — built for developers and sysadmins who manage multiple servers.
 
-> **Current version:** 0.1.33 · [Download](https://github.com/YoursshLabs/yourssh/releases) · [Report an issue](https://github.com/YoursshLabs/yourssh/issues)
+> **Current version:** 0.1.36 · [Download](https://github.com/YoursshLabs/yourssh/releases) · [Report an issue](https://github.com/YoursshLabs/yourssh/issues)
 
 ---
 
@@ -16,6 +16,7 @@ A professional, open-source SSH client for **macOS**, **Windows**, and **Linux**
 | [Terminal](User-Guide-Terminal) | Tabs, health badges, shell integration, split view, broadcast, search, hotkeys, command palette |
 | [Terminal Sharing](User-Guide-Terminal-Sharing) | Share a live SSH session with teammates in real time |
 | [RDP](User-Guide-RDP) | Remote desktop for Windows/xrdp hosts — direct or SSH-tunneled, cert pinning, fullscreen |
+| [VNC](User-Guide-VNC) | Remote desktop for Linux VNC servers (TigerVNC/x11vnc/TightVNC) — direct or SSH-tunneled, fullscreen |
 | [SFTP](User-Guide-SFTP) | Dual-panel file manager, uploads, downloads |
 | [Port Forwarding](User-Guide-Port-Forwarding) | Local, remote, and dynamic SOCKS5 tunnels |
 | [Recording](User-Guide-Recording) | Record and replay terminal sessions (Asciinema) |
